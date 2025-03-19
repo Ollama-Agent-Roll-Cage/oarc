@@ -14,7 +14,8 @@ import functools
 import inspect
 import logging
 import sys
-from typing import Any, Callable, Optional, TypeVar
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 LF = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 T = TypeVar("T")
@@ -53,6 +54,8 @@ class Log:
 
     _instance = None
     _level = logging.INFO
+    _file_handlers: Dict[str, logging.FileHandler] = {}
+    _default_log_dir = None
 
     # Logging levels
     CRITICAL = logging.CRITICAL
@@ -94,6 +97,99 @@ class Log:
         """Get a stdout stream handler for logging configuration."""
         return logging.StreamHandler(sys.stdout)
 
+    @staticmethod
+    def set_default_log_dir(log_dir: str or Path) -> None:
+        """Set the default directory for log files.
+        
+        Args:
+            log_dir (str or Path): Directory to store log files
+        """
+        if isinstance(log_dir, str):
+            log_dir = Path(log_dir)
+        
+        log_dir.mkdir(exist_ok=True, parents=True)
+        Log._default_log_dir = log_dir
+
+    @staticmethod
+    def add_file_handler(logger_name: str = "oarc", 
+                         filename: Optional[str] = None,
+                         log_dir: Optional[str or Path] = None) -> logging.FileHandler:
+        """Add a file handler to the specified logger.
+        
+        Args:
+            logger_name (str): Name of the logger to add the handler to
+            filename (Optional[str]): Name of the log file
+            log_dir (Optional[str or Path]): Directory to store log file, 
+                                            uses default_log_dir if None
+                
+        Returns:
+            logging.FileHandler: The created file handler
+        """
+        # Use default log directory if none specified
+        if log_dir is None:
+            if Log._default_log_dir is None:
+                # Default to project_root/logs if no default set
+                project_root = Path(__file__).resolve().parents[2]  # Up three levels from utils/log.py
+                log_dir = project_root / "logs"
+            else:
+                log_dir = Log._default_log_dir
+        
+        # Create log directory if it doesn't exist
+        if isinstance(log_dir, str):
+            log_dir = Path(log_dir)
+        log_dir.mkdir(exist_ok=True, parents=True)
+        
+        # Set default filename if not provided
+        if filename is None:
+            filename = f"{logger_name}.log"
+            
+        # Create full path
+        log_path = log_dir / filename
+        
+        # Check if handler already exists for this path
+        handler_key = f"{logger_name}:{str(log_path)}"
+        if handler_key in Log._file_handlers:
+            return Log._file_handlers[handler_key]
+        
+        # Create and configure file handler
+        file_handler = logging.FileHandler(log_path)
+        file_handler.setFormatter(logging.Formatter(LF))
+        file_handler.setLevel(Log._level)
+        
+        # Add handler to the specified logger
+        logger = logging.getLogger(logger_name)
+        logger.addHandler(file_handler)
+        
+        # Store handler for future reference
+        Log._file_handlers[handler_key] = file_handler
+        
+        return file_handler
+
+    @staticmethod
+    def get_logger(name: str, with_file: bool = False, 
+                  filename: Optional[str] = None,
+                  log_dir: Optional[str or Path] = None) -> logging.Logger:
+        """Get a named logger with optional file handler.
+        
+        Args:
+            name (str): Name of the logger
+            with_file (bool): Whether to add a file handler
+            filename (Optional[str]): Name of the log file (defaults to name.log)
+            log_dir (Optional[str or Path]): Directory for log file
+            
+        Returns:
+            logging.Logger: Configured logger instance
+        """
+        logger = logging.getLogger(name)
+        logger.setLevel(Log._level)
+        
+        if with_file:
+            if not filename:
+                filename = f"{name}.log"
+            Log.add_file_handler(name, filename, log_dir)
+            
+        return logger
+
     # Level management
     @staticmethod
     def set_level(level: int) -> None:
@@ -107,6 +203,10 @@ class Log:
             Log._instance.setLevel(Log._level)
             logger = logging.getLogger("oarc")
             logger.setLevel(Log._level)
+            
+        # Update file handler levels
+        for handler in Log._file_handlers.values():
+            handler.setLevel(level)
 
     @staticmethod
     def level(level: int) -> Callable[[Callable[..., T]], Callable[..., T]]:
