@@ -20,7 +20,8 @@ LOG_DIR = PROJECT_ROOT / "logs"
 
 def setup_logging():
     """Set up logging for the build process."""
-    LOG_DIR.mkdir(exist_ok=True)
+    # Ensure log directory exists
+    LOG_DIR.mkdir(exist_ok=True, parents=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = LOG_DIR / f"build_{timestamp}.log"
     
@@ -150,6 +151,49 @@ def clean_egg_info():
                 print(f"Removing {egg_info}")
                 shutil.rmtree(egg_info)
 
+def fix_egg_deprecation(venv_python):
+    """Fix egg format deprecation warnings by reinstalling problematic packages.
+    
+    These warnings occur when packages are installed in egg format rather than
+    wheel format. Reinstalling them with recent pip fixes the issue.
+    """
+    print("Checking for packages installed in deprecated egg format...")
+    
+    # Common packages that often get installed as eggs and cause warnings
+    problem_packages = ["uvicorn", "websockets", "whisper"]
+    
+    # Get site-packages directory
+    result = subprocess.run(
+        [str(venv_python), "-c", "import site; print(site.getsitepackages()[0])"],
+        check=True,
+        capture_output=True,
+        text=True
+    )
+    site_packages_dir = Path(result.stdout.strip())
+    
+    # Look for .egg directories or .egg-info files
+    egg_dirs = list(site_packages_dir.glob("*.egg"))
+    
+    if egg_dirs:
+        print(f"Found {len(egg_dirs)} packages installed in egg format. Fixing...")
+        for egg_dir in egg_dirs:
+            package_name = egg_dir.stem.split("-")[0]  # Extract package name from egg directory
+            print(f"Reinstalling {package_name} to fix egg format...")
+            subprocess.run(
+                [str(venv_python), "-m", "pip", "install", "--force-reinstall", package_name],
+                check=True  # Require success with no fallback
+            )
+    else:
+        print("No packages with egg format detected.")
+        
+    # Explicit reinstall of common problematic packages
+    print("Reinstalling known problematic packages...")
+    for package in problem_packages:
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "--force-reinstall", package],
+            check=True  # Require success with no fallback
+        )
+
 def install_development_dependencies(venv_python):
     """Install package in development mode and required dependencies."""
     ensure_pip(venv_python)
@@ -172,74 +216,68 @@ def install_development_dependencies(venv_python):
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + core_deps, check=True)
     
     print("Installing package dependencies...")
-    try:
-        # Install the package dependencies first without the package itself
-        subprocess.run(
-            [str(venv_python), "-m", "pip", "install", "torch>=1.9.0", "transformers>=4.0.0"],
-            check=True
-        )
-        
-        print("Installing TTS and other audio-related packages...")
-        subprocess.run(
-            [str(venv_python), "-m", "pip", "install", "TTS>=0.8.0", "SpeechRecognition>=3.8.1", "whisper>=1.0"],
-            check=False  # Don't fail if one package has issues
-        )
-        
-        print("Installing package in development mode...")
-        # Use pip for editable install instead of setup.py develop
-        subprocess.run(
-            [str(venv_python), "-m", "pip", "install", "-e", "."],
-            check=False,  # Don't fail if this has warnings
-            capture_output=True,
-            text=True
-        )
-        
-        # Install extra dev dependencies
-        print("Installing development tools...")
-        dev_packages = ["twine", "pytest", "black", "flake8"]
-        subprocess.run(
-            [str(venv_python), "-m", "pip", "install"] + dev_packages,
-            check=True
-        )
-        
-        print("Package dependencies installed successfully.")
-        return True
-        
-    except subprocess.CalledProcessError as e:
-        print(f"Error installing package dependencies: {e}")
-        return False
+    # Install the package dependencies first without the package itself
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "torch>=1.9.0", "transformers>=4.0.0"],
+        check=True
+    )
+    
+    print("Installing TTS and other audio-related packages...")
+    # Use TTS-Coqui package name (correct PyPI name)
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "TTS-Coqui>=0.8.0", "SpeechRecognition>=3.8.1", "whisper>=1.0"],
+        check=True  # Now we enforce success with no fallback
+    )
+    
+    print("Installing package in development mode...")
+    # Use pip for editable install
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "-e", "."],
+        check=True  # Require success with no fallback
+    )
+    
+    # Install extra dev dependencies
+    print("Installing development tools...")
+    dev_packages = ["twine", "pytest", "black", "flake8"]
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install"] + dev_packages,
+        check=True
+    )
+    
+    # Fix egg deprecation warnings
+    fix_egg_deprecation(venv_python)
+    
+    print("Package dependencies installed successfully.")
+    return True
 
 def install_pyaudio_dependencies(venv_python):
     """Install platform-specific dependencies for PyAudio."""
     print("Installing PyAudio dependencies...")
     
     if os.name == 'nt':  # Windows
-        print("Installing pipwin for PyAudio on Windows...")
-        subprocess.run([str(venv_python), "-m", "pip", "install", "pipwin"], check=True)
-        try:
-            subprocess.run([str(venv_python), "-m", "pipwin", "install", "pyaudio"], check=True)
-        except subprocess.CalledProcessError:
-            print("Warning: PyAudio installation through pipwin failed. Falling back to direct pip install.")
-            subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], check=False)
+        print("Installing PyAudio directly...")
+        # Direct installation with no fallback
+        subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], 
+                      check=True)  # Will raise exception on failure
+        print("PyAudio installed successfully.")
+        return True
     
     elif sys.platform == 'darwin':  # macOS
         print("Installing PortAudio dependencies for macOS...")
-        try:
-            subprocess.run(["brew", "install", "portaudio"], check=False)
-            subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("Warning: Could not install PortAudio via Homebrew.")
-            print("Please install PortAudio manually: brew install portaudio")
+        # Install PortAudio via homebrew
+        subprocess.run(["brew", "install", "portaudio"], check=True)
+        
+        # Install PyAudio
+        subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], 
+                      check=True)
+        return True
     
     else:  # Linux and others
         print("Installing PortAudio dependencies for Linux...")
-        try:
-            subprocess.run(["apt-get", "update"], check=False)
-            subprocess.run(["apt-get", "install", "-y", "portaudio19-dev"], check=False)
-            subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("Warning: Could not install PortAudio via apt-get.")
-            print("Please install PortAudio manually: sudo apt-get install portaudio19-dev")
+        subprocess.run(["apt-get", "update"], check=True)
+        subprocess.run(["apt-get", "install", "-y", "portaudio19-dev"], check=True)
+        subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], check=True)
+        return True
 
 def clean_project():
     """Clean up build artifacts from the project directory."""
@@ -260,7 +298,7 @@ def clean_project():
         print(f"Removing {dist_dir}")
         shutil.rmtree(dist_dir)
     
-    # Remove __pycache__ directories
+    # Remove __pycache__ directories BUT preserve logs directory
     for pycache in PROJECT_ROOT.glob("**/__pycache__"):
         if pycache.is_dir():
             print(f"Removing {pycache}")
@@ -372,20 +410,23 @@ def main():
         print("Note: This will set up the environment and install dependencies.")
         
         venv_python = get_venv_python()
-        success = install_development_dependencies(venv_python)
-        if success:
+        
+        # Install dependencies with no fallbacks
+        try:
+            install_development_dependencies(venv_python)
             install_pyaudio_dependencies(venv_python)
+            fix_egg_deprecation(venv_python)
+            
             print("\nOARC development environment is ready!")
             print(f"To activate the environment: ")
             if os.name == 'nt':
                 print(f"  {VENV_DIR}\\Scripts\\activate")
             else:
                 print(f"  source {VENV_DIR}/bin/activate")
-            
-            print("\nYou may see deprecation warnings about egg loading - these are harmless.")
-            print("They're related to how some dependencies were installed by pip.")
-        else:
-            print("Setup encountered issues. Please check the errors above.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error: Installation failed: {e}")
+            print("Setup cannot continue. Please resolve the issues above and try again.")
+            sys.exit(1)
 
 # This is the crucial part: setup.py needs to handle both direct execution
 # and being imported by pip/setuptools
