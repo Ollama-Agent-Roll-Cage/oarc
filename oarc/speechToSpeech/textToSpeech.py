@@ -66,30 +66,95 @@ class textToSpeech:
         
     # -------------------------------------------------------------------------------------------------
     def initialize_tts_model(self):
-        """ a method to initialize the appropriate finetuned text to speech with coqui
-
-            args: none
-            returns: none
-        """
-        fine_tuned_dir = f"{self.parent_dir}/AgentFiles/Ignored_TTS/"
-        fine_tuned_model_path = os.path.join(fine_tuned_dir, f"XTTS-v2_{self.voice_name}")
+        """Initialize the appropriate finetuned text to speech with Coqui TTS
         
-        if os.path.exists(fine_tuned_model_path):
-            # Use fine-tuned model
-            config_path = os.path.join(fine_tuned_model_path, "config.json")
-            self.tts = TTS(model_path=fine_tuned_model_path, 
-                          config_path=config_path, 
-                          progress_bar=False, 
-                          gpu=True).to(self.device)
-            self.is_multi_speaker = False
-            self.voice_reference_path = os.path.join(fine_tuned_model_path, "reference.wav")
-        else:
-            # Use base model with reference
-            self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
-            self.is_multi_speaker = True
-            self.voice_reference_path = os.path.join(self.tts_voice_ref_wav_pack_path, 
-                                                   self.voice_name, 
-                                                   "clone_speech.wav")
+        Expects directory structure:
+        OARC_MODEL_GIT/
+            coqui/
+                XTTS-v2_c3po/
+                    config.json
+                    model.pth
+                    reference.wav
+                XTTS-v2_gandalf/
+                    config.json
+                    model.pth
+                    reference.wav
+                XTTS-v2_jarvis/
+                    config.json
+                    model.pth
+                    reference.wav
+                voice_reference_pack/
+                    c3po/
+                        clone_speech.wav
+                    gandalf/
+                        clone_speech.wav
+                    jarvis/
+                        clone_speech.wav
+        """
+        try:
+            model_git_dir = os.getenv('OARC_MODEL_GIT')
+            if not model_git_dir:
+                raise EnvironmentError("OARC_MODEL_GIT environment variable not set")
+
+            # Construct paths
+            coqui_dir = os.path.join(model_git_dir, 'coqui')
+            if not os.path.exists(coqui_dir):
+                raise FileNotFoundError(f"Coqui directory not found at {coqui_dir}")
+
+            # List available voices
+            available_voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
+                              if d.startswith('XTTS-v2_') and os.path.isdir(os.path.join(coqui_dir, d))]
+            print(f"Available voices: {', '.join(available_voices)}")
+            
+            fine_tuned_model_path = os.path.join(coqui_dir, f'XTTS-v2_{self.voice_name}')
+                
+            if os.path.exists(fine_tuned_model_path):
+                # Use fine-tuned model
+                config_path = os.path.join(fine_tuned_model_path, "config.json")
+                model_path = os.path.join(fine_tuned_model_path, "model.pth")
+                
+                if not os.path.exists(config_path):
+                    raise FileNotFoundError(f"Config file not found at {config_path}")
+                if not os.path.exists(model_path):
+                    raise FileNotFoundError(f"Model file not found at {model_path}")
+                    
+                self.tts = TTS(
+                    model_path=fine_tuned_model_path,
+                    config_path=config_path,
+                    progress_bar=False,
+                    gpu=True
+                ).to(self.device)
+                self.is_multi_speaker = False
+                self.voice_reference_path = os.path.join(fine_tuned_model_path, "reference.wav")
+                print(f"Loaded fine-tuned model for voice: {self.voice_name}")
+                    
+            else:
+                # Use base model with reference voice
+                print(f"No fine-tuned model found for {self.voice_name}, using base model with voice reference")
+                self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
+                self.is_multi_speaker = True
+                    
+                # Look for voice reference in voice_reference_pack
+                voice_ref_dir = os.path.join(coqui_dir, 'voice_reference_pack', self.voice_name)
+                self.voice_reference_path = os.path.join(voice_ref_dir, "clone_speech.wav")
+                    
+                if not os.path.exists(self.voice_reference_path):
+                    raise FileNotFoundError(
+                        f"Voice reference file not found at {self.voice_reference_path}\n"
+                        f"Please ensure voice reference exists at: {voice_ref_dir}\n"
+                        f"Available voices in reference pack: {os.listdir(os.path.join(coqui_dir, 'voice_reference_pack'))}"
+                    )
+                    
+            print(f"TTS Model initialized successfully on {self.device}")
+            return True
+                
+        except Exception as e:
+            print(f"Error initializing TTS model: {str(e)}")
+            if self.device == "cuda":
+                print("Attempting to fall back to CPU...")
+                self.device = "cpu"
+                return self.initialize_tts_model()
+            raise
     
     # -------------------------------------------------------------------------------------------------
     def process_tts_responses(self, response, voice_name):
@@ -409,11 +474,40 @@ if __name__ == "__main__":
     tts.cleanup()
     print("Done")
 
-class TextToSpeechAPI:
+from ..base_api import BaseToolAPI
+
+class TextToSpeechAPI(BaseToolAPI):
     def __init__(self):
-        self.router = APIRouter()
-        self.setup_routes()
+        super().__init__(prefix="/tts", tags=["text-to-speech"])
+        self.tts_instance = None
+    
+    def setup_routes(self):
+        @self.router.post("/synthesize")
+        async def synthesize_speech(self, text: str, voice_name: str = "c3po"):
+            if not self.tts_instance:
+                developer_tools_dict = {
+                    'current_dir': os.getcwd(),
+                    'parent_dir': os.path.dirname(os.getcwd()),
+                    'speech_dir': os.path.join(self.model_git_dir, 'coqui'),
+                    'recognize_speech_dir': os.path.join(self.model_git_dir, 'whisper'),
+                    'generate_speech_dir': os.path.join(self.model_git_dir, 'generated'),
+                    'tts_voice_ref_wav_pack_path_dir': os.path.join(self.model_git_dir, 'coqui', 'voice_reference_pack')
+                }
+                self.tts_instance = textToSpeech(
+                    developer_tools_dict=developer_tools_dict,
+                    voice_type="xtts_v2", 
+                    voice_name=voice_name
+                )
             
-        @self.router.post("/synthesize") 
-        async def synthesize_speech(self, text: str):
-            pass
+            try:
+                audio_data = self.tts_instance.process_tts_responses(text, voice_name)
+                return {"audio_data": audio_data.tolist(), "sample_rate": self.tts_instance.sample_rate}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.get("/voices")
+        async def list_voices(self):
+            coqui_dir = os.path.join(self.model_git_dir, 'coqui')
+            voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
+                     if d.startswith('XTTS-v2_') and os.path.isdir(os.path.join(coqui_dir, d))]
+            return {"voices": voices}

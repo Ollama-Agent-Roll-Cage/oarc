@@ -72,7 +72,7 @@
 #TODO so essentially all of the tools in the multimodal pip install  package can be written into scripts, 
 # or you can access the entire  api for loading agent configs, HANDLE WITH GRACE, BUILD WITH CARE, TAKE IT SLOW THIS IS A MARATHON NOT A SPRINT.
 
-from fastapi import FastAPI, WebSocket, HTTPException, WebSocketDisconnect, UploadFile, File
+from fastapi import APIRouter, FastAPI, WebSocket, HTTPException, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import re
@@ -198,25 +198,50 @@ class SpellLoader():
         except Exception as e:
             logger.error(f"Error initializing spells: {e}")
             raise
+
+class BaseToolAPI:
+    def __init__(self, prefix: str, tags: list[str]):
+        self.router = APIRouter(prefix=prefix, tags=tags)
+        self.model_git_dir = self.get_model_dir()
+        self.setup_routes()
+    
+    def get_model_dir(self):
+        """Get and validate model directory"""
+        model_dir = os.getenv('OARC_MODEL_GIT')
+        if not model_dir:
+            raise EnvironmentError("OARC_MODEL_GIT environment variable not set")
+        return model_dir
+    
+    def setup_routes(self):
+        """Each tool implements its own routes"""
+        raise NotImplementedError
     
 class oarcAPI():
-    """Class for the ollamaAgentRollCage API"""
     def __init__(self):
         self.spellLoader = SpellLoader()
         self.app = FastAPI()
         self.setup_middleware()
+        
+        # Initialize all tool APIs
+        self.tool_apis = {
+            'tts': TextToSpeechAPI(),
+            'stt': SpeechToTextAPI(),
+            'yolo': YoloAPI(),
+            'llm': LLMPromptAPI()
+        }
+        
+        # Include all tool routers
+        for api in self.tool_apis.values():
+            self.app.include_router(api.router)
+            
         self.setup_routes()
         
-    def launch(self):
-        """Launch the ollamaAgentRollCage"""
-        try:
-            #TODO ADD  LAUNCH CODE
-            pass
-        except Exception as e:
-            logger.error(f"Error launching ollamaAgentRollCage: {e}")
-            raise
-        
     def setup_routes(self):
+        # Main API routes
+        @self.app.get("/")
+        async def root():
+            return {"message": "Welcome to OARC API"}
+
         @self.app.post("/api/speech/recognize")
         async def recognize_speech(audio: UploadFile):
             stt = speechToText()

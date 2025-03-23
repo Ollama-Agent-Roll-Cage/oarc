@@ -16,6 +16,7 @@ import io
 
 os.environ["PATH"] += os.pathsep + r"ffmpeg\bin"
 
+#TODO THIS IS AN EXAMPLE OF A SILENCE WAKE WORD WE NEED TO MIGRATE ANYTHING THAT ISNT ALREADY INTO THE MAIN speechtoText.py and textToSpeech.py files
 class TranscriptionApp(tk.Frame):
     def __init__(self, root):
         super().__init__(root)
