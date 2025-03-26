@@ -11,94 +11,201 @@ import sys
 from IPython.display import Markdown, display
 import pandas as pd
 from llama_index.experimental.query_engine import PandasQueryEngine
+from typing import Optional, Dict, Any, List
+from datetime import datetime
+import numpy as np
+import json
+import base64
+from .models import ConversationEntry
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
 
+class ConversationEntry:
+    def __init__(self):
+        self.timestamp: datetime = datetime.now()
+        self.role: str = ""
+        self.content: str = ""
+        self.metadata: Dict[str, Any] = {
+            "images": [],  # List of image paths or base64 encoded images
+            "audio": {
+                "stt": None,  # Speech recognition audio data
+                "tts": None   # Text-to-speech audio data
+            },
+            "vision": {
+                "llava": [],  # LLaVA vision model outputs
+                "yolo": []    # YOLO detection results
+            },
+            "model_info": {
+                "name": None,
+                "type": None
+            }
+        }
+
 class PandasDB:
     def __init__(self):
-        pass
-    
-    def chatbotPandasDB():
-        #TODO CREATE AGENT CORES STORAGE FACILITY FOR OLLAMAAGENTROLLCAGE AGENTS 
-        # CHANGE ALL OF THIS EXAMPLE CODE FOR LLAMA INDEX PANDAS QUERY ENGINE
+        """Initialize PandasDB with necessary attributes"""
+        self.df = pd.DataFrame(columns=[
+            'timestamp',
+            'role',
+            'content',
+            'metadata'
+        ])
+        self.setup_conversation_storage()
+        self.query_engine = None
+        self.conversation_handler = None
+        self.agent_cores = None
+        self.current_date = datetime.now().strftime("%Y%m%d")
         
-        # Test on some sample data
-        df = pd.DataFrame(
-            {
-                "city": ["Toronto", "Tokyo", "Berlin"],
-                "population": [2930000, 13960000, 3645000],
-            }
-        )
+        # Initialize logging
+        self.logger = logging.getLogger(__name__)
+        
+        # Set up path library
+        self.pathLibrary = {
+            'conversation_library_dir': 'conversations',
+            'default_conversation_path': None
+        }
 
-        query_engine = PandasQueryEngine(df=df, verbose=True)
-        response = query_engine.query(
-            "What is the city with the highest population?",
-        )
-
-        display(Markdown(f"<b>{response}</b>"))
-
-        # get pandas python instructions
-        print(response.metadata["pandas_instruction_str"])
-
-        query_engine = PandasQueryEngine(df=df, verbose=True, synthesize_response=True)
-        response = query_engine.query(
-            "What is the city with the highest population? Give both the city and population",
-        )
-        print(str(response))
-
-        df = pd.read_csv("./titanic_train.csv")
-
-        query_engine = PandasQueryEngine(df=df, verbose=True)
-
-        response = query_engine.query(
-            "What is the correlation between survival and age?",
-        )
-
-        display(Markdown(f"<b>{response}</b>"))
-
-        # get pandas python instructions
-        print(response.metadata["pandas_instruction_str"])
-
-        from llama_index.core import PromptTemplate
-
-        query_engine = PandasQueryEngine(df=df, verbose=True)
-        prompts = query_engine.get_prompts()
-        print(prompts["pandas_prompt"].template)
-
-        print(prompts["response_synthesis_prompt"].template)
-
-        new_prompt = PromptTemplate(
-            """
-            You are working with a pandas dataframe in Python.
-            The name of the dataframe is `df`.
-            This is the result of `print(df.head())`:
-            {df_str}
-
-            Follow these instructions:
-            {instruction_str}
-            Query: {query_str}
-
-            Expression: """
+    def setup_query_engine(self, df: pd.DataFrame, verbose: bool = True, synthesize_response: bool = True):
+        """Set up the Pandas Query Engine"""
+        try:
+            self.df = df
+            self.query_engine = PandasQueryEngine(
+                df=self.df,
+                verbose=verbose,
+                synthesize_response=synthesize_response
             )
+            
+            # Update prompts with custom templates
+            self.update_query_engine_prompts()
+            self.logger.info("Query engine setup successful")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error setting up query engine: {e}")
+            return False
 
-        query_engine.update_prompts({"pandas_prompt": new_prompt})
+    def update_query_engine_prompts(self):
+        """Update query engine prompts with custom templates"""
+        try:
+            new_prompt = PromptTemplate(
+                """
+                You are working with a pandas dataframe in Python.
+                The name of the dataframe is `df`.
+                This is the result of `print(df.head())`:
+                {df_str}
 
+                Follow these instructions:
+                {instruction_str}
+                Query: {query_str}
 
-        instruction_str = """\
-            1. Convert the query to executable Python code using Pandas.
-            2. The final line of code should be a Python expression that can be called with the `eval()` function.
-            3. The code should represent a solution to the query.
-            4. PRINT ONLY THE EXPRESSION.
-            5. Do not quote the expression.
-            """
-        return
+                Expression: """
+            )
+            self.query_engine.update_prompts({"pandas_prompt": new_prompt})
+            self.logger.info("Query engine prompts updated")
+        except Exception as e:
+            self.logger.error(f"Error updating query engine prompts: {e}")
+
+    async def query_data(self, query_str: str) -> str:
+        """Execute a natural language query against the dataframe"""
+        try:
+            if not self.query_engine:
+                raise ValueError("Query engine not initialized. Call setup_query_engine first.")
+                
+            response = self.query_engine.query(query_str)
+            self.logger.info(f"Query executed: {query_str}")
+            return str(response)
+        except Exception as e:
+            self.logger.error(f"Error executing query: {e}")
+            return f"Error: {str(e)}"
+    
+    def chatbotPandasDB(self, query_str: str):
+        """Process a natural language query for the chatbot"""
+        
+        try:
+            # Ensure we have a dataframe loaded
+            if self.df is None:
+                raise ValueError("No dataframe loaded. Please load data first.")
+
+            # Execute the query
+            response = asyncio.run(self.query_data(query_str))
+            
+            # Add to conversation history if needed
+            if self.conversation_handler:
+                asyncio.run(self.store_message("user", query_str))
+                asyncio.run(self.store_message("assistant", str(response)))
+            
+            return response
+        except Exception as e:
+            self.logger.error(f"Error in chatbot query: {e}")
+            return f"Error processing query: {str(e)}"
     
     def storeAgent(self):
-        """a method to store the current agent json config in the pandas db
+        """A method to store the current agent json config in the pandas db
         
-        allows users to store the models associated with the agent
-        """ 
+        Allows users to store the models associated with the agent
+        """
+        try:
+            # Create agent configuration entry
+            agent_entry = {
+                'timestamp': datetime.now(),
+                'role': 'system',
+                'content': 'agent_configuration',
+                'metadata': json.dumps({
+                    'agent_id': self.agent_id,
+                    'models': {
+                        'largeLanguageModel': {
+                            'name': self.large_language_model,
+                            'type': 'llm'
+                        },
+                        'largeLanguageAndVisionAssistant': {
+                            'name': self.language_and_vision_model,
+                            'type': 'vision'
+                        },
+                        'yoloVision': {
+                            'name': self.yolo_model,
+                            'type': 'detection'
+                        },
+                        'speechRecognitionSTT': {
+                            'name': self.whisper_model,
+                            'type': 'stt'
+                        },
+                        'voiceGenerationTTS': {
+                            'name': self.voice_name,
+                            'type': 'tts',
+                            'voice_type': self.voice_type
+                        }
+                    },
+                    'flags': {
+                        'TTS_FLAG': self.TTS_FLAG,
+                        'STT_FLAG': self.STT_FLAG,
+                        'LLAVA_FLAG': self.LLAVA_FLAG,
+                        'SCREEN_SHOT_FLAG': self.SCREEN_SHOT_FLAG,
+                        'SPLICE_FLAG': self.SPLICE_FLAG,
+                        'EMBEDDING_FLAG': self.EMBEDDING_FLAG
+                    },
+                    'prompts': {
+                        'userInput': self.user_input_prompt,
+                        'llmSystem': self.llmSystemPrompt,
+                        'llmBooster': self.llmBoosterPrompt,
+                        'visionSystem': self.visionSystemPrompt,
+                        'visionBooster': self.visionBoosterPrompt
+                    }
+                })
+            }
+
+            # Add to DataFrame
+            self.df = pd.concat([self.df, pd.DataFrame([agent_entry])], ignore_index=True)
+            
+            # Save to agent cores if available
+            if self.agent_cores:
+                self.save_agent_state()
+                
+            self.logger.info(f"Agent {self.agent_id} configuration stored successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error storing agent configuration: {e}")
+            return False
         
     def load_from_json(self, load_name, large_language_model):
         """Load conversation history from JSON"""
@@ -493,13 +600,74 @@ class PandasDB:
             logger.error(f"Error updating conversation paths: {e}")
             raise
 
-    async def store_message(self, role, content, session_id=None, metadata=None):
+    def setup_conversation_storage(self):
+        """Setup conversation storage schema"""
+        self.conversation_schema = {
+            'messages': [],
+            'metadata': {
+                'agent_id': None,
+                'models': {
+                    'llm': None,
+                    'vision': None,
+                    'voice': None
+                },
+                'flags': {}
+            }
+        }
+
+    async def store_message(self, role: str, content: str, metadata: Optional[Dict] = None):
+        """Store a message with multimodal data"""
         try:
-            document = await self.conversation_handler.store_message(role, content, session_id, metadata)
-            logger.info(f"Stored message: {document}")
+            entry = {
+                'timestamp': datetime.now(),
+                'role': role,
+                'content': content,
+                'metadata': json.dumps(metadata) if metadata else None
+            }
+            
+            # Add to DataFrame
+            self.df = pd.concat([self.df, pd.DataFrame([entry])], ignore_index=True)
+            
+            # Add to conversation history
+            self.conversation_schema['messages'].append({
+                'role': role,
+                'content': content,
+                **(metadata or {})
+            })
+            
+            return True
         except Exception as e:
-            logger.error(f"Error storing message: {e}")
-            raise
+            self.logger.error(f"Error storing message: {e}")
+            return False
+
+    def export_conversation(self, format: str = "json") -> str:
+        """Export conversation in standard format with multimodal data"""
+        try:
+            messages = []
+            for _, row in self.df.iterrows():
+                message = {
+                    "role": row["role"],
+                    "content": row["content"]
+                }
+                
+                if pd.notna(row["metadata"]):
+                    metadata = json.loads(row["metadata"])
+                    if metadata.get("images"):
+                        message["images"] = metadata["images"]
+                    if metadata.get("audio"):
+                        message["audio"] = metadata["audio"]
+                    if metadata.get("vision"):
+                        message["vision"] = metadata["vision"]
+                        
+                messages.append(message)
+            
+            return json.dumps({
+                "messages": messages,
+                "metadata": self.conversation_schema["metadata"]
+            }, indent=2)
+        except Exception as e:
+            self.logger.error(f"Error exporting conversation: {e}")
+            return "{}"
 
     async def get_conversation_history(self, session_id=None, limit=100):
         try:

@@ -86,13 +86,15 @@ from pprint import pformat
 from pydantic import BaseModel
 
 # multimodal tools
-from speechToSpeech import speechToText
+# Update imports
 from speechToSpeech import textToSpeech
+from speechToSpeech import speechToText
+from base_api.BaseToolAPI import BaseToolAPI
 from promptModel import multiModalPrompting
 from yoloProcessor import YoloProcessor
 
 # file handling and construction
-from oarc.ollamaUtils import model_write_class
+from ollamaUtils import model_write_class
 from ollamaUtils.create_convert_manager import create_convert_manager
 from ollamaUtils.ollamaCommands import ollamaCommands
 
@@ -216,6 +218,9 @@ class BaseToolAPI:
         """Each tool implements its own routes"""
         raise NotImplementedError
     
+from api.llm_api import LLMPromptAPI
+from api.agent_api import AgentAPI
+
 class oarcAPI():
     def __init__(self):
         self.spellLoader = SpellLoader()
@@ -227,7 +232,8 @@ class oarcAPI():
             'tts': TextToSpeechAPI(),
             'stt': SpeechToTextAPI(),
             'yolo': YoloAPI(),
-            'llm': LLMPromptAPI()
+            'llm': LLMPromptAPI(),
+            'agent': AgentAPI()
         }
         
         # Include all tool routers
@@ -235,6 +241,9 @@ class oarcAPI():
             self.app.include_router(api.router)
             
         self.setup_routes()
+        
+        # Initialize PandasDB
+        self.db = PandasDB()
         
     def setup_routes(self):
         # Main API routes
@@ -272,3 +281,78 @@ class oarcAPI():
             yolo = YoloProcessor()
             results = await yolo.process_video(video.file)
             return {"results": results}
+
+        # WebUI specific routes
+        @self.app.post("/api/agent/load")
+        async def load_agent(request: AgentAccess):
+            try:
+                agent_storage = AgentStorage()
+                agent = await agent_storage.load_agent(request.agent_id)
+                return {"status": "success", "agent": agent}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/api/agents/list")
+        async def list_agents():
+            try:
+                agent_storage = AgentStorage()
+                agents = await agent_storage.list_available_agents()
+                return {"agents": agents}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/chat/stream")
+        async def chat_stream(websocket: WebSocket):
+            await websocket.accept()
+            try:
+                while True:
+                    data = await websocket.receive_json()
+                    
+                    # Handle different message types
+                    if data["type"] == "text":
+                        response = await self.handle_text_message(data)
+                    elif data["type"] == "audio":
+                        response = await self.handle_audio_message(data)
+                    elif data["type"] == "vision":
+                        response = await self.handle_vision_message(data)
+                        
+                    await websocket.send_json(response)
+                    
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnected")
+
+        @self.app.post("/api/conversation/export")
+        async def export_conversation(agent_id: str):
+            try:
+                db = PandasDB()
+                conversation = db.export_conversation(format="json")
+                return {"conversation": json.loads(conversation)}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+            
+# # Example WebUI connection
+# import websockets
+# import json
+
+# async def connect_to_agent():
+#     uri = "ws://localhost:2020/api/chat/stream"
+#     async with websockets.connect(uri) as websocket:
+#         # Load agent
+#         await websocket.send(json.dumps({
+#             "type": "load_agent",
+#             "agent_id": "my_agent"
+#         }))
+        
+#         # Send message
+#         await websocket.send(json.dumps({
+#             "type": "text",
+#             "content": "Hello!",
+#             "metadata": {
+#                 "audio": {"stt": "audio_data"},
+#                 "vision": {"yolo": ["detection_results"]}
+#             }
+#         }))
+        
+#         # Receive response
+#         response = await websocket.recv()
+#         print(json.loads(response))

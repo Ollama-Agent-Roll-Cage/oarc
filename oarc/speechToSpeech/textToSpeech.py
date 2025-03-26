@@ -25,6 +25,7 @@ import keyboard
 import json
 import websockets
 from fastapi import FastAPI, APIRouter
+from base_api.BaseToolAPI import BaseToolAPI
 
 # -------------------------------------------------------------------------------------------------
 class textToSpeech:
@@ -473,8 +474,6 @@ if __name__ == "__main__":
     time.sleep(5)
     tts.cleanup()
     print("Done")
-
-from ..base_api import BaseToolAPI
 
 class TextToSpeechAPI(BaseToolAPI):
     def __init__(self):

@@ -3,6 +3,7 @@ import pyaudio
 import speech_recognition as sr
 import numpy as np
 import whisper
+from whisper import load_model
 import queue
 import audioop
 import wave
@@ -13,9 +14,9 @@ import keyboard
 import re
 import json
 import websockets
-import stream
 import asyncio
 from fastapi import FastAPI, APIRouter
+from base_api.BaseToolAPI import BaseToolAPI
 
 class speechToText:
     def __init__(self):
@@ -139,9 +140,8 @@ class speechToText:
         """Optional method to enable and load Whisper with minimal model"""
         try:
             self.use_whisper = True
-            self.whisper_model = whisper.load_model(model_size)
+            self.whisper_model = load_model(model_size)
             print(f"Whisper {model_size} model loaded successfully")
-            #TODO return is loaded
             return True
         except Exception as e:
             print(f"Error loading Whisper model: {e}")
@@ -326,7 +326,7 @@ class speechToText:
 #     stt.cleanup()
 #     print("Speech recognition complete")
      
-class SpeechtoTextAPI:
+class SpeechtoTextAPI(BaseToolAPI):
     def __init__(self):
         self.router = APIRouter()
         self.setup_routes()
@@ -335,4 +335,3 @@ class SpeechtoTextAPI:
         @self.router.post("/recognize")
         async def recognize_speech(self, audio: UploadFile):
             pass
-       

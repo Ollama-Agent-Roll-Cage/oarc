@@ -156,63 +156,61 @@ class multiModalPrompting:
         
     # -------------------------------------------------------------------------------------------------
     async def send_prompt(self, loaded_agent, conversation_handler, chat_history):
-        """ a method for sending a prompt to the chatbot, this will be recorded to the conversation.
-            args: prompt, model
-        """
-        self.loaded_agent = loaded_agent
-        self.chat_history = chat_history
-        
-        user_prompt = self.loaded_agent["agentCore"]["prompts"]["userInput"]
-        model = self.loaded_agent["agentCore"]["models"]["largeLanguageModel"]["names"][0]
-        conversationName = self.loaded_agent["agentCore"]["conversation"]["load_name"]
-        
-        EMBEDDING_FLAG = self.loaded_agent["agentCore"]["modalityFlags"]["EMBEDDING_FLAG"]
-        MEMORY_CLEAR_FLAG = self.loaded_agent["agentCore"]["modalityFlags"]["MEMORY_CLEAR_FLAG"]
-        
-        self.conversation_handler = conversation_handler
-        
-        if MEMORY_CLEAR_FLAG is True:
-            chat_history.clear()
-            logger.info("Chat history cleared due to MEMORY_CLEAR_FLAG")
+        """Send prompt with multimodal data handling"""
+        try:
+            self.loaded_agent = loaded_agent
+            self.chat_history = chat_history
 
-        # Get system prompt
-        system_prompt = self.get_system_prompt()
-        if not system_prompt:
-            logger.warning("Using default system prompt")
-            system_prompt = "You are a helpful assistant. Please help the user with their task."
-                 
-        # Ensure llmSystem key is present in loaded_agent
-        if "llmSystem" not in self.loaded_agent["agentCore"]["prompts"]:
-            logger.error("llmSystem key is missing in loaded_agent")
-            raise KeyError("llmSystem key is missing in loaded_agent")
-        
-        # set system prompt
-        if self.AGENT_FLAG or self.SYSTEM_SELECT_FLAG and self.loaded_agent["agentCore"]["agent_id"] != "default":
-            self.chat_history.append({"role": "system", "content": self.loaded_agent["agentCore"]["prompts"]["llmSystem"]})
-            logger.info(f"System prompt set: {self.loaded_agent['agentCore']['prompts']['llmSystem']}")
+            user_prompt = self.loaded_agent["agentCore"]["prompts"]["userInput"]
+            model = self.loaded_agent["agentCore"]["models"]["largeLanguageModel"]["names"][0]
+            conversationName = self.loaded_agent["agentCore"]["conversation"]["load_name"]
 
-        if not self.LLAVA_FLAG and not self.LLM_BOOSTER_PROMPT_FLAG:
-            self.chat_history.append({"role": "user", "content": user_prompt})
-            logger.info(f"User prompt added: {user_prompt}")
-            
-        if self.LLM_BOOSTER_PROMPT_FLAG and not self.LLAVA_FLAG:
-            self.fusedPrompt = self.loaded_agent["agentCore"]["prompts"]["llmBooster"] + f"{user_prompt}"
-            self.chat_history.append({"role": "user", "content": self.fusedPrompt})
-            logger.info(f"Fused prompt added: {self.fusedPrompt}")
-            
-        if self.LLAVA_FLAG:
-            with open(f'{self.screenshot_path}', 'rb') as f:
-                user_screenshot_raw2 = base64.b64encode(f.read()).decode('utf-8')
+            EMBEDDING_FLAG = self.loaded_agent["agentCore"]["modalityFlags"]["EMBEDDING_FLAG"]
+            MEMORY_CLEAR_FLAG = self.loaded_agent["agentCore"]["modalityFlags"]["MEMORY_CLEAR_FLAG"]
 
-            self.llava_response = await self.llava_prompt(user_prompt, user_screenshot_raw2, user_prompt, self.language_and_vision_model)
+            self.conversation_handler = conversation_handler
 
-            if self.LLM_BOOSTER_PROMPT_FLAG:
-                self.chat_history.append({"role": "assistant", "content": f"VISION_DATA: {self.llava_response}"})
+            if MEMORY_CLEAR_FLAG is True:
+                chat_history.clear()
+                logger.info("Chat history cleared due to MEMORY_CLEAR_FLAG")
+
+            # Get system prompt
+            system_prompt = self.get_system_prompt()
+            if not system_prompt:
+                logger.warning("Using default system prompt")
+                system_prompt = "You are a helpful assistant. Please help the user with their task."
+
+            # Ensure llmSystem key is present in loaded_agent
+            if "llmSystem" not in self.loaded_agent["agentCore"]["prompts"]:
+                logger.error("llmSystem key is missing in loaded_agent")
+                raise KeyError("llmSystem key is missing in loaded_agent")
+
+            # set system prompt
+            if self.AGENT_FLAG or self.SYSTEM_SELECT_FLAG and self.loaded_agent["agentCore"]["agent_id"] != "default":
+                self.chat_history.append({"role": "system", "content": self.loaded_agent["agentCore"]["prompts"]["llmSystem"]})
+                logger.info(f"System prompt set: {self.loaded_agent['agentCore']['prompts']['llmSystem']}")
+
+            if not self.LLAVA_FLAG and not self.LLM_BOOSTER_PROMPT_FLAG:
+                self.chat_history.append({"role": "user", "content": user_prompt})
+                logger.info(f"User prompt added: {user_prompt}")
+
+            if self.LLM_BOOSTER_PROMPT_FLAG and not self.LLAVA_FLAG:
                 self.fusedPrompt = self.loaded_agent["agentCore"]["prompts"]["llmBooster"] + f"{user_prompt}"
                 self.chat_history.append({"role": "user", "content": self.fusedPrompt})
-                logger.info(f"LLAVA response and fused prompt added: {self.llava_response}, {self.fusedPrompt}")
+                logger.info(f"Fused prompt added: {self.fusedPrompt}")
 
-        try:
+            if self.LLAVA_FLAG:
+                with open(f'{self.screenshot_path}', 'rb') as f:
+                    user_screenshot_raw2 = base64.b64encode(f.read()).decode('utf-8')
+
+                self.llava_response = await self.llava_prompt(user_prompt, user_screenshot_raw2, user_prompt, self.language_and_vision_model)
+
+                if self.LLM_BOOSTER_PROMPT_FLAG:
+                    self.chat_history.append({"role": "assistant", "content": f"VISION_DATA: {self.llava_response}"})
+                    self.fusedPrompt = self.loaded_agent["agentCore"]["prompts"]["llmBooster"] + f"{user_prompt}"
+                    self.chat_history.append({"role": "user", "content": self.fusedPrompt})
+                    logger.info(f"LLAVA response and fused prompt added: {self.llava_response}, {self.fusedPrompt}")
+
             if EMBEDDING_FLAG is True:
                 response = await self.embedding_ollama_prompt(self.agent_id, user_prompt)
             else:
@@ -221,9 +219,9 @@ class multiModalPrompting:
                     messages=self.chat_history,
                     stream=True
                 )
-            
+
             model_response = ''
-            
+
             async for chunk in response:
                 if 'message' in chunk and 'content' in chunk['message']:
                     chunk_content = chunk['message']['content']
@@ -231,25 +229,68 @@ class multiModalPrompting:
                         chunk_content = json.dumps(chunk_content)
                     else:
                         chunk_content = str(chunk_content)
-                    
+
                     model_response += chunk_content
                     print(chunk_content, end='', flush=True)
-            
+
             self.chat_history.append({"role": "assistant", "content": model_response})
-            
+
             if self.TTS_FLAG:
                 await self.tts_processor_instance.process_tts_responses(model_response, self.voice_name)
                 if self.speech_interrupted:
                     logger.info("Speech was interrupted. Ready for next input.")
                     self.speech_interrupted = False
-            
+
             # Store the conversation in the conversation handler
             await self.conversation_handler.store_message({"role": "assistant", "content": model_response})
+
+            # Store the conversation with metadata
+            metadata = {
+                "model_info": {
+                    "name": self.large_language_model,
+                    "type": "llm"
+                }
+            }
+
+            # If we have vision data
+            if self.LLAVA_FLAG and user_screenshot_raw2:
+                metadata["vision"] = {
+                    "llava": [{
+                        "image": user_screenshot_raw2,
+                        "timestamp": datetime.now().isoformat()
+                    }]
+                }
+
+            # If we have audio data
+            if hasattr(self, "audio_data"):
+                metadata["audio"] = {
+                    "stt": self.audio_data
+                }
+
+            # Store in PandasDB with metadata
+            await self.pandasDB.store_message(
+                role="user",
+                content=user_prompt,
+                metadata=metadata
+            )
+
+            # Store assistant response
+            await self.pandasDB.store_message(
+                role="assistant", 
+                content=model_response,
+                metadata={
+                    "model_info": {
+                        "name": self.large_language_model,
+                        "type": "llm"
+                    }
+                }
+            )
+
             if user_screenshot_raw2:
                 return model_response, user_screenshot_raw2
             else:
                 return model_response
-            
+
         except Exception as e:
             logger.error(f"Error in send_prompt: {e}")
             return f"Error: {e}"
@@ -338,6 +379,7 @@ class multiModalPrompting:
             self.llava_history.append({"role": "assistant", "content": model_response})
             
             # Keep only the last 2 responses in llava_history
+
             self.llava_history = self.llava_history[-2:]
 
             # Store the conversation in the conversation handler
@@ -705,3 +747,21 @@ class multiModalPrompting:
         tasks.
         """
         pass
+
+# # Example usage
+# db = pandasDB()
+
+# # Store multimodal message
+# await db.store_message(
+#     role="user",
+#     content="What's in this image?",
+#     metadata={
+#         "images": ["base64_encoded_image"],
+#         "audio": {"stt": "audio_data"},
+#         "vision": {"yolo": ["detection_results"]}
+#     }
+# )
+
+# # Export conversation
+# conversation_json = db.export_conversation(format="json")
+# print(conversation_json)

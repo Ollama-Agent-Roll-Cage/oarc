@@ -4,17 +4,20 @@
 
 First, set up your environment variables in Windows PowerShell, starting with your MODEL_GIT:
 
+M:\MODEL_LIB\OARC_MODEL_GIT
+
+
 ```powershell
 # Select a location preferably at the base level of one of your hard drives, this will act as our source model git for hugging face, ollama, github, and others.
-setx MODEL_GIT "MODEL_GIT path"
+setx MODEL_GIT "MODEL_LIB path"
 setx OARC_API "OARC_API path"
-setx OARC_MODEL_GIT "MODEL_GIT/OARC_MODEL_GIT"
+setx OARC_MODEL_GIT "MODEL_LIB/OARC_MODEL_GIT"
 
 setx OLLAMA_API_BASE "http://127.0.0.1:11434"
 setx OLLAMA_ORIGINS *
-setx OLLAMA_MODELS "MODEL_GIT/OLLAMA_MODELS"
+setx OLLAMA_MODELS "MODEL_LIB/OLLAMA_MODELS"
 
-setx YOLO_MODEL_GIT "MODEL_GIT/YOLO_MODEL_GIT"
+setx YOLO_MODEL_GIT "MODEL_LIB/YOLO_MODEL_GIT"
 
 #TODO SETUP LATER FOR EXTERIOR TOOLS LIKE UNSLOTH UI, GESTURE BOX, AND DREAM CAM
 setx DEPTH_ANYTHING_V2_PATH
