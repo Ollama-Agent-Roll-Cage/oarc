@@ -1,10 +1,11 @@
-from .oarc import oarcAPI
-from .oarc.speechToSpeech import textToSpeech, speechToText
-from .oarc.promptModel import multiModalPrompting
-from .oarc.yoloProcessor import YoloProcessor
-from .oarc.pandasDB import PandasDB
+from oarc.oarc_api import oarcAPI
+from oarc.speechToSpeech import textToSpeech, speechToText
+from oarc.promptModel import multiModalPrompting
+from oarc.yoloProcessor import YoloProcessor
+from oarc.pandasDB import PandasDB
 import gradio as gr
 import numpy as np
+import sys
 import os
 
 class TestAgent:

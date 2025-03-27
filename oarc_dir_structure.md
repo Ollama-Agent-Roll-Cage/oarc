@@ -1,26 +1,14 @@
-oarc/
-├── src/
-│   └── oarc/
-│       ├── __init__.py
-│       ├── speechToSpeech/
-│       │   ├── __init__.py
-│       │   ├── speechToText.py
-│       │   └── textToSpeech.py
-│       ├── promptModel/
-│       │   ├── __init__.py
-│       │   └── multiModalPrompting.py
-│       ├── ollamaUtils/
-│       │   ├── __init__.py
-│       │   ├── writeModelfile.py
-│       │   ├── createConvertModel.py
-│       │   └── ollamaCommands.py
-│       ├── yoloProcessor/
-│       │   ├── __init__.py
-│       │   └── yoloProcessor.py
-│       ├── pandasDB/
-│       │   ├── __init__.py
-│       │   └── pandasDB.py
-│       └── api.py
+M:\PHOTO_HDD_AUTUMN_GAN\oarc\
+├── oarc/
+│   ├── __init__.py
+│   ├── oarc_api.py
+│   ├── speechToSpeech/
+│   ├── promptModel/
+│   ├── yoloProcessor/
+│   └── pandasDB/
+├── tests/
+│   ├── __init__.py
+│   └── TestAgent.py
 ├── pyproject.toml
 ├── setup.cfg
 ├── README.md

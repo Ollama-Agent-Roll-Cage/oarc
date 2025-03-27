@@ -25,4 +25,11 @@ dependencies = [
     "ollama>=0.1.0",
     "whisper>=1.0",
     "websockets>=10.0",
+    "gradio>=3.50.0",
+    "numpy>=1.21.0",
+    "llama-index>=0.8.0",
+    "ultralytics>=8.0.0"
 ]
+
+[tool.setuptools]
+packages = ["oarc"]
