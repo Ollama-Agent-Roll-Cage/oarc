@@ -2,7 +2,11 @@
 
     This module is responsible for storing the agents in a pandas dataframe.
 """
+import time
+from typing import Any, Dict, Optional
+
 from pandasDB import pandasDB
+from utils import log
 
 class AgentStorage:
     def __init__(self):
@@ -211,18 +215,18 @@ class AgentStorage:
                 agent_id = agent_config['agentCore']['agent_id']
                 if not self.agent_cores.loadAgentCore(agent_id):
                     self.agent_cores.mintAgent(agent_id, agent_config)
-                    logger.info(f"Created default agent: {agent_id}")
+                    log.info(f"Created default agent: {agent_id}")
                 else:
-                    logger.info(f"Agent already exists: {agent_id}")
+                    log.info(f"Agent already exists: {agent_id}")
 
         except Exception as e:
-            logger.error(f"Error setting up default agents: {e}")
+            log.error(f"Error setting up default agents: {e}")
             
             
     def initAgentStorage(self, agent_id):
         try:
-            # Initialize logger first
-            self.logger = logging.getLogger(__name__)
+            # Initialize log first
+            self.log = log.getLogger(__name__)
             
             # Initialize agent ID
             self.agent_id = agent_id
@@ -270,10 +274,10 @@ class AgentStorage:
             # Update command library
             self.updateCommandLibrary()
 
-            logger.info("ollamaAgentRollCage initialized successfully")
+            log.info("ollamaAgentRollCage initialized successfully")
         except Exception as e:
-            logger.error(f"Error initializing ollamaAgentRollCage: {e}")
-            logger.exception("Detailed initialization error:")
+            log.error(f"Error initializing ollamaAgentRollCage: {e}")
+            log.exception("Detailed initialization error:")
             raise
 
     def runPurge(self, agent_id):
@@ -285,7 +289,7 @@ class AgentStorage:
             self.reload_templates()
             self.initializeAgent()
         except Exception as e:
-            logger.error(f"Error purging and reinitializing agents: {e}")
+            log.error(f"Error purging and reinitializing agents: {e}")
             raise
             
     def initializeAgent(self):
@@ -307,9 +311,9 @@ class AgentStorage:
             self.updateConversationPaths()
             self.initialize_prompt_handler()
 
-            logger.info("Agent initialized successfully.")
+            log.info("Agent initialized successfully.")
         except Exception as e:
-            logger.error(f"Error initializing agent: {e}")
+            log.error(f"Error initializing agent: {e}")
             raise
         
     def _initialize_core_attributes(self):
@@ -332,9 +336,9 @@ class AgentStorage:
             # Initialize all flags to default state
             self.initializeAgentFlags()
         
-            logger.info("Core attributes initialized successfully.")
+            log.info("Core attributes initialized successfully.")
         except Exception as e:
-            logger.error(f"Error initializing core attributes: {e}")
+            log.error(f"Error initializing core attributes: {e}")
             raise
     
     def initializeAgentFlags(self):
@@ -361,9 +365,9 @@ class AgentStorage:
             self.auto_commands_flag = False
             self.yolo_flag = False
             
-            logger.info("Agent flags initialized successfully")
+            log.info("Agent flags initialized successfully")
         except Exception as e:
-            logger.error(f"Error initializing agent flags: {e}")
+            log.error(f"Error initializing agent flags: {e}")
             raise
         
     async def get_available_models(self):
@@ -371,7 +375,7 @@ class AgentStorage:
             models = await self.ollamaCommandInstance.ollama_list()
             return models if isinstance(models, list) else []
         except Exception as e:
-            logging.error(f"Error getting available models: {e}")
+            log.error(f"Error getting available models: {e}")
             return []
 
     async def list_available_agents(self) -> list:
@@ -395,33 +399,33 @@ class AgentStorage:
             
             return formatted_agents
         except Exception as e:
-            logger.error(f"Error listing agents: {e}")
+            log.error(f"Error listing agents: {e}")
             return []
 
     def purge_agents(self):
         """Purge all agents from the PandasDB."""
         try:
             self.agent_collection.delete_many({})
-            logger.info("All agents purged from PandasDB.")
+            log.info("All agents purged from PandasDB.")
         except Exception as e:
-            logger.error(f"Error purging agents: {e}")
+            log.error(f"Error purging agents: {e}")
 
     def purge_agent(self, agent_id):
         """Purge a specific agent from the PandasDB."""
         try:
             self.agent_collection.delete_one({"agent_id": agent_id})
-            logger.info(f"Agent {agent_id} purged from PandasDB.")
+            log.info(f"Agent {agent_id} purged from PandasDB.")
         except Exception as e:
-            logger.error(f"Error purging agent {agent_id}: {e}")
+            log.error(f"Error purging agent {agent_id}: {e}")
         
     def reload_templates(self):
         """Reload agent templates into PandasDB."""
         try:
             # Assuming you have a method to create agents from templates
             self.create_agent_from_template('default_template', 'defaultAgent')
-            logger.info("Agent templates reloaded into PandasDB.")
+            log.info("Agent templates reloaded into PandasDB.")
         except Exception as e:
-            logger.error(f"Error reloading templates: {e}")
+            log.error(f"Error reloading templates: {e}")
 
     def load_agent(self, agent_id: str) -> Dict[str, Any]:
         agent_config = self.get_agent_config(agent_id)
@@ -482,7 +486,7 @@ class AgentStorage:
         try:
             return list(self.command_library.keys())
         except Exception as e:
-            logger.error(f"Error getting command library: {e}")
+            log.error(f"Error getting command library: {e}")
             return {"error": str(e)}
         
 class AgentStorageAPI:
