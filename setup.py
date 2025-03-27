@@ -17,6 +17,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 VENV_DIR = PROJECT_ROOT / ".venv"
 CONFIG_DIR = PROJECT_ROOT / "oarc" / "config_files"
 LOG_DIR = PROJECT_ROOT / "logs"
+# Define TTS repo directory within the virtual environment
+TTS_REPO_DIR = VENV_DIR / "Include" / "coqui-ai-TTS"
 
 def setup_logging():
     """Set up logging for the build process."""
@@ -194,6 +196,37 @@ def fix_egg_deprecation(venv_python):
             check=True  # Require success with no fallback
         )
 
+def install_tts_from_github(venv_python):
+    """Install TTS directly from the GitHub repository."""
+    print("Installing TTS from GitHub repository...")
+    
+    # Create Include directory if it doesn't exist
+    include_dir = VENV_DIR / "Include"
+    include_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Remove existing directory if it exists
+    if TTS_REPO_DIR.exists():
+        print(f"Removing existing TTS repository at {TTS_REPO_DIR}")
+        shutil.rmtree(TTS_REPO_DIR)
+    
+    # Clone the repository
+    print("Cloning TTS repository from GitHub...")
+    subprocess.run(
+        ["git", "clone", "https://github.com/idiap/coqui-ai-TTS", str(TTS_REPO_DIR)],
+        check=True
+    )
+    
+    # Install in development mode
+    print("Installing TTS in development mode...")
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "-e", "."],
+        cwd=str(TTS_REPO_DIR),
+        check=True
+    )
+    
+    print("TTS installed successfully from GitHub!")
+    return True
+
 def install_development_dependencies(venv_python):
     """Install package in development mode and required dependencies."""
     ensure_pip(venv_python)
@@ -222,12 +255,15 @@ def install_development_dependencies(venv_python):
         check=True
     )
     
-    print("Installing TTS and other audio-related packages...")
-    # Use TTS-Coqui package name (correct PyPI name)
+    print("Installing audio-related packages...")
+    # Install audio-related packages except TTS (which will be installed from GitHub)
     subprocess.run(
-        [str(venv_python), "-m", "pip", "install", "TTS-Coqui>=0.8.0", "SpeechRecognition>=3.8.1", "whisper>=1.0"],
-        check=True  # Now we enforce success with no fallback
+        [str(venv_python), "-m", "pip", "install", "SpeechRecognition>=3.8.1", "whisper>=1.0"],
+        check=True 
     )
+    
+    # Install TTS from GitHub
+    install_tts_from_github(venv_python)
     
     print("Installing package in development mode...")
     # Use pip for editable install
@@ -285,6 +321,15 @@ def clean_project():
     
     # Clean egg-info directories
     clean_egg_info()
+    
+    # Clean TTS repository if it exists
+    if TTS_REPO_DIR.exists():
+        print(f"Removing TTS repository at {TTS_REPO_DIR}")
+        try:
+            shutil.rmtree(TTS_REPO_DIR)
+        except PermissionError as e:
+            print(f"Warning: Could not fully remove TTS repository due to permission error: {e}")
+            print("Some files may remain. You might need to manually delete them.")
     
     # Remove build directory
     build_dir = PROJECT_ROOT / "build"
@@ -378,8 +423,33 @@ Examples:
     # Only parse known args to avoid errors with setuptools commands
     return parser.parse_known_args()[0]
 
+def get_directory_size(directory_path):
+    """Calculate the total size of a directory and its contents in bytes."""
+    total_size = 0
+    try:
+        for path in Path(directory_path).rglob('*'):
+            if path.is_file():
+                total_size += path.stat().st_size
+    except (PermissionError, FileNotFoundError) as e:
+        print(f"Warning: Couldn't access some files while calculating directory size: {e}")
+    return total_size
+
+def format_size(size_bytes):
+    """Format size in bytes to human-readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.2f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.2f} PB"
+
 def main():
     """Main entry point for setup script when run directly."""
+    # Record start time for telemetry
+    start_time = datetime.now()
+    initial_venv_size = 0
+    if VENV_DIR.exists():
+        initial_venv_size = get_directory_size(VENV_DIR)
+    
     # Handle setuptools commands directly
     setuptools_commands = ['egg_info', 'bdist_wheel', 'sdist', 'install', 'develop', 'build_ext']
     
@@ -423,6 +493,22 @@ def main():
                 print(f"  {VENV_DIR}\\Scripts\\activate")
             else:
                 print(f"  source {VENV_DIR}/bin/activate")
+                
+            # Telemetry data collection
+            end_time = datetime.now()
+            elapsed_time = end_time - start_time
+            final_venv_size = 0
+            if VENV_DIR.exists():
+                final_venv_size = get_directory_size(VENV_DIR)
+                
+            size_change = final_venv_size - initial_venv_size
+                
+            print("\nSetup Telemetry:")
+            print(f"  Total setup time: {elapsed_time}")
+            print(f"  Virtual environment size: {format_size(final_venv_size)}")
+            if initial_venv_size > 0:
+                print(f"  Size change: {format_size(size_change)} ({(size_change/initial_venv_size)*100:.1f}% change)")
+                
         except subprocess.CalledProcessError as e:
             print(f"Error: Installation failed: {e}")
             print("Setup cannot continue. Please resolve the issues above and try again.")

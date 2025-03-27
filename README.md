@@ -38,12 +38,6 @@ python ./setup.py
 python ./setup.py --build
 ```
 
-### Publishing to PyPI
-
-```bash
-python ./setup.py --publish
-```
-
 ## Quick Start
 
 ```python

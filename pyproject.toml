@@ -8,13 +8,14 @@ version = "0.1.0"
 description = "Ollama Agent Roll Cage - Speech to Speech with Vision AI Chatbot API"
 readme = "README.md"
 authors = [{name = "Leo Borcherding"}]
-license = {file = "LICENSE"}
+# Update license to Apache 2.0
+license = {text = "Apache License 2.0"}
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
 ]
 keywords = ["speech", "ai", "chatbot", "vision", "ollama"]
 requires-python = ">=3.10"
@@ -31,7 +32,6 @@ dependencies = [
     "SpeechRecognition>=3.8.1",
     "torch>=1.9.0",
     "transformers>=4.0.0",
-    "TTS-Coqui>=0.8.0",
     "uvicorn>=0.15.0",
     "websockets>=10.0",
     "whisper>=1.0",
