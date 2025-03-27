@@ -1,7 +1,10 @@
 """agentStorage.py
 
     This module is responsible for storing the agents in a pandas dataframe.
+created on: 3/5/2025
+by @LeoBorcherding
 """
+
 import time
 from typing import Any, Dict, Optional
 
@@ -15,6 +18,14 @@ class AgentStorage:
         self.load_agents()
         
     def setup_default_agents(self):
+        #TODO export metadata to config files library, and upload as 
+        # parquet files with columns and rows to hf as agent configs,
+        # do the same for conversation history, and knowledge base at 
+        # the users discretion. Ensure user knows exactly where the 
+        # conversation dataset knowledge base pulls from to ensure privacy.
+        # These agent configs and conversation histories are crucial assets
+        # for long term training and agent development.
+        
         try:
             # Base default agent configuration
             default_agent_config = {
@@ -491,8 +502,120 @@ class AgentStorage:
         
 class AgentStorageAPI:
     def __init__(self):
-        self.router = APIRouter()
+        self.router = APIRouter(prefix="/api/agent", tags=["agent-storage"])
+        self.agent_storage = AgentStorage()
         self.setup_routes()
     
     def setup_routes(self):
-        @self.router.post("/api/")
+        @self.router.post("/create")
+        async def create_agent(self, template: str, agent_id: str):
+            """Create a new agent from template."""
+            try:
+                agent = await self.agent_storage.create_agent_from_template(template, agent_id)
+                return {"status": "success", "agent": agent}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.get("/list")
+        async def list_agents(self):
+            """Get list of available agents."""
+            try:
+                agents = await self.agent_storage.list_available_agents()
+                return {"agents": agents}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.get("/state/{agent_id}")
+        async def get_agent_state(self, agent_id: str):
+            """Get current state of an agent."""
+            try:
+                state = self.agent_storage.get_agent_config(agent_id)
+                if not state:
+                    raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+                return state
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/load/{agent_id}")
+        async def load_agent(self, agent_id: str):
+            """Load an agent configuration."""
+            try:
+                agent = self.agent_storage.load_agent(agent_id)
+                if not agent:
+                    raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+                return {"status": "success", "agent": agent}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/initialize/{agent_id}")
+        async def initialize_agent(self, agent_id: str):
+            """Initialize a new agent instance."""
+            try:
+                self.agent_storage.initAgentStorage(agent_id)
+                return {"status": "success", "message": f"Agent {agent_id} initialized"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/purge/{agent_id}")
+        async def purge_agent(self, agent_id: str):
+            """Purge an agent's data."""
+            try:
+                self.agent_storage.purge_agent(agent_id)
+                return {"status": "success", "message": f"Agent {agent_id} purged"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.get("/models")
+        async def get_available_models(self):
+            """Get list of available models."""
+            try:
+                models = await self.agent_storage.get_available_models()
+                return {"models": models}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.get("/commands")
+        async def get_command_library(self):
+            """Get available command library."""
+            try:
+                commands = await self.agent_storage.get_command_library()
+                return {"commands": commands}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/flags/initialize")
+        async def initialize_flags(self):
+            """Initialize agent flags with default values."""
+            try:
+                self.agent_storage.initializeAgentFlags()
+                return {"status": "success", "message": "Agent flags initialized"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/reload-templates")
+        async def reload_templates(self):
+            """Reload agent templates."""
+            try:
+                self.agent_storage.reload_templates()
+                return {"status": "success", "message": "Templates reloaded"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+            
+            
+# # example usage for AgentStorageAPI
+# from fastapi import FastAPI
+# from .agentStorage import AgentStorageAPI
+
+# app = FastAPI()
+# agent_storage_api = AgentStorageAPI()
+# app.include_router(agent_storage_api.router)
+
+# # Example GET request
+# response = await client.get("/api/agent/list")
+# agents = response.json()["agents"]
+
+# # Example POST request 
+# response = await client.post(
+#     "/api/agent/create",
+#     json={"template": "default", "agent_id": "new_agent"}
+# )

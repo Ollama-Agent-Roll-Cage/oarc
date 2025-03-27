@@ -1,3 +1,11 @@
+"""ranchez_silence_wake.py
+
+    This script is used to test the OARC multimodal agent components.
+
+created on: 6/20/2024
+by @SickRanchez    
+"""
+
 import threading
 import whisper
 import pyaudio

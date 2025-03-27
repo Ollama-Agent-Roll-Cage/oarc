@@ -1,3 +1,11 @@
+"""TestAgent.py
+
+    This script is used to test the OARC multimodal agent components.
+
+created on: 3/5/2025
+by @LeoBorcherding    
+"""
+
 from oarc.oarc_api import oarcAPI
 from oarc.speechToSpeech import textToSpeech, speechToText
 from oarc.promptModel import multiModalPrompting

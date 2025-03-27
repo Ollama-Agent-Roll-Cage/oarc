@@ -1,4 +1,8 @@
-"""multiModalPrompting.py - Core messaging functionality for OARC chatbot."""
+"""multiModalPrompting.py - Core messaging functionality for OARC chatbot.
+
+created on: 4/20/2024
+by @LeoBorcherding
+"""
 
 import logging
 import json
@@ -158,6 +162,8 @@ class multiModalPrompting:
     async def send_prompt(self, loaded_agent, conversation_handler, chat_history):
         """Send prompt with multimodal data handling"""
         try:
+            #TODO loaded agent is the agent config json for the flag states of the agent
+            # and is not only the agent_id 
             self.loaded_agent = loaded_agent
             self.chat_history = chat_history
 
@@ -748,7 +754,7 @@ class multiModalPrompting:
         """
         pass
 
-# # Example usage
+# # Example usage for multimodal prompting class
 # db = pandasDB()
 
 # # Store multimodal message
@@ -765,3 +771,181 @@ class multiModalPrompting:
 # # Export conversation
 # conversation_json = db.export_conversation(format="json")
 # print(conversation_json)
+
+from fastapi import APIRouter, HTTPException, File, UploadFile
+from typing import Optional, Dict, Any, List
+import base64
+from .multiModalPrompting import multiModalPrompting
+from base_api.BaseToolAPI import BaseToolAPI
+
+class MultiModalPromptAPI(BaseToolAPI):
+    def __init__(self):
+        super().__init__(prefix="/api/prompt", tags=["multimodal-prompting"])
+        self.prompt_handler = multiModalPrompting()
+
+    def setup_routes(self):
+        @self.router.post("/chat")
+        async def send_prompt(self, message: str, agent_id: Optional[str] = None):
+            """Send a text prompt to the model."""
+            #TODO is agent_id required?
+            try:
+                response = await self.prompt_handler.send_prompt(
+                    loaded_agent=self.prompt_handler.loaded_agent,
+                    conversation_handler=self.prompt_handler.conversation_handler,
+                    chat_history=self.prompt_handler.chat_history
+                )
+                return {"response": response}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/vision")
+        async def vision_prompt(
+            self, 
+            prompt: str,
+            image: UploadFile = File(...),
+            model: Optional[str] = "llava"
+        ):
+            """Send a vision prompt with image."""
+            #TODO set default large language and vision assistant to granite-vision-2.5
+            try:
+                # Convert image to base64
+                image_content = await image.read()
+                image_b64 = base64.b64encode(image_content).decode()
+                
+                response = await self.prompt_handler.llava_prompt(
+                    user_input_prompt=prompt,
+                    user_screenshot_raw2=image_b64,
+                    llava_user_input_prompt=prompt,
+                    language_and_vision_model=model
+                )
+                return {"response": response}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/embedding")
+        async def embedding_prompt(
+            self,
+            message: str,
+            agent_id: str,
+            stream: bool = True
+        ):
+            """Send prompt using embedding-based retrieval."""
+            try:
+                response = await self.prompt_handler.embedding_ollama_prompt(
+                    agent_id=agent_id,
+                    message=message,
+                    stream=stream
+                )
+                return {"response": response}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/shot")
+        async def shot_prompt(self, prompt: str, model: Optional[str] = None):
+            """Execute a one-shot prompt."""
+            try:
+                response = await self.prompt_handler.shot_prompt(
+                    prompt=prompt,
+                    modelSelect=model
+                )
+                return {"response": response}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/design")
+        async def design_prompt(
+            self,
+            prompt: str,
+            model: Optional[str] = None,
+            context_chat: str = "new",
+            append_chat: str = "new"
+        ):
+            """Execute a design prompt with context control."""
+            try:
+                response = await self.prompt_handler.design_prompt(
+                    prompt=prompt,
+                    modelSelect=model,
+                    contextChat=context_chat,
+                    appendChat=append_chat
+                )
+                return {"response": response}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/chain")
+        async def chain_of_thought(
+            self,
+            prompt: str,
+            reasoning_modules: List[str]
+        ):
+            """Execute chain-of-thought reasoning."""
+            try:
+                response = self.prompt_handler.chainOfThought(
+                    prompt=prompt,
+                    reasoningModules=reasoning_modules
+                )
+                return {"response": response}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/deep-research")
+        async def deep_research(self, prompt: str):
+            """Perform deep research on a topic."""
+            try:
+                response = self.prompt_handler.deepResearch(prompt)
+                return {"response": response}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/concurrent")
+        async def concurrent_prompts(
+            self,
+            model: str,
+            prompts: List[str]
+        ):
+            """Execute multiple prompts concurrently."""
+            try:
+                self.prompt_handler.ollamaConcurrentPrompts(
+                    model=model,
+                    promptList=prompts
+                )
+                return {"status": "success"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+
+# To use this API:
+
+# ```python
+# # Example usage
+# from fastapi import FastAPI
+# from .promptAPI import MultiModalPromptAPI
+
+# app = FastAPI()
+# prompt_api = MultiModalPromptAPI()
+# app.include_router(prompt_api.router)
+
+# # Example requests:
+
+# # Text prompt
+# response = await client.post(
+#     "/api/prompt/chat",
+#     json={"message": "Hello!", "agent_id": "my_agent"}
+# )
+
+# # Vision prompt
+# with open("image.jpg", "rb") as f:
+#     response = await client.post(
+#         "/api/prompt/vision",
+#         files={"image": f},
+#         data={"prompt": "What's in this image?"}
+#     )
+
+# # Embedding prompt
+# response = await client.post(
+#     "/api/prompt/embedding",
+#     json={
+#         "message": "Query with semantic search",
+#         "agent_id": "my_agent",
+#         "stream": True
+#     }
+# )

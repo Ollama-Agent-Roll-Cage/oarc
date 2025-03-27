@@ -3,6 +3,9 @@ from fastapi import APIRouter
 from base_api.BaseToolAPI import BaseToolAPI
 from promptModel.multiModalPrompting import multiModalPrompting
 
+#TODO decide wether to create custom apis by importing oarc utils, or to create apis 
+# in each util and import then in the oarc_api
+
 class LLMPromptAPI(BaseToolAPI):
     def __init__(self):
         super().__init__(prefix="/api/llm", tags=["language-model"])

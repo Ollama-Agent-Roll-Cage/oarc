@@ -1,4 +1,8 @@
-# speechToText.py
+"""speechToText.py - Core messaging functionality for OARC chatbot.
+
+created on: 4/20/2024
+by @LeoBorcherding
+"""
 import pyaudio
 import speech_recognition as sr
 import numpy as np

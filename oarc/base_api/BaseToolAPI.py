@@ -1,3 +1,11 @@
+"""BaseToolAPI.py
+    
+    Base class for all tool APIs
+    
+created on: 3/5/2025
+by @LeoBorcherding
+"""
+
 from fastapi import APIRouter, HTTPException
 import os
 

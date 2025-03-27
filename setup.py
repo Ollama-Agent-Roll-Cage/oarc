@@ -1,6 +1,8 @@
-#!/usr/bin/env python3
-"""
+"""setup.py
 OARC setup script for environment setup and package installation.
+
+created on: 3/24/2025
+by @p3ngu1nZz
 """
 
 import os
