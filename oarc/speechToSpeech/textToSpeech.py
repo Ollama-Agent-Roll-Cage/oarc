@@ -98,6 +98,7 @@ class textToSpeech:
                 raise EnvironmentError("OARC_MODEL_GIT environment variable not set")
 
             # Construct paths
+            #TODO HERE WE NEED TO GET THE PATH TO COQUI VENV INSTEAD OF USING OARC MODEL GIT, ALL CUSTOM MODELS SHOULD BE IN OARC MODEL GIT
             coqui_dir = os.path.join(model_git_dir, 'coqui')
             if not os.path.exists(coqui_dir):
                 raise FileNotFoundError(f"Coqui directory not found at {coqui_dir}")
