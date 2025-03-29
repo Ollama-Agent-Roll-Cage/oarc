@@ -47,7 +47,6 @@ dev = [
 ]
 
 [tool.setuptools]
-# Define the package structure
 packages = ["oarc"]
 
 [tool.setuptools.package-data]

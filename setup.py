@@ -206,88 +206,127 @@ def install_tts_from_github(venv_python):
     """Install TTS directly from the GitHub repository."""
     print("Installing TTS from GitHub repository...")
     
-    # Create Include directory if it doesn't exist
-    include_dir = VENV_DIR / "Include"
-    include_dir.mkdir(exist_ok=True, parents=True)
-    
-    # Remove existing directory if it exists
+    # Check if coqui directory already exists
     if TTS_REPO_DIR.exists():
-        print(f"Removing existing TTS repository at {TTS_REPO_DIR}")
-        shutil.rmtree(TTS_REPO_DIR)
-    
-    # Clone the repository
-    print("Cloning TTS repository from GitHub...")
-    subprocess.run(
-        ["git", "clone", "https://github.com/idiap/coqui-ai-TTS", str(TTS_REPO_DIR)],
-        check=True
-    )
+        print(f"Found existing TTS repository at {TTS_REPO_DIR}")
+    else:
+        # Create directory and clone repository
+        TTS_REPO_DIR.mkdir(exist_ok=True, parents=True)
+        print("Cloning TTS repository from GitHub...")
+        subprocess.run(
+            ["git", "clone", "https://github.com/idiap/coqui-ai-TTS", str(TTS_REPO_DIR)],
+            check=True
+        )
     
     # Install in development mode
     print("Installing TTS in development mode...")
-    subprocess.run(
-        [str(venv_python), "-m", "pip", "install", "-e", "."],
-        cwd=str(TTS_REPO_DIR),
-        check=True
-    )
-    
-    print("TTS installed successfully from GitHub!")
-    return True
+    try:
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "-e", str(TTS_REPO_DIR)],
+            check=True
+        )
+        print("TTS installed successfully from GitHub!")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing TTS: {e}")
+        print("TTS installation failed. Exiting.")
+        sys.exit(1)  # Exit immediately on failure
 
 def install_development_dependencies(venv_python):
     """Install package in development mode and required dependencies."""
     ensure_pip(venv_python)
     
     print("Upgrading pip...")
-    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
+    try:
+        subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
+    except subprocess.CalledProcessError:
+        print("Warning: Could not upgrade pip. Continuing with existing version.")
     
     # Clean egg_info directories before installation
     clean_egg_info()
     
-    # First install core build tools and common dependencies that cause problems
+    # First install core build tools and common dependencies
     print("Installing setuptools, wheel, build and core dependencies...")
     core_deps = [
         "setuptools>=45", 
         "wheel", 
-        "build", 
-        "numpy>=1.19.0,<2.0.0",  # Pin numpy below 2.0 for compatibility with TTS
+        "build",
+        "numpy<2.0.0,>=1.19.0",  # Pin numpy below 2.0 for compatibility
         "cython"  # Often needed for scientific packages
     ]
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + core_deps, check=True)
     
-    print("Installing package dependencies...")
-    # Install the package dependencies first without the package itself
+    # Install the package in development mode FIRST
+    print("Installing package in development mode...")
     subprocess.run(
-        [str(venv_python), "-m", "pip", "install", "torch>=1.9.0", "transformers>=4.0.0"],
+        [str(venv_python), "-m", "pip", "install", "-e", ".", "--no-deps"],
         check=True
     )
     
-    print("Installing audio-related packages...")
-    # Install audio-related packages except TTS (which will be installed from GitHub)
-    subprocess.run(
-        [str(venv_python), "-m", "pip", "install", "SpeechRecognition>=3.8.1", "whisper>=1.0"],
-        check=True 
+    # Then install dependencies separately
+    print("Installing base dependencies...")
+    base_deps = [
+        "fastapi>=0.68.0",
+        "keyboard>=0.13.5", 
+        "pandas>=1.3.0",
+        "python-multipart>=0.0.5",
+        "pydantic>=1.8.0",
+        "requests>=2.26.0",
+        "uvicorn>=0.15.0",
+        "websockets>=10.0",
+    ]
+    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + base_deps, check=True)
+    
+    print("Installing ML dependencies...")
+    ml_deps = [
+        "torch>=1.9.0",
+        "transformers>=4.0.0", 
+        "ollama>=0.1.0"
+    ]
+    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + ml_deps, check=True)
+    
+    print("Installing audio dependencies...")
+    audio_deps = [
+        "SpeechRecognition>=3.8.1",
+        "whisper>=1.0",
+    ]
+    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + audio_deps, check=True)
+    
+    # Install PyAudio
+    install_pyaudio_dependencies(venv_python)
+    
+    # Install TTS from GitHub only if it's not already installed
+    try:
+        subprocess.run(
+            [str(venv_python), "-c", "import TTS; print(f'TTS already installed: {TTS.__file__}')"], 
+            check=False, capture_output=True, text=True
+        )
+        print("TTS is already installed, skipping GitHub installation")
+    except:
+        install_tts_from_github(venv_python)
+    
+    # Verify package installation
+    print("Verifying package installation...")
+    verification_result = subprocess.run(
+        [str(venv_python), "-c", "import oarc; print(f'OARC package installed successfully: {oarc.__file__}')"],
+        check=False,
+        capture_output=True,
+        text=True
     )
     
-    # Install TTS from GitHub
-    install_tts_from_github(venv_python)
+    if verification_result.returncode != 0:
+        print("Warning: OARC package verification failed. The package may not be correctly installed.")
+        print(f"Error: {verification_result.stderr}")
+    else:
+        print(verification_result.stdout.strip())
     
-    print("Installing package in development mode...")
-    # Use pip for editable install
-    subprocess.run(
-        [str(venv_python), "-m", "pip", "install", "-e", "."],
-        check=True  # Require success with no fallback
-    )
-    
-    # Install extra dev dependencies
+    # Install dev dependencies
     print("Installing development tools...")
     dev_packages = ["twine", "pytest", "black", "flake8"]
     subprocess.run(
         [str(venv_python), "-m", "pip", "install"] + dev_packages,
         check=True
     )
-    
-    # Fix egg deprecation warnings
-    fix_egg_deprecation(venv_python)
     
     print("Package dependencies installed successfully.")
     return True
@@ -296,30 +335,37 @@ def install_pyaudio_dependencies(venv_python):
     """Install platform-specific dependencies for PyAudio."""
     print("Installing PyAudio dependencies...")
     
-    if os.name == 'nt':  # Windows
-        print("Installing PyAudio directly...")
-        # Direct installation with no fallback
-        subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], 
-                      check=True)  # Will raise exception on failure
+    try:
+        if os.name == 'nt':  # Windows
+            print("Installing PyAudio directly...")
+            subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], check=True)
+        
+        elif sys.platform == 'darwin':  # macOS
+            print("Installing PortAudio dependencies for macOS...")
+            try:
+                subprocess.run(["brew", "install", "portaudio"], check=True)
+            except:
+                print("Warning: Could not install portaudio with brew. If PyAudio fails to install, install portaudio manually.")
+            
+            subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], check=True)
+        
+        else:  # Linux and others
+            print("Installing PortAudio dependencies for Linux...")
+            try:
+                subprocess.run(["apt-get", "update"], check=True)
+                subprocess.run(["apt-get", "install", "-y", "portaudio19-dev"], check=True)
+            except:
+                print("Warning: Could not install portaudio with apt. If PyAudio fails to install, install portaudio19-dev manually.")
+                
+            subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], check=True)
+            
         print("PyAudio installed successfully.")
         return True
-    
-    elif sys.platform == 'darwin':  # macOS
-        print("Installing PortAudio dependencies for macOS...")
-        # Install PortAudio via homebrew
-        subprocess.run(["brew", "install", "portaudio"], check=True)
         
-        # Install PyAudio
-        subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], 
-                      check=True)
-        return True
-    
-    else:  # Linux and others
-        print("Installing PortAudio dependencies for Linux...")
-        subprocess.run(["apt-get", "update"], check=True)
-        subprocess.run(["apt-get", "install", "-y", "portaudio19-dev"], check=True)
-        subprocess.run([str(venv_python), "-m", "pip", "install", "pyaudio"], check=True)
-        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: Failed to install PyAudio: {e}")
+        print("Continuing without PyAudio. Some audio features may not work.")
+        return False
 
 def clean_project():
     """Clean up build artifacts from the project directory."""
@@ -487,11 +533,9 @@ def main():
         
         venv_python = get_venv_python()
         
-        # Install dependencies with no fallbacks
+        # Install dependencies with fallback handling
         try:
             install_development_dependencies(venv_python)
-            install_pyaudio_dependencies(venv_python)
-            fix_egg_deprecation(venv_python)
             
             print("\nOARC development environment is ready!")
             print(f"To activate the environment: ")
