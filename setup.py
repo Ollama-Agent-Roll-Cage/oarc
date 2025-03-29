@@ -17,8 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 VENV_DIR = PROJECT_ROOT / ".venv"
 CONFIG_DIR = PROJECT_ROOT / "oarc" / "config_files"
 LOG_DIR = PROJECT_ROOT / "logs"
-# Define TTS repo directory within the virtual environment
-TTS_REPO_DIR = VENV_DIR / "Include" / "coqui-ai-TTS"
+TTS_REPO_DIR = PROJECT_ROOT / "coqui"
 
 def setup_logging():
     """Set up logging for the build process."""
@@ -195,6 +194,13 @@ def fix_egg_deprecation(venv_python):
             [str(venv_python), "-m", "pip", "install", "--force-reinstall", package],
             check=True  # Require success with no fallback
         )
+    
+    # Ensure numpy is at the right version
+    print("Ensuring numpy is at the correct version...")
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "numpy>=1.19.0,<2.0.0", "--force-reinstall"],
+        check=True
+    )
 
 def install_tts_from_github(venv_python):
     """Install TTS directly from the GitHub repository."""
@@ -243,7 +249,7 @@ def install_development_dependencies(venv_python):
         "setuptools>=45", 
         "wheel", 
         "build", 
-        "numpy>=1.19.0",  # TTS dependency
+        "numpy>=1.19.0,<2.0.0",  # Pin numpy below 2.0 for compatibility with TTS
         "cython"  # Often needed for scientific packages
     ]
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + core_deps, check=True)
