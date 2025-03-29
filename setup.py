@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 OARC setup script for environment setup and package installation.
+
+This script handles both direct execution (for creating virtual environments 
+and installing dependencies) and being imported by pip/setuptools.
 """
 
 import os
@@ -14,53 +17,49 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# Import utility functions directly
+# Import utility modules
 from oarc.utils.setup.setup_utils import (
-    PROJECT_ROOT, VENV_DIR, CONFIG_DIR, LOG_DIR, TTS_REPO_DIR,
-    read_build_config, clean_egg_info, fix_egg_deprecation,
-    install_pyaudio_dependencies, install_tts_from_github,
+    PROJECT_ROOT, VENV_DIR, read_build_config, clean_egg_info,
     get_directory_size, format_size
 )
+from oarc.utils.setup.pyaudio_utils import install_pyaudio_dependencies
+from oarc.utils.setup.tts_utils import install_tts_from_github
 from oarc.utils.setup.venv_utils import (
-    check_python_version, detect_existing_venv, get_venv_python, ensure_pip
+    get_venv_python, ensure_pip,
+    check_pip_functionality
 )
 from oarc.utils.setup.build_utils import build_package
 from oarc.utils.setup.logging_utils import setup_logging
 from oarc.utils.setup.clean_project import clean_project
-from oarc.utils.setup.cuda_utils import check_cuda_capable, install_pytorch_with_cuda
+from oarc.utils.setup.cuda_utils import install_pytorch_with_cuda
 
 def install_development_dependencies(venv_python):
-    """Install package in development mode and required dependencies."""
+    """Install package in development mode with all required dependencies."""
     ensure_pip(venv_python)
     
+    # Verify pip functionality before proceeding
+    if not check_pip_functionality(venv_python):
+        raise RuntimeError("pip is not functioning correctly. Cannot continue with installation. "
+                          "Try recreating the virtual environment with: python -m venv .venv --clear")
+    
     print("Upgrading pip...")
-    try:
-        subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
-    except subprocess.CalledProcessError:
-        print("Warning: Could not upgrade pip. Continuing with existing version.")
+    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], check=True)
     
     # Clean egg_info directories before installation
     clean_egg_info()
     
-    # First install core build tools and common dependencies
+    # Core build tools and dependencies
     print("Installing setuptools, wheel, build and core dependencies...")
     core_deps = [
         "setuptools>=45", 
         "wheel", 
         "build",
-        "numpy>=1.24.3",  # Updated to match pyproject.toml
-        "cython>=0.30.0"  # Updated to match pyproject.toml
+        "numpy>=1.24.3",
+        "cython>=0.30.0"
     ]
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + core_deps, check=True)
     
-    # Install the package in development mode FIRST
-    print("Installing package in development mode...")
-    subprocess.run(
-        [str(venv_python), "-m", "pip", "install", "-e", ".", "--no-deps"],
-        check=True
-    )
-    
-    # Then install dependencies separately
+    # Base dependencies
     print("Installing base dependencies...")
     base_deps = [
         "fastapi>=0.68.0",
@@ -74,17 +73,18 @@ def install_development_dependencies(venv_python):
     ]
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + base_deps, check=True)
     
+    # ML dependencies with CUDA support if available
     print("Installing ML dependencies...")
-    # Install PyTorch with CUDA support if available
-    install_pytorch_with_cuda(venv_python)
+    if not install_pytorch_with_cuda(venv_python):
+        raise RuntimeError("Failed to install PyTorch. Setup cannot continue.")
     
-    # Install other ML dependencies that don't require special CUDA handling
     other_ml_deps = [
         "transformers>=4.0.0", 
         "ollama>=0.5.0"
     ]
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + other_ml_deps, check=True)
     
+    # Audio processing dependencies
     print("Installing audio dependencies...")
     audio_deps = [
         "SpeechRecognition>=3.8.1",
@@ -92,41 +92,37 @@ def install_development_dependencies(venv_python):
     ]
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + audio_deps, check=True)
     
-    # Install PyAudio
-    install_pyaudio_dependencies(venv_python)
+    # Platform-specific PyAudio installation
+    if not install_pyaudio_dependencies(venv_python):
+        raise RuntimeError("Failed to install PyAudio. Setup cannot continue.")
     
-    # Install TTS from GitHub only if it's not already installed
-    try:
-        subprocess.run(
-            [str(venv_python), "-c", "import TTS; print(f'TTS already installed: {TTS.__file__}')"], 
-            check=False, capture_output=True, text=True
-        )
-        print("TTS is already installed, skipping GitHub installation")
-    except:
-        install_tts_from_github(venv_python)
+    # TTS installation from GitHub
+    install_tts_from_github(venv_python)
     
-    # Verify package installation
-    print("Verifying package installation...")
-    verification_result = subprocess.run(
-        [str(venv_python), "-c", "import oarc; print(f'OARC package installed successfully: {oarc.__file__}')"],
-        check=False,
-        capture_output=True,
-        text=True
-    )
+    # Ensure torch-related packages are properly installed
+    print("Installing remaining dependencies...")
+    all_remaining_deps = [
+        "torch>=2.0.0",
+        "torchaudio>=2.0.0",
+        "torchvision>=0.15.0"
+    ]
+    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + all_remaining_deps, check=True)
     
-    if verification_result.returncode != 0:
-        print("Warning: OARC package verification failed. The package may not be correctly installed.")
-        print(f"Error: {verification_result.stderr}")
-    else:
-        print(verification_result.stdout.strip())
+    # Install package in development mode
+    print("Installing package in development mode...")
+    subprocess.run([str(venv_python), "-m", "pip", "install", "-e", ".", "--no-deps"], check=True)
     
-    # Install dev dependencies
-    print("Installing development tools...")
-    dev_packages = ["twine", "pytest", "black", "flake8"]
+    # Verify installation
+    print("Verifying package functionality...")
     subprocess.run(
-        [str(venv_python), "-m", "pip", "install"] + dev_packages,
+        [str(venv_python), "-c", "import sys; sys.path.insert(0, '.'); import oarc; print(f'OARC package imported successfully')"],
         check=True
     )
+    
+    # Development tools installation
+    print("Installing development tools...")
+    dev_packages = ["twine", "pytest", "black", "flake8"]
+    subprocess.run([str(venv_python), "-m", "pip", "install"] + dev_packages, check=True)
     
     print("Package dependencies installed successfully.")
     return True
@@ -169,12 +165,10 @@ def main():
         
         # Let setuptools handle package installation
         from setuptools import setup
-        
-        # Minimal setup call delegating to pyproject.toml for pip to process the package correctly
         setup()
         return
 
-    # Parse arguments for our own commands
+    # Parse arguments for custom commands
     args = parse_args_for_direct_execution()
     
     if args.clean:
@@ -187,7 +181,8 @@ def main():
         venv_python = get_venv_python()
         ensure_pip(venv_python)
         config = read_build_config()
-        build_package(venv_python, config, logger)
+        if not build_package(venv_python, config, logger):
+            sys.exit(1)  # Exit with error code if build fails
     else:
         print("Setting up OARC development environment...")
         if logger:
@@ -195,47 +190,39 @@ def main():
 
         venv_python = get_venv_python()
         
-        # Install dependencies with fallback handling
-        try:
-            install_development_dependencies(venv_python)
+        # Install dependencies - any errors will propagate and fail the script
+        install_development_dependencies(venv_python)
+        
+        print("\nOARC development environment is ready!")
+        print(f"To activate the environment: ")
+        if os.name == 'nt':
+            print(f"  {VENV_DIR}\\Scripts\\activate")
+        else:
+            print(f"  source {VENV_DIR}/bin/activate")
             
-            print("\nOARC development environment is ready!")
-            print(f"To activate the environment: ")
-            if os.name == 'nt':
-                print(f"  {VENV_DIR}\\Scripts\\activate")
-            else:
-                print(f"  source {VENV_DIR}/bin/activate")
-                
-            # Telemetry data collection
-            end_time = datetime.now()
-            elapsed_time = end_time - start_time
-            final_venv_size = 0
-            if VENV_DIR.exists():
-                final_venv_size = get_directory_size(VENV_DIR)
-                
-            size_change = final_venv_size - initial_venv_size
-                
-            print("\nSetup Telemetry:")
-            print(f"  Total setup time: {elapsed_time}")
-            print(f"  Virtual environment size: {format_size(final_venv_size)}")
-            if initial_venv_size > 0:
-                print(f"  Size change: {format_size(size_change)} ({(size_change/initial_venv_size)*100:.1f}% change)")
+        # Telemetry data collection
+        end_time = datetime.now()
+        elapsed_time = end_time - start_time
+        final_venv_size = 0
+        if VENV_DIR.exists():
+            final_venv_size = get_directory_size(VENV_DIR)
             
-            if logger:
-                logger.info(f"Setup completed successfully in {elapsed_time}")
-                logger.info(f"Environment size: {format_size(final_venv_size)}")
-                
-        except subprocess.CalledProcessError as e:
-            print(f"Error: Installation failed: {e}")
-            print("Setup cannot continue. Please resolve the issues above and try again.")
-            if logger:
-                logger.error(f"Installation failed: {e}")
-            sys.exit(1)
+        size_change = final_venv_size - initial_venv_size
+            
+        print("\nSetup Telemetry:")
+        print(f"  Total setup time: {elapsed_time}")
+        print(f"  Virtual environment size: {format_size(final_venv_size)}")
+        if initial_venv_size > 0:
+            print(f"  Size change: {format_size(size_change)} ({(size_change/initial_venv_size)*100:.1f}% change)")
+        
+        if logger:
+            logger.info(f"Setup completed successfully in {elapsed_time}")
+            logger.info(f"Environment size: {format_size(final_venv_size)}")
 
-# This is the crucial part: setup.py needs to handle both direct execution and being imported by pip/setuptools
+# Handle both direct execution and being imported by pip
 if __name__ == "__main__":
     main()
 else:
-    # When imported by pip or setuptools, just delegate to setuptools
+    # When imported by pip or setuptools, delegate to setuptools
     from setuptools import setup
     setup()

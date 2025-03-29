@@ -95,3 +95,43 @@ def ensure_pip(venv_python):
     except subprocess.CalledProcessError as e:
         print(f"Warning: ensurepip returned an error: {e}")
         print("Continuing with existing pip...")
+
+def check_pip_functionality(venv_python):
+    """Check if pip is functioning correctly in the virtual environment."""
+    print("Verifying pip functionality...")
+    try:
+        # Try a simple pip command to check if it works
+        result = subprocess.run(
+            [str(venv_python), "-m", "pip", "--version"], 
+            check=False,
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            print(f"Pip is working correctly: {result.stdout.strip()}")
+            return True
+        else:
+            print(f"Pip appears to be broken. Error: {result.stderr.strip()}")
+            
+            # Try to reinstall pip as a recovery step
+            print("Attempting to reinstall pip...")
+            subprocess.run([str(venv_python), "-m", "ensurepip", "--default-pip"], check=False)
+            
+            # Check again
+            result = subprocess.run(
+                [str(venv_python), "-m", "pip", "--version"], 
+                check=False,
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print(f"Pip reinstalled successfully: {result.stdout.strip()}")
+                return True
+            else:
+                print("Failed to restore pip functionality.")
+                return False
+    except Exception as e:
+        print(f"Error checking pip functionality: {e}")
+        return False
