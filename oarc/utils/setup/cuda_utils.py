@@ -6,8 +6,6 @@ CUDA setup utilities for OARC package.
 import os
 import subprocess
 import platform
-import logging
-from pathlib import Path
 
 def check_cuda_capable():
     """Check if the current system has CUDA capabilities.
@@ -167,7 +165,7 @@ def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
     
     return pip_command, packages, index_url
 
-def install_pytorch_with_cuda(venv_python, logger=None):
+def install_pytorch(venv_python, logger=None):
     """Install PyTorch with CUDA support if available.
     
     Args:

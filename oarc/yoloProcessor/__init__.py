@@ -1,4 +1,6 @@
-#__init__.py
+""" This module contains the YoloProcessor and YoloAPI classes, which are used for"""
+
+from .yoloProcessor import YoloAPI
 from .yoloProcessor import YoloProcessor
-from .keystrokes import keystrokeController
-from .gestureBox_v1 import GestureBox
+
+__all__ = ['YoloProcessor', 'YoloAPI']

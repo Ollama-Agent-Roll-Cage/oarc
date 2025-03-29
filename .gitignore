@@ -190,3 +190,4 @@ __pycache__/
 *.class
 .pytest_cache/
 oarc.egg-info/
+coqui-ai-TTS

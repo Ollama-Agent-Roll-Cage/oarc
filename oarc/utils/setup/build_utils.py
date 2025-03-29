@@ -4,59 +4,66 @@ Build utilities for OARC package.
 """
 
 import subprocess
+import sys
 from pathlib import Path
+import shutil
 
-from .setup_utils import PROJECT_ROOT
-from .clean_project import clean_project
 
-def build_package(venv_python, config, logger=None):
-    """Build the package as a wheel."""
-    print("Building package distribution...")
-    if logger:
-        logger.info("Starting package build")
+def build_package(venv_python=None, clean=True):
+    """Build the OARC package wheel.
     
-    if config.getboolean("build", "clean_before_build", fallback=True):
-        clean_project()
-        if logger:
-            logger.info("Cleaned project directories")
+    Args:
+        venv_python: Path to Python executable in virtual environment.
+                     If None, use the current Python interpreter.
+        clean: Whether to clean the build directories before building.
     
-    # Install build requirements
-    subprocess.run([str(venv_python), "-m", "pip", "install", "build", "wheel", "setuptools>=45"], check=True)
+    Returns:
+        Path: Path to the built wheel file
+    
+    Raises:
+        subprocess.CalledProcessError: If build fails
+    """
+    if venv_python is None:
+        venv_python = Path(sys.executable)
+    
+    print(f"Building package using Python from: {venv_python}")
+    
+    # Get the project root directory
+    project_dir = Path(__file__).resolve().parents[3]  # Adjust based on actual location
+    
+    # Clean build directories if requested
+    if clean:
+        dirs_to_clean = ['build', 'dist', '*.egg-info']
+        for dir_pattern in dirs_to_clean:
+            for path in project_dir.glob(dir_pattern):
+                if path.is_dir():
+                    print(f"Cleaning {path}")
+                    shutil.rmtree(path)
+    
+    # Install build dependencies
+    subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "--upgrade", "build", "wheel"],
+        check=True
+    )
     
     # Build the package
-    build_cmd = [str(venv_python), "-m", "build"]
+    subprocess.run(
+        [str(venv_python), "-m", "build", "--wheel"],
+        cwd=project_dir,
+        check=True
+    )
     
-    # Add options based on config
-    if not config.getboolean("build", "build_wheel", fallback=True):
-        build_cmd.append("--no-wheel")
+    # Find the built wheel
+    wheels = list(project_dir.joinpath("dist").glob("*.whl"))
+    if not wheels:
+        raise FileNotFoundError("No wheel file was created during build")
     
-    if config.getboolean("build", "build_sdist", fallback=False):
-        build_cmd.append("--sdist")
-    else:
-        build_cmd.append("--no-sdist")
-        
-    if logger:
-        logger.info(f"Running build command: {' '.join(str(x) for x in build_cmd)}")
+    wheel_path = wheels[-1]  # Get the latest wheel
+    print(f"Package built successfully: {wheel_path}")
     
-    result = subprocess.run(build_cmd, check=False)
-    
-    if result.returncode == 0:
-        print("Package built successfully!")
-        if logger:
-            logger.info("Package built successfully")
-    else:
-        print("Package build failed.")
-        if logger:
-            logger.error("Package build failed")
-        return False
-    
-    # List the built packages
-    dist_dir = PROJECT_ROOT / "dist"
-    if dist_dir.exists():
-        print("\nBuilt packages:")
-        for package in dist_dir.glob("*"):
-            print(f"  - {package.name}")
-            if logger:
-                logger.info(f"Built package: {package.name}")
-    
-    return True
+    return wheel_path
+
+
+if __name__ == "__main__":
+    # This allows the module to be run directly for testing
+    build_package()

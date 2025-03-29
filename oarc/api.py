@@ -72,30 +72,21 @@
 #TODO so essentially all of the tools in the multimodal pip install  package can be written into scripts, 
 # or you can access the entire  api for loading agent configs, HANDLE WITH GRACE, BUILD WITH CARE, TAKE IT SLOW THIS IS A MARATHON NOT A SPRINT.
 
-from fastapi import APIRouter, FastAPI, WebSocket, HTTPException, WebSocketDisconnect, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-import os
-import re
-import time
 import json
-import asyncio
-from typing import Dict, Any, Optional
 import logging
-import websockets
+import os
 from pprint import pformat
+
+from fastapi import APIRouter, FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-# multimodal tools
-# Update imports
-from speechToSpeech import textToSpeech
-from speechToSpeech import speechToText
-from base_api.BaseToolAPI import BaseToolAPI
-from promptModel import multiModalPrompting
-from yoloProcessor import YoloProcessor
+from oarc.speechToSpeech import speechToText, SpeechToTextAPI, textToSpeech, TextToSpeechAPI
+from oarc.promptModel import multiModalPrompting
+from oarc.yoloProcessor import YoloAPI, YoloProcessor
+from oarc.pandasDB import PandasDB
 
-# file handling and construction
-from ollamaUtils import model_write_class
 from ollamaUtils.create_convert_manager import create_convert_manager
+from ollamaUtils import model_write_class
 from ollamaUtils.ollamaCommands import ollamaCommands
 
 # Configure logging
@@ -220,6 +211,7 @@ class BaseToolAPI:
     
 from api.llm_api import LLMPromptAPI
 from api.agent_api import AgentAPI
+from pandasDB.agentStorage import AgentStorage
 
 class oarcAPI():
     def __init__(self):

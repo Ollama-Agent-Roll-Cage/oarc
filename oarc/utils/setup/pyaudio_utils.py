@@ -7,7 +7,7 @@ import sys
 import subprocess
 import os
 
-def install_pyaudio_dependencies(venv_python):
+def install_pyaudio(venv_python):
     """Install platform-specific dependencies for PyAudio."""
     print("Installing PyAudio dependencies...")
     
