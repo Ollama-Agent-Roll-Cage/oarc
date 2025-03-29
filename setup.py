@@ -80,7 +80,7 @@ def install_development_dependencies(venv_python):
     
     other_ml_deps = [
         "transformers>=4.0.0", 
-        "ollama>=0.5.0"
+        "ollama>=0.4.7"
     ]
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + other_ml_deps, check=True)
     
