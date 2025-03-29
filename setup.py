@@ -208,17 +208,47 @@ def install_tts_from_github(venv_python):
     include_dir = VENV_DIR / "Include"
     include_dir.mkdir(exist_ok=True, parents=True)
     
-    # Remove existing directory if it exists
+    # Try to remove existing directory if it exists
     if TTS_REPO_DIR is not None and os.path.exists(TTS_REPO_DIR):
         print(f"Removing existing TTS repository at {TTS_REPO_DIR}")
-        shutil.rmtree(TTS_REPO_DIR)
+        try:
+            shutil.rmtree(TTS_REPO_DIR)
+            need_to_clone = True
+        except PermissionError as e:
+            print(f"Warning: Could not fully remove TTS repository due to permission error: {e}")
+            print("Will try to work with existing repository...")
+            # Check if it's a valid git repo
+            if os.path.exists(os.path.join(TTS_REPO_DIR, ".git")):
+                need_to_clone = False
+            else:
+                print("Existing directory is not a valid git repository. Will attempt to create a new directory.")
+                need_to_clone = True
+    else:
+        need_to_clone = True
     
-    # Clone the repository
-    print("Cloning TTS repository from GitHub...")
-    subprocess.run(
-        ["git", "clone", "https://github.com/idiap/coqui-ai-TTS", str(TTS_REPO_DIR)],
-        check=True
-    )
+    if need_to_clone:
+        # Clone the repository
+        print("Cloning TTS repository from GitHub...")
+        try:
+            subprocess.run(
+                ["git", "clone", "https://github.com/idiap/coqui-ai-TTS", str(TTS_REPO_DIR)],
+                check=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: Git clone failed: {e}")
+            print("Continuing with installation assuming repository exists...")
+    else:
+        # Try to update the existing repository
+        try:
+            print("Attempting to update existing repository...")
+            subprocess.run(
+                ["git", "pull"],
+                cwd=str(TTS_REPO_DIR),
+                check=False  # Don't raise an exception if this fails
+            )
+        except Exception as e:
+            print(f"Warning: Git pull failed: {e}")
+            print("Continuing with installation using existing repository...")
     
     # Install in development mode
     print("Installing TTS in development mode...")
