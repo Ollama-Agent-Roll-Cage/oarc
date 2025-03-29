@@ -86,7 +86,7 @@ def fix_egg_deprecation(venv_python):
     # Ensure numpy is at the right version
     print("Ensuring numpy is at the correct version...")
     subprocess.run(
-        [str(venv_python), "-m", "pip", "install", "numpy>=1.19.0,<2.0.0", "--force-reinstall"],
+        [str(venv_python), "-m", "pip", "install", "numpy>=1.24.3", "--force-reinstall"],
         check=True
     )
 

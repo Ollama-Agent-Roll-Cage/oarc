@@ -27,6 +27,7 @@ from oarc.utils.setup.venv_utils import (
 from oarc.utils.setup.build_utils import build_package
 from oarc.utils.setup.logging_utils import setup_logging
 from oarc.utils.setup.clean_project import clean_project
+from oarc.utils.setup.cuda_utils import check_cuda_capable, install_pytorch_with_cuda
 
 def install_development_dependencies(venv_python):
     """Install package in development mode and required dependencies."""
@@ -47,8 +48,8 @@ def install_development_dependencies(venv_python):
         "setuptools>=45", 
         "wheel", 
         "build",
-        "numpy<2.0.0,>=1.19.0",
-        "cython"
+        "numpy>=1.24.3",  # Updated to match pyproject.toml
+        "cython>=0.30.0"  # Updated to match pyproject.toml
     ]
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + core_deps, check=True)
     
@@ -74,12 +75,15 @@ def install_development_dependencies(venv_python):
     subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + base_deps, check=True)
     
     print("Installing ML dependencies...")
-    ml_deps = [
-        "torch>=1.9.0",
+    # Install PyTorch with CUDA support if available
+    install_pytorch_with_cuda(venv_python)
+    
+    # Install other ML dependencies that don't require special CUDA handling
+    other_ml_deps = [
         "transformers>=4.0.0", 
-        "ollama>=0.1.0"
+        "ollama>=0.5.0"
     ]
-    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + ml_deps, check=True)
+    subprocess.run([str(venv_python), "-m", "pip", "install", "--upgrade"] + other_ml_deps, check=True)
     
     print("Installing audio dependencies...")
     audio_deps = [
