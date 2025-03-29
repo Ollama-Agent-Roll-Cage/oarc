@@ -14,13 +14,15 @@ import configparser
 from datetime import datetime
 from pathlib import Path
 
+OARC_MODEL_GIT = os.environ["OARC_MODEL_GIT"]
+           
 # Define project constants
 PROJECT_ROOT = Path(__file__).resolve().parent
 VENV_DIR = PROJECT_ROOT / ".venv"
 CONFIG_DIR = PROJECT_ROOT / "oarc" / "config_files"
 LOG_DIR = PROJECT_ROOT / "logs"
 # Define TTS repo directory within the virtual environment
-TTS_REPO_DIR = VENV_DIR / "Include" / "coqui-ai-TTS"
+TTS_REPO_DIR = os.path.join(f"{OARC_MODEL_GIT}", "coqui-ai-TTS")
 
 def setup_logging():
     """Set up logging for the build process."""
@@ -207,7 +209,7 @@ def install_tts_from_github(venv_python):
     include_dir.mkdir(exist_ok=True, parents=True)
     
     # Remove existing directory if it exists
-    if TTS_REPO_DIR.exists():
+    if TTS_REPO_DIR is not None and os.path.exists(TTS_REPO_DIR):
         print(f"Removing existing TTS repository at {TTS_REPO_DIR}")
         shutil.rmtree(TTS_REPO_DIR)
     
