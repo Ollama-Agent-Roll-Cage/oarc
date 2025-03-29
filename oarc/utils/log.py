@@ -15,7 +15,7 @@ import inspect
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar, Union
 
 LF = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 T = TypeVar("T")
@@ -98,11 +98,11 @@ class Log:
         return logging.StreamHandler(sys.stdout)
 
     @staticmethod
-    def set_default_log_dir(log_dir: str or Path) -> None:
+    def set_default_log_dir(log_dir: Union[str, Path]) -> None:
         """Set the default directory for log files.
         
         Args:
-            log_dir (str or Path): Directory to store log files
+            log_dir (Union[str, Path]): Directory to store log files
         """
         if isinstance(log_dir, str):
             log_dir = Path(log_dir)
@@ -113,13 +113,13 @@ class Log:
     @staticmethod
     def add_file_handler(logger_name: str = "oarc", 
                          filename: Optional[str] = None,
-                         log_dir: Optional[str or Path] = None) -> logging.FileHandler:
+                         log_dir: Optional[Union[str, Path]] = None) -> logging.FileHandler:
         """Add a file handler to the specified logger.
         
         Args:
             logger_name (str): Name of the logger to add the handler to
             filename (Optional[str]): Name of the log file
-            log_dir (Optional[str or Path]): Directory to store log file, 
+            log_dir (Optional[Union[str, Path]]): Directory to store log file, 
                                             uses default_log_dir if None
                 
         Returns:
@@ -168,14 +168,14 @@ class Log:
     @staticmethod
     def get_logger(name: str, with_file: bool = False, 
                   filename: Optional[str] = None,
-                  log_dir: Optional[str or Path] = None) -> logging.Logger:
+                  log_dir: Optional[Union[str, Path]] = None) -> logging.Logger:
         """Get a named logger with optional file handler.
         
         Args:
             name (str): Name of the logger
             with_file (bool): Whether to add a file handler
             filename (Optional[str]): Name of the log file (defaults to name.log)
-            log_dir (Optional[str or Path]): Directory for log file
+            log_dir (Optional[Union[str, Path]]): Directory for log file
             
         Returns:
             logging.Logger: Configured logger instance
