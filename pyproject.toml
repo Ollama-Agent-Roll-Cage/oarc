@@ -1,48 +1,90 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "oarc"
 version = "0.1.0"
-description = "Ollama Agent Roll Cage - Speech to Speech with Vision AI Chatbot API"
+description = "OARC Python Package"
 readme = "README.md"
-authors = [{name = "Leo Borcherding"}]
-# Update license to Apache 2.0
-license = {text = "Apache License 2.0"}
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "License :: OSI Approved :: Apache Software License",
-]
-keywords = ["speech", "ai", "chatbot", "vision", "ollama"]
 requires-python = ">=3.10"
+authors = [
+    {name = "OARC Team"}
+]
 dependencies = [
+    # Build tools
+    "setuptools>=45", 
+    "wheel", 
+    "build",
+    
+    # Core libraries
+    "numpy>=1.24.3",
+    "scipy>=1.13.0",
+    "cython>=0.30.0",
+    
+    # Audio processing
+    "soundfile>=0.12.0",
+    "librosa>=0.11.0",
+    
+    # Web & API
     "fastapi>=0.68.0",
-    "keyboard>=0.13.5",
-    "numpy>=1.19.0",
-    "ollama>=0.1.0",
-    "pandas>=1.3.0",
     "python-multipart>=0.0.5",
-    "pyaudio>=0.2.11",
     "pydantic>=1.8.0",
     "requests>=2.26.0",
-    "SpeechRecognition>=3.8.1",
-    "torch>=1.9.0",
-    "transformers>=4.0.0",
     "uvicorn>=0.15.0",
     "websockets>=10.0",
+    
+    # Machine Learning
+    "transformers>=4.47.0", 
+    "ollama>=0.4.7",
+    
+    # Speech
+    "SpeechRecognition>=3.8.1",
     "whisper>=1.0",
-    "cython>=0.30.0",
+    
+    # TTS dependencies
+    "inflect>=5.6.0",
+    "tqdm>=4.64.1",
+    "anyascii>=0.3.0",
+    "pysbd>=0.3.4",
+    "einops>=0.6.0",
+    "encodec>=0.1.1",
+    "num2words>=0.5.14",
+    
+    # Utilities
+    "pyyaml>=6.0",
+    "fsspec[http]>=2023.6.0",
+    "packaging>=23.1",
+    "typing_extensions>=4.10",
+    "keyboard>=0.13.5", 
+    "pandas>=1.3.0",
+    "matplotlib>=3.8.4",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "build",
-    "twine",
-    "pytest",
+    # Testing & code quality
+    "pytest>=8",
     "black",
     "flake8",
+    "twine", 
+    "coverage[toml]>=7",
+    "pre-commit>=4",
+    "ruff==0.9.1",
+    
+    # Documentation
+    "sphinx==7.4.7",
+    "furo>=2024.8.6",
+    "sphinx_copybutton>=0.5.2",
+    
+    # Additional tools
+    "bokeh>=3.0.3",
+    "umap-learn>=0.5.1",
 ]
+
+[project.scripts]
+oarc = "oarc.main:main"
+
+[tool.setuptools]
+packages = ["oarc"]
+package-dir = {"" = "."}

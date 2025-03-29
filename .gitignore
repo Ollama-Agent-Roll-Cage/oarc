@@ -7,6 +7,13 @@ hugs.py
 globe.py 
 tools.py 
 
+# Installation error artifacts
+pip-wheel-metadata/
+.eggs/
+pip-temp/
+pip_build/
+tmp/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

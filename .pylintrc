@@ -13,6 +13,8 @@ ignore-extensions=py,pyx,pyd,so
 [MESSAGES CONTROL]
 # Disable all messages
 disable=all
+# Specifically disable import errors
+disable=import-error,no-member,no-name-in-module
 
 [REPORTS]
 # Disable all reporting
