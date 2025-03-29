@@ -1,4 +1,4 @@
-from oarc.oarc_api import oarcAPI
+from oarc.api import oarcAPI
 from oarc.speechToSpeech import textToSpeech, speechToText
 from oarc.promptModel import multiModalPrompting
 from oarc.yoloProcessor import YoloProcessor
