@@ -1,7 +1,8 @@
 from typing import Optional, Dict
 from fastapi import APIRouter, HTTPException
-from base_api.BaseToolAPI import BaseToolAPI
-from pandasDB.agentStorage import AgentStorage
+
+from oarc.base_api.BaseToolAPI import BaseToolAPI
+from oarc.pandasDB.agentStorage import AgentStorage
 
 class AgentAPI(BaseToolAPI):
     def __init__(self):

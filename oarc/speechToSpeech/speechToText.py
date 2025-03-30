@@ -2,7 +2,7 @@
 import pyaudio
 import speech_recognition as sr
 import numpy as np
-import whisper
+# import whisper
 from whisper import load_model
 import queue
 import audioop
@@ -16,7 +16,7 @@ import json
 import websockets
 import asyncio
 from fastapi import FastAPI, APIRouter
-from base_api.BaseToolAPI import BaseToolAPI
+from oarc.base_api import BaseToolAPI
 
 class speechToText:
     def __init__(self):

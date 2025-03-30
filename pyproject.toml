@@ -24,6 +24,7 @@ dependencies = [
     
     # Audio processing
     "soundfile>=0.12.0",
+    "sounddevice>=0.5.1",
     "librosa>=0.11.0",
     
     # Web & API
@@ -37,10 +38,12 @@ dependencies = [
     # Machine Learning
     "transformers>=4.47.0", 
     "ollama>=0.4.7",
-    
+    "llama-index>=0.12.26",
+    "llama-index-experimental>=0.5.4",
+
     # Speech
     "SpeechRecognition>=3.8.1",
-    "whisper>=1.0",
+    "openai-whisper>=20240930",
     
     # TTS dependencies
     "inflect>=5.6.0",

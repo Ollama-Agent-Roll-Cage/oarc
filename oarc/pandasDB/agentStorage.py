@@ -2,12 +2,15 @@
 
     This module is responsible for storing the agents in a pandas dataframe.
 """
+from fastapi import APIRouter, HTTPException
 import time
+import logging
 from typing import Any, Dict, Optional
 
-from pandasDB import pandasDB
-from utils import log
+from oarc.pandasDB import pandasDB
+from oarc.decorators.log import log
 
+@log(level=logging.INFO)
 class AgentStorage:
     def __init__(self):
         self.agent_cores = pandasDB()
@@ -299,7 +302,7 @@ class AgentStorage:
 
             # Initialize agent
             existing_agent = self.agent_cores.loadAgentCore(self.agent_id)
-            if existing_agent:
+            if (existing_agent):
                 self.setAgent(self.agent_id)
             else:
                 self.coreAgent()
@@ -495,4 +498,131 @@ class AgentStorageAPI:
         self.setup_routes()
     
     def setup_routes(self):
-        @self.router.post("/api/")
+        @self.router.post("/api/agent/create")
+        async def create_agent(self, template_name: str, agent_id: str, custom_config: Optional[Dict] = None):
+            """Create a new agent from a template"""
+            try:
+                agent_storage = AgentStorage()
+                agent = agent_storage.create_agent_from_template(template_name, agent_id, custom_config)
+                return {"status": "success", "agent": agent}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.get("/api/agent/list")
+        async def list_agents(self):
+            """Get list of available agents"""
+            try:
+                agent_storage = AgentStorage()
+                agents = await agent_storage.list_available_agents()
+                return {"agents": agents}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.get("/api/agent/{agent_id}")
+        async def get_agent(self, agent_id: str):
+            """Get agent configuration"""
+            try:
+                agent_storage = AgentStorage()
+                agent_config = agent_storage.get_agent_config(agent_id)
+                if not agent_config:
+                    raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+                return agent_config
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.post("/api/agent/load")
+        async def load_agent(self, agent_id: str):
+            """Load an existing agent"""
+            try:
+                agent_storage = AgentStorage()
+                agent = agent_storage.load_agent(agent_id)
+                return {"status": "success", "agent": agent}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.delete("/api/agent/{agent_id}")
+        async def delete_agent(self, agent_id: str):
+            """Delete an existing agent"""
+            try:
+                agent_storage = AgentStorage()
+                agent_storage.purge_agent(agent_id)
+                return {"status": "success", "message": f"Agent {agent_id} deleted"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.post("/api/agent/reset")
+        async def reset_agents(self):
+            """Reset all agents to default templates"""
+            try:
+                agent_storage = AgentStorage()
+                agent_storage.purge_agents()
+                agent_storage.setup_default_agents()
+                agent_storage.reload_templates()
+                return {"status": "success", "message": "All agents reset to defaults"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.get("/api/agent/models")
+        async def get_available_models(self):
+            """Get list of available models"""
+            try:
+                agent_storage = AgentStorage()
+                models = await agent_storage.get_available_models()
+                return {"models": models}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.get("/api/agent/commands")
+        async def get_command_library(self):
+            """Get available command library"""
+            try:
+                agent_storage = AgentStorage()
+                commands = await agent_storage.get_command_library()
+                return {"commands": commands}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.put("/api/agent/{agent_id}/flags")
+        async def update_agent_flags(self, agent_id: str, flags: Dict[str, bool]):
+            """Update agent flags"""
+            try:
+                agent_storage = AgentStorage()
+                agent_storage.initAgentStorage(agent_id)
+                
+                # Update flags
+                for flag_name, flag_value in flags.items():
+                    if hasattr(agent_storage, flag_name):
+                        setattr(agent_storage, flag_name, flag_value)
+                
+                agent_storage.save_agent_state()
+                return {"status": "success", "message": f"Agent {agent_id} flags updated"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.put("/api/agent/{agent_id}/models")
+        async def update_agent_models(self, agent_id: str, models: Dict[str, str]):
+            """Update agent models"""
+            try:
+                agent_storage = AgentStorage()
+                agent_storage.initAgentStorage(agent_id)
+                
+                # Update models
+                if "largeLanguageModel" in models:
+                    agent_storage.large_language_model = models["largeLanguageModel"]
+                if "embeddingModel" in models:
+                    agent_storage.embedding_model = models["embeddingModel"]
+                if "visionModel" in models:
+                    agent_storage.language_and_vision_model = models["visionModel"]
+                if "yoloModel" in models:
+                    agent_storage.yolo_model = models["yoloModel"]
+                if "whisperModel" in models:
+                    agent_storage.whisper_model = models["whisperModel"]
+                if "voiceName" in models:
+                    agent_storage.voice_name = models["voiceName"]
+                
+                agent_storage.save_agent_state()
+                return {"status": "success", "message": f"Agent {agent_id} models updated"}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))

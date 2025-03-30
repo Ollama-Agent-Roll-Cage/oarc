@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException
-from base_api.BaseToolAPI import BaseToolAPI
-from promptModel.multiModalPrompting import multiModalPrompting
+from oarc.base_api.BaseToolAPI import BaseToolAPI
+from oarc.promptModel.multiModalPrompting import multiModalPrompting
 
 class LLMPromptAPI(BaseToolAPI):
     def __init__(self):

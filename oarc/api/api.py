@@ -80,14 +80,14 @@ from pprint import pformat
 from fastapi import APIRouter, FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from oarc.speechToSpeech import speechToText, SpeechToTextAPI, textToSpeech, TextToSpeechAPI
+from oarc.speechToSpeech import speechToText, textToSpeech, SpeechToSpeechAPI
 from oarc.promptModel import multiModalPrompting
 from oarc.yoloProcessor import YoloAPI, YoloProcessor
 from oarc.pandasDB import PandasDB
 
-from ollamaUtils.create_convert_manager import create_convert_manager
-from ollamaUtils import model_write_class
-from ollamaUtils.ollamaCommands import ollamaCommands
+from oarc.ollamaUtils.create_convert_manager import create_convert_manager
+from oarc.ollamaUtils import model_write_class
+from oarc.ollamaUtils.ollamaCommands import ollamaCommands
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -191,27 +191,10 @@ class SpellLoader():
         except Exception as e:
             logger.error(f"Error initializing spells: {e}")
             raise
-
-class BaseToolAPI:
-    def __init__(self, prefix: str, tags: list[str]):
-        self.router = APIRouter(prefix=prefix, tags=tags)
-        self.model_git_dir = self.get_model_dir()
-        self.setup_routes()
     
-    def get_model_dir(self):
-        """Get and validate model directory"""
-        model_dir = os.getenv('OARC_MODEL_GIT')
-        if not model_dir:
-            raise EnvironmentError("OARC_MODEL_GIT environment variable not set")
-        return model_dir
-    
-    def setup_routes(self):
-        """Each tool implements its own routes"""
-        raise NotImplementedError
-    
-from api.llm_api import LLMPromptAPI
-from api.agent_api import AgentAPI
-from pandasDB.agentStorage import AgentStorage
+from oarc.api import LLMPromptAPI
+from oarc.api import AgentAPI
+from oarc.pandasDB import AgentStorage
 
 class oarcAPI():
     def __init__(self):

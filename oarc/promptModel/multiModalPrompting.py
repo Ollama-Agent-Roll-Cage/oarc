@@ -7,7 +7,7 @@ import ollama
 import time
 import multiprocessing
 from typing import Optional, Dict, Any
-from pandasDB import pandasDB
+from oarc.pandasDB import pandasDB
 
 logger = logging.getLogger(__name__)
     

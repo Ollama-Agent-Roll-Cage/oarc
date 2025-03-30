@@ -25,7 +25,7 @@ import keyboard
 import json
 import websockets
 from fastapi import FastAPI, APIRouter
-from base_api.BaseToolAPI import BaseToolAPI
+from oarc.base_api import BaseToolAPI
 
 # -------------------------------------------------------------------------------------------------
 class textToSpeech:
@@ -466,14 +466,6 @@ class textToSpeech:
                 'audio_type': audio_type,
                 'audio_data': list(audio_data)
             }))
-            
-if __name__ == "__main__":
-    # Example usage
-    tts = textToSpeech()
-    tts.process_tts_responses("Hello, how are you?", "tts")
-    time.sleep(5)
-    tts.cleanup()
-    print("Done")
 
 class TextToSpeechAPI(BaseToolAPI):
     def __init__(self):
