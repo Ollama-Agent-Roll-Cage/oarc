@@ -3,12 +3,14 @@
 Build utilities for OARC package.
 """
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
-import shutil
 
+from oarc.decorators.log import log
 
+@log()
 def build_package(venv_python=None, clean=True):
     """Build the OARC package wheel.
     
@@ -26,10 +28,10 @@ def build_package(venv_python=None, clean=True):
     if venv_python is None:
         venv_python = Path(sys.executable)
     
-    print(f"Building package using Python from: {venv_python}")
+    log.info(f"Building package using Python from: {venv_python}")
     
     # Get the project root directory
-    project_dir = Path(__file__).resolve().parents[3]  # Adjust based on actual location
+    project_dir = Path(__file__).resolve().parents[3]
     
     # Clean build directories if requested
     if clean:
@@ -37,16 +39,18 @@ def build_package(venv_python=None, clean=True):
         for dir_pattern in dirs_to_clean:
             for path in project_dir.glob(dir_pattern):
                 if path.is_dir():
-                    print(f"Cleaning {path}")
+                    log.info(f"Cleaning {path}")
                     shutil.rmtree(path)
     
     # Install build dependencies
+    log.info("Installing build dependencies...")
     subprocess.run(
         [str(venv_python), "-m", "pip", "install", "--upgrade", "build", "wheel"],
         check=True
     )
     
     # Build the package
+    log.info("Building package...")
     subprocess.run(
         [str(venv_python), "-m", "build", "--wheel"],
         cwd=project_dir,
@@ -56,14 +60,10 @@ def build_package(venv_python=None, clean=True):
     # Find the built wheel
     wheels = list(project_dir.joinpath("dist").glob("*.whl"))
     if not wheels:
+        log.error("No wheel file was created during build")
         raise FileNotFoundError("No wheel file was created during build")
     
     wheel_path = wheels[-1]  # Get the latest wheel
-    print(f"Package built successfully: {wheel_path}")
+    log.info(f"Package built successfully: {wheel_path}")
     
     return wheel_path
-
-
-if __name__ == "__main__":
-    # This allows the module to be run directly for testing
-    build_package()

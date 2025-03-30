@@ -6,7 +6,10 @@ General setup utilities for OARC package.
 import subprocess
 import sys
 from pathlib import Path
+from oarc.decorators.log import log
 
+
+@log()
 def update_pip(venv_python=None):
     """Update pip to the latest version.
     
@@ -23,15 +26,17 @@ def update_pip(venv_python=None):
     if venv_python is None:
         venv_python = Path(sys.executable)
     
-    print(f"Updating pip using Python from: {venv_python}")
+    log.info(f"Updating pip using Python from: {venv_python}")
     
     subprocess.run(
         [str(venv_python), "-m", "pip", "install", "--upgrade", "pip"],
         check=True
     )
-    print("Pip has been successfully updated to the latest version.")
+    log.info("Pip has been successfully updated to the latest version.")
     return True
 
+
+@log()
 def ensure_pip_subprocess(venv_python=None):
     """Ensure pip subprocess is available.
     
@@ -52,7 +57,7 @@ def ensure_pip_subprocess(venv_python=None):
     if venv_python is None:
         venv_python = Path(sys.executable)
     
-    print("Checking pip subprocess functionality...")
+    log.info("Checking pip subprocess functionality...")
     
     result = subprocess.run(
         [str(venv_python), "-m", "pip", "--version"],
@@ -60,9 +65,11 @@ def ensure_pip_subprocess(venv_python=None):
         text=True,
         check=True
     )
-    print(f"Pip is working correctly: {result.stdout.strip()}")
+    log.info(f"Pip is working correctly: {result.stdout.strip()}")
     return True
 
+
+@log()
 def ensure_pip(venv_python=None):
     """Update pip and verify it works as a subprocess.
     
@@ -80,13 +87,15 @@ def ensure_pip(venv_python=None):
     if venv_python is None:
         venv_python = Path(sys.executable)
         
-    print("Setting up pip...")
+    log.info("Setting up pip...")
     update_pip(venv_python)
     ensure_pip_subprocess(venv_python)
     
-    print("Pip is set up correctly and ready to use.")
+    log.info("Pip is set up correctly and ready to use.")
     return True
 
+
+@log()
 def install_self(venv_python=None, editable=True):
     """Install the package in development mode.
     
@@ -104,7 +113,7 @@ def install_self(venv_python=None, editable=True):
     if venv_python is None:
         venv_python = Path(sys.executable)
     
-    print(f"Installing package using Python from: {venv_python}")
+    log.info(f"Installing package using Python from: {venv_python}")
     
     cmd = [str(venv_python), "-m", "pip", "install"]
     if editable:
@@ -112,8 +121,9 @@ def install_self(venv_python=None, editable=True):
     cmd.append(".")
     
     subprocess.run(cmd, check=True)
-    print("Package has been successfully installed in development mode.")
+    log.info("Package has been successfully installed in development mode.")
     return True
+
 
 if __name__ == "__main__":
     # This allows the module to be run directly for testing

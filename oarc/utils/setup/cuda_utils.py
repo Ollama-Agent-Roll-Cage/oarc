@@ -6,7 +6,10 @@ CUDA setup utilities for OARC package.
 import os
 import subprocess
 import platform
+from oarc.decorators.log import log
 
+
+@log()
 def check_cuda_capable():
     """Check if the current system has CUDA capabilities.
     
@@ -15,7 +18,7 @@ def check_cuda_capable():
             is_cuda_available (bool): True if CUDA is available, False otherwise
             cuda_version (str): CUDA version if available, None otherwise
     """
-    print("Checking system for CUDA capabilities...")
+    log.info("Checking system for CUDA capabilities...")
     
     # Initialize variables
     is_cuda_available = False
@@ -92,25 +95,27 @@ def check_cuda_capable():
         elif system == "Darwin":  # macOS
             # macOS with Apple Silicon may have Metal support but not CUDA
             # For Intel Macs, CUDA support was discontinued after 10.13
-            print("macOS detected. Apple Silicon uses MPS backend, not CUDA. Intel Macs have limited CUDA support.")
+            log.info("macOS detected. Apple Silicon uses MPS backend, not CUDA. Intel Macs have limited CUDA support.")
             is_cuda_available = False
             cuda_version = None
     
     except Exception as e:
-        print(f"Error checking CUDA capabilities: {e}")
+        log.error(f"Error checking CUDA capabilities: {e}")
         is_cuda_available = False
         cuda_version = None
     
-    # Print result
+    # Log result
     if is_cuda_available and cuda_version:
-        print(f"CUDA is available! Detected CUDA version: {cuda_version}")
+        log.info(f"CUDA is available! Detected CUDA version: {cuda_version}")
     elif is_cuda_available:
-        print("CUDA is available, but could not determine version.")
+        log.info("CUDA is available, but could not determine version.")
     else:
-        print("CUDA is not available on this system.")
+        log.info("CUDA is not available on this system.")
     
     return is_cuda_available, cuda_version
 
+
+@log()
 def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
     """Get the appropriate pip command for installing PyTorch with CUDA support.
     
@@ -131,7 +136,7 @@ def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
     
     # Return CPU version if skip_cuda is True or no CUDA version provided
     if skip_cuda:
-        print("Installing PyTorch CPU version (skip_cuda=True).")
+        log.info("Installing PyTorch CPU version (skip_cuda=True).")
         return pip_command, packages, None
     
     # Map CUDA versions to PyTorch wheel URLs
@@ -154,29 +159,29 @@ def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
             # Use the highest compatible version
             selected_version = max(compatible_versions)
         else:
-            print(f"No compatible CUDA version found for {cuda_version}, defaulting to CPU version.")
+            log.info(f"No compatible CUDA version found for {cuda_version}, defaulting to CPU version.")
             return pip_command, packages, None
     else:
         # If no version specified, use the latest supported version
         selected_version = max(cuda_urls.keys())
     
     _, index_url = cuda_urls[selected_version]
-    print(f"Using PyTorch with CUDA {selected_version} support from {index_url}")
+    log.info(f"Using PyTorch with CUDA {selected_version} support from {index_url}")
     
     return pip_command, packages, index_url
 
-def install_pytorch(venv_python, logger=None):
+
+@log()
+def install_pytorch(venv_python):
     """Install PyTorch with CUDA support if available.
     
     Args:
         venv_python: Path to Python executable in virtual environment
-        logger: Logger object, if available
     
     Returns:
         bool: True if installation was successful, False otherwise
     """
-    if logger:
-        logger.info("Checking CUDA capabilities for PyTorch installation")
+    log.info("Checking CUDA capabilities for PyTorch installation")
     
     # Check if CUDA is available
     is_cuda_available, cuda_version = check_cuda_capable()
@@ -194,33 +199,17 @@ def install_pytorch(venv_python, logger=None):
     
     # Log the command
     cmd_str = " ".join(full_cmd)
-    print(f"Installing PyTorch with command: {cmd_str}")
-    if logger:
-        logger.info(f"Installing PyTorch with command: {cmd_str}")
+    log.info(f"Installing PyTorch with command: {cmd_str}")
     
     # Run the installation
     try:
         result = subprocess.run(full_cmd, check=True)
         success = result.returncode == 0
         if success:
-            print("PyTorch installation completed successfully!")
-            if logger:
-                logger.info("PyTorch installation completed successfully")
+            log.info("PyTorch installation completed successfully!")
         else:
-            print(f"PyTorch installation failed with return code {result.returncode}")
-            if logger:
-                logger.error(f"PyTorch installation failed with return code {result.returncode}")
+            log.error(f"PyTorch installation failed with return code {result.returncode}")
         return success
     except subprocess.CalledProcessError as e:
-        print(f"Error installing PyTorch: {e}")
-        if logger:
-            logger.error(f"Error installing PyTorch: {e}")
+        log.error(f"Error installing PyTorch: {e}")
         return False
-
-if __name__ == "__main__":
-    # This allows the module to be run directly for testing
-    is_cuda_available, cuda_version = check_cuda_capable()
-    print(f"CUDA available: {is_cuda_available}, version: {cuda_version}")
-    
-    pip_cmd, packages, index_url = get_pytorch_cuda_command(cuda_version)
-    print(f"Installation command: pip {' '.join(packages)} {'--index-url ' + index_url if index_url else ''}")
