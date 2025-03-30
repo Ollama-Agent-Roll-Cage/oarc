@@ -80,7 +80,7 @@ from pprint import pformat
 from fastapi import APIRouter, FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from oarc.speechToSpeech import speechToText, textToSpeech, SpeechToSpeechAPI
+from oarc.speechToSpeech import speechToText, textToSpeech, TextToSpeechAPI, SpeechToTextAPI
 from oarc.promptModel import multiModalPrompting
 from oarc.yoloProcessor import YoloAPI, YoloProcessor
 from oarc.pandasDB import PandasDB

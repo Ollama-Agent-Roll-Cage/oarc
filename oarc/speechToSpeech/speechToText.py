@@ -343,7 +343,7 @@ class speechToText:
                 'audio_data': list(audio_data)
             }))
      
-class SpeechtoTextAPI(BaseToolAPI):
+class SpeechToTextAPI(BaseToolAPI):
     def __init__(self):
         super().__init__(prefix="/stt", tags=["speech-to-text"])
         self.stt_instance = None
