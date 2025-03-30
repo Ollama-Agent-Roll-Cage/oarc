@@ -5,20 +5,23 @@ Pandas Query Engine
 This guide shows you how to use our PandasQueryEngine: convert natural language to Pandas python code using LLMs.
 """
 
-import logging
-import sys
-from IPython.display import Markdown, display
-import pandas as pd
-from llama_index.experimental.query_engine import PandasQueryEngine
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-import numpy as np
+import os
+import re
 import json
-import base64
+import asyncio
+from datetime import datetime
+from typing import Optional, Dict
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logging.getLogger().addHandler(logging.StreamHandler(stream=sys.stdout))
+import pandas as pd
+from fastapi import HTTPException
+from pprint import pformat
+from llama_index.experimental.query_engine import PandasQueryEngine
 
+from oarc.decorators.log import log
+from oarc.database.agentStorage import AgentStorage
+from oarc.database.prompt_template import PromptTemplate
+
+@log
 class PandasDB:
     def __init__(self):
         """Initialize PandasDB with necessary attributes"""
@@ -33,9 +36,6 @@ class PandasDB:
         self.conversation_handler = None
         self.agent_cores = None
         self.current_date = datetime.now().strftime("%Y%m%d")
-        
-        # Initialize logging
-        self.logger = logging.getLogger(__name__)
         
         # Set up path library
         self.pathLibrary = {
@@ -55,10 +55,10 @@ class PandasDB:
             
             # Update prompts with custom templates
             self.update_query_engine_prompts()
-            self.logger.info("Query engine setup successful")
+            log.info("Query engine setup successful")
             return True
         except Exception as e:
-            self.logger.error(f"Error setting up query engine: {e}")
+            log.error(f"Error setting up query engine: {e}")
             return False
 
     def update_query_engine_prompts(self):
@@ -78,9 +78,9 @@ class PandasDB:
                 Expression: """
             )
             self.query_engine.update_prompts({"pandas_prompt": new_prompt})
-            self.logger.info("Query engine prompts updated")
+            log.info("Query engine prompts updated")
         except Exception as e:
-            self.logger.error(f"Error updating query engine prompts: {e}")
+            log.error(f"Error updating query engine prompts: {e}")
 
     async def query_data(self, query_str: str) -> str:
         """Execute a natural language query against the dataframe"""
@@ -89,10 +89,10 @@ class PandasDB:
                 raise ValueError("Query engine not initialized. Call setup_query_engine first.")
                 
             response = self.query_engine.query(query_str)
-            self.logger.info(f"Query executed: {query_str}")
+            log.info(f"Query executed: {query_str}")
             return str(response)
         except Exception as e:
-            self.logger.error(f"Error executing query: {e}")
+            log.error(f"Error executing query: {e}")
             return f"Error: {str(e)}"
     
     def chatbotPandasDB(self, query_str: str):
@@ -113,7 +113,7 @@ class PandasDB:
             
             return response
         except Exception as e:
-            self.logger.error(f"Error in chatbot query: {e}")
+            log.error(f"Error in chatbot query: {e}")
             return f"Error processing query: {str(e)}"
     
     def storeAgent(self):
@@ -177,11 +177,11 @@ class PandasDB:
             if self.agent_cores:
                 self.save_agent_state()
                 
-            self.logger.info(f"Agent {self.agent_id} configuration stored successfully")
+            log.info(f"Agent {self.agent_id} configuration stored successfully")
             return True
             
         except Exception as e:
-            self.logger.error(f"Error storing agent configuration: {e}")
+            log.error(f"Error storing agent configuration: {e}")
             return False
         
     def load_from_json(self, load_name, large_language_model):
@@ -240,7 +240,7 @@ class PandasDB:
     def setAgent(self, agent_id):
         """Load agent configuration from agentCores and update current state"""
         try:
-            logger.info("Loading agent configuration for agent_id: %s", agent_id)
+            log.info("Loading agent configuration for agent_id: %s", agent_id)
             # From agent cores, load the agent configuration for the selected agent_id
             agent_config = self.agent_cores.loadAgentCore(agent_id)
             # set id in config
@@ -263,7 +263,7 @@ class PandasDB:
                     "speechRecognitionSTT": {"names": [], "instances": [], "model_config_template": {}},
                     "voiceGenerationTTS": {"names": [], "instances": [], "model_config_template": {}}
                 }
-                logger.info("Added missing 'models' key to agent_config")
+                log.info("Added missing 'models' key to agent_config")
 
             # Ensure prompts key is present
             if "prompts" not in agent_config:
@@ -275,7 +275,7 @@ class PandasDB:
                     "visionBooster": "",
                     "primeDirective": ""
                 }
-                logger.info("Added missing 'prompts' key to agent_config")
+                log.info("Added missing 'prompts' key to agent_config")
 
             # Ensure modalityFlags key is present
             if "modalityFlags" not in agent_config:
@@ -296,7 +296,7 @@ class PandasDB:
                     "VISION_SYSTEM_PROMPT_FLAG": False,
                     "VISION_BOOSTER_PROMPT_FLAG": False
                 }
-                logger.info("Added missing 'modalityFlags' key to agent_config")
+                log.info("Added missing 'modalityFlags' key to agent_config")
 
             # Ensure conversation key is present
             if "conversation" not in agent_config:
@@ -304,7 +304,7 @@ class PandasDB:
                     "save_name": "",
                     "load_name": ""
                 }
-                logger.info("Added missing 'conversation' key to agent_config")
+                log.info("Added missing 'conversation' key to agent_config")
 
             # Update agent state from configuration
             self.agent_id = agent_config["agentCore"]["agent_id"]
@@ -343,10 +343,10 @@ class PandasDB:
 
             # Update paths
             self.updateConversationPaths()
-            logger.info(f"Agent {agent_id} loaded successfully:\n%s", pformat(agent_config, indent=2, width=80))
+            log.info(f"Agent {agent_id} loaded successfully:\n%s", pformat(agent_config, indent=2, width=80))
 
         except Exception as e:
-            logger.error(f"Error loading agent {agent_id}: {e}")
+            log.error(f"Error loading agent {agent_id}: {e}")
             raise
             
     async def list_available_agents(self) -> list:
@@ -370,7 +370,7 @@ class PandasDB:
             
             return formatted_agents
         except Exception as e:
-            logger.error(f"Error listing agents: {e}")
+            log.error(f"Error listing agents: {e}")
             return []
 
     def create_agent_from_template(self, template_name: str, agent_id: str, custom_config: Optional[Dict] = None):
@@ -381,9 +381,9 @@ class PandasDB:
             
             # Initialize the new agent
             self.setAgent(agent_id)
-            logger.info(f"Agent {agent_id} created successfully from template {template_name}")
+            log.info(f"Agent {agent_id} created successfully from template {template_name}")
         except Exception as e:
-            logger.error(f"Error creating agent from template: {e}")
+            log.error(f"Error creating agent from template: {e}")
             raise
 
     def save_agent_state(self):
@@ -453,10 +453,10 @@ class PandasDB:
                 }
             }
             self.agent_cores.storeAgentCore(self.agent_id, current_state)
-            logger.info(f"Saved agent state: {self.agent_id}")
+            log.info(f"Saved agent state: {self.agent_id}")
             return True
         except Exception as e:
-            logger.error(f"Error saving agent state: {e}")
+            log.error(f"Error saving agent state: {e}")
             return False
         
     def coreAgent(self):
@@ -562,9 +562,9 @@ class PandasDB:
             
             # Update conversation paths after initializing defaults
             self.updateConversationPaths()
-            logger.info("Conversation initialized successfully.")
+            log.info("Conversation initialized successfully.")
         except Exception as e:
-            logger.error(f"Error initializing conversation: {e}")
+            log.error(f"Error initializing conversation: {e}")
             raise
         
     def updateConversationPaths(self):
@@ -572,9 +572,9 @@ class PandasDB:
         try:
             agent_conversation_dir = os.path.join(self.pathLibrary['conversation_library_dir'], self.agent_id)
             os.makedirs(agent_conversation_dir, exist_ok=True)
-            logger.info("Conversation paths updated successfully.")
+            log.info("Conversation paths updated successfully.")
         except Exception as e:
-            logger.error(f"Error updating conversation paths: {e}")
+            log.error(f"Error updating conversation paths: {e}")
             raise
 
     def setup_conversation_storage(self):
@@ -614,7 +614,7 @@ class PandasDB:
             
             return True
         except Exception as e:
-            self.logger.error(f"Error storing message: {e}")
+            log.error(f"Error storing message: {e}")
             return False
 
     def export_conversation(self, format: str = "json") -> str:
@@ -643,41 +643,41 @@ class PandasDB:
                 "metadata": self.conversation_schema["metadata"]
             }, indent=2)
         except Exception as e:
-            self.logger.error(f"Error exporting conversation: {e}")
+            log.error(f"Error exporting conversation: {e}")
             return "{}"
 
     async def get_conversation_history(self, session_id=None, limit=100):
         try:
             history = await self.conversation_handler.get_conversation_history(session_id, limit)
-            logger.info(f"Retrieved conversation history: {history}")
+            log.info(f"Retrieved conversation history: {history}")
             return history
         except Exception as e:
-            logger.error(f"Error retrieving conversation history: {e}")
+            log.error(f"Error retrieving conversation history: {e}")
             raise
 
     async def save_conversation(self, save_name, session_id):
         try:
             await self.conversation_handler.save_conversation(save_name, session_id)
-            logger.info(f"Saved conversation with name: {save_name}")
+            log.info(f"Saved conversation with name: {save_name}")
         except Exception as e:
-            logger.error(f"Error saving conversation: {e}")
+            log.error(f"Error saving conversation: {e}")
             raise
 
     async def load_conversation(self, save_name):
         try:
             conversation = await self.conversation_handler.load_conversation(save_name)
-            logger.info(f"Loaded conversation with name: {save_name}")
+            log.info(f"Loaded conversation with name: {save_name}")
             return conversation
         except Exception as e:
-            logger.error(f"Error loading conversation: {e}")
+            log.error(f"Error loading conversation: {e}")
             raise
 
     async def clear_history(self, session_id=None):
         try:
             await self.conversation_handler.clear_history(session_id)
-            logger.info(f"Cleared conversation history for session_id: {session_id}")
+            log.info(f"Cleared conversation history for session_id: {session_id}")
         except Exception as e:
-            logger.error(f"Error clearing conversation history: {e}")
+            log.error(f"Error clearing conversation history: {e}")
             raise
 
     def setup_routes(self):

@@ -3,9 +3,10 @@
 General setup utilities for OARC package.
 """
 
-import subprocess
 import sys
+import subprocess
 from pathlib import Path
+
 from oarc.decorators.log import log
 
 
@@ -93,38 +94,3 @@ def ensure_pip(venv_python=None):
     
     log.info("Pip is set up correctly and ready to use.")
     return True
-
-
-@log()
-def install_self(venv_python=None, editable=True):
-    """Install the package in development mode.
-    
-    Args:
-        venv_python: Path to Python executable in virtual environment.
-                    If None, use the current Python interpreter.
-        editable: Whether to install in editable mode (-e flag)
-    
-    Returns:
-        bool: True if installation was successful
-    
-    Raises:
-        subprocess.CalledProcessError: If installation fails
-    """
-    if venv_python is None:
-        venv_python = Path(sys.executable)
-    
-    log.info(f"Installing package using Python from: {venv_python}")
-    
-    cmd = [str(venv_python), "-m", "pip", "install"]
-    if editable:
-        cmd.append("-e")
-    cmd.append(".")
-    
-    subprocess.run(cmd, check=True)
-    log.info("Package has been successfully installed in development mode.")
-    return True
-
-
-if __name__ == "__main__":
-    # This allows the module to be run directly for testing
-    ensure_pip()

@@ -7,13 +7,13 @@ import time
 import logging
 from typing import Any, Dict, Optional
 
-from oarc.pandasDB import pandasDB
+from oarc.database import pandas_db
 from oarc.decorators.log import log
 
 @log(level=logging.INFO)
 class AgentStorage:
     def __init__(self):
-        self.agent_cores = pandasDB()
+        self.agent_cores = pandas_db()
         self.agent_df = None
         self.load_agents()
         

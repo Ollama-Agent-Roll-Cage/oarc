@@ -1,8 +1,24 @@
-from typing import Optional, Dict
-from fastapi import APIRouter, HTTPException
+"""
+Agent API Module
+----------------
+This module defines the AgentAPI class which provides endpoints for managing agents.
+Endpoints:
+    - POST /create: Create a new agent from a given template.
+    - GET /state/{agent_id}: Retrieve the current state of an agent.
+    - POST /load: Load an existing agent instance.
+
+Dependencies:
+    - FastAPI for API creation and request handling.
+    - AgentStorage for interacting with agent data persistence.
+
+Usage:
+    Import and instantiate AgentAPI within your FastAPI application to include agent management functionality.
+"""
+
+from fastapi import HTTPException
 
 from oarc.base_api.BaseToolAPI import BaseToolAPI
-from oarc.pandasDB.agentStorage import AgentStorage
+from oarc.database.agentStorage import AgentStorage
 
 class AgentAPI(BaseToolAPI):
     def __init__(self):

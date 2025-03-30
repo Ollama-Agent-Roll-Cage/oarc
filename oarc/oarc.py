@@ -4,10 +4,7 @@ This module provides the main functionality of the OARC application.
 """
 
 from oarc.decorators.log import log
-import logging
 
-
-@log()  # Apply decorator at the class level
 class OARC:
     """Main OARC application class."""
     
@@ -48,16 +45,10 @@ class OARC:
         }
 
 
+# Use @log() as requested, with the correctly scoped naming
 @log()
 def main(**kwargs):
-    """Main entry point for the OARC application.
-    
-    Args:
-        **kwargs: Configuration options for the application
-        
-    Returns:
-        dict: Results from the OARC application
-    """
+    """Main entry point for the OARC application."""
     log.info("OARC main entry point called")
     app = OARC()
     result = app.run(**kwargs)

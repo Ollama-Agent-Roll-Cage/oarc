@@ -1,11 +1,15 @@
-M:\PHOTO_HDD_AUTUMN_GAN\oarc\
+# OARC Directory Structure
+
+```bash
+
+**Ollama_Agent_Roll_Cage**
 ├── oarc/
 │   ├── __init__.py
 │   ├── api.py
 │   ├── speechToSpeech/
 │   ├── promptModel/
 │   ├── yoloProcessor/
-│   └── pandasDB/
+│   └── database/
 ├── tests/
 │   ├── __init__.py
 │   └── TestAgent.py
@@ -13,3 +17,4 @@ M:\PHOTO_HDD_AUTUMN_GAN\oarc\
 ├── setup.cfg
 ├── README.md
 └── LICENSE
+```
