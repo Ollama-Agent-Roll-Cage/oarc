@@ -1,5 +1,6 @@
 """Command-line interface for OARC."""
 import argparse
+from oarc.decorators.log import log
 from oarc.commands import (
     build_command,
     run_command,
@@ -8,8 +9,10 @@ from oarc.commands import (
 from oarc.commands.command_type import CommandType, get_command_type
 
 
+@log()
 def cli(**kwargs):
     """Command line interface for OARC."""
+    log.info("Starting OARC CLI")
     parser = argparse.ArgumentParser(description="OARC command line tool")
     
     # Add global arguments that apply to the default run command
@@ -23,6 +26,7 @@ def cli(**kwargs):
     subparsers.add_parser('build', help='Build the OARC package wheel')
     
     args = parser.parse_args(kwargs.get('args', None))
+    log.info(f"Parsed arguments: {args}")
     
     # Convert args to dictionary to pass to command functions
     config = vars(args)
@@ -30,8 +34,9 @@ def cli(**kwargs):
     # Get the command type from the command name
     try:
         command_type = get_command_type(args.command)
+        log.info(f"Executing command type: {command_type}")
     except ValueError as e:
-        print(str(e))
+        log.error(f"Invalid command: {e}")
         return 1
     
     # Remove command from config as it's not needed by the command functions
@@ -40,8 +45,11 @@ def cli(**kwargs):
     
     match command_type:
         case CommandType.SETUP:
+            log.info("Running setup command")
             return setup_command.execute(**config)
         case CommandType.BUILD:
+            log.info("Running build command") 
             return build_command.execute(**config)
         case CommandType.RUN:
+            log.info("Running default command")
             return run_command.execute(**config)

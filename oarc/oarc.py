@@ -7,20 +7,22 @@ from oarc.decorators.log import log
 import logging
 
 
+@log()  # Apply decorator at the class level
 class OARC:
     """Main OARC application class."""
     
     def __init__(self):
         """Initialize the OARC application."""
         self.initialized = False
+        log.info("OARC instance created")
     
-    @log(level=logging.INFO)
     def initialize(self):
         """Initialize the OARC system."""
+        log.info("Starting OARC system initialization")
         self.initialized = True
+        log.info("OARC system initialized successfully")
         return True
     
-    @log(level=logging.INFO)
     def run(self, **kwargs):
         """Run the OARC application with the provided configuration.
         
@@ -30,10 +32,15 @@ class OARC:
         Returns:
             dict: Results of the operation
         """
+        log.info(f"Running OARC application with config: {kwargs}")
+        
         if not self.initialized:
+            log.info("System not initialized, calling initialize()")
             self.initialize()
         
         # Main application logic would go here
+        log.info("OARC application execution completed")
+        
         return {
             "status": "success",
             "message": "OARC application executed successfully",
@@ -41,6 +48,7 @@ class OARC:
         }
 
 
+@log()
 def main(**kwargs):
     """Main entry point for the OARC application.
     
@@ -50,5 +58,8 @@ def main(**kwargs):
     Returns:
         dict: Results from the OARC application
     """
+    log.info("OARC main entry point called")
     app = OARC()
-    return app.run(**kwargs)
+    result = app.run(**kwargs)
+    log.info(f"OARC execution result: {result['status']}")
+    return result

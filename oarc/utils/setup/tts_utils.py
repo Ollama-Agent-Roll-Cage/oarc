@@ -3,49 +3,52 @@
 TTS installation utilities for OARC setup process.
 """
 
+import os
+import shutil
+import stat
 import subprocess
 import sys
-import shutil
-import os
 import tempfile
-import zipfile
 import urllib.request
-import time
-import stat
+import zipfile
 from pathlib import Path
+
+from oarc.decorators.log import log
 
 TTS_REPO_URL = "https://github.com/idiap/coqui-ai-TTS/archive/refs/heads/dev.zip"
 TTS_REPO_NAME = "coqui-ai-TTS"
 
+@log()
 def remove_readonly(func, path, _):
     """Clear the readonly bit and reattempt the removal."""
     os.chmod(path, stat.S_IWRITE)
     func(path)
 
+@log()
 def remove_git_dir(repo_dir):
     """Remove .git directory with special handling for Windows permission issues."""
     git_dir = repo_dir / ".git"
     if not git_dir.exists():
         return True
     
-    print(f"Removing Git directory from {git_dir}...")
+    log.info(f"Removing Git directory from {git_dir}...")
     try:
         # First try normal removal
         shutil.rmtree(git_dir)
-        print("Git directory removed successfully.")
+        log.info("Git directory removed successfully.")
         return True
     except PermissionError:
         # If permission error, try with onerror handler
         try:
-            print("Permission error encountered, trying with special handler...")
+            log.warning("Permission error encountered, trying with special handler...")
             shutil.rmtree(git_dir, onerror=remove_readonly)
-            print("Git directory removed successfully.")
+            log.info("Git directory removed successfully.")
             return True
         except Exception as e:
-            print(f"Failed to remove Git directory: {e}")
-            print("You may need to manually remove it.")
+            log.error(f"Failed to remove Git directory: {e}")
             return False
 
+@log()
 def install_coqui(venv_python):
     """Install TTS directly from the GitHub repository.
     
@@ -64,10 +67,10 @@ def install_coqui(venv_python):
     
     # Validate required parameters
     if TTS_REPO_URL is None:
-        print("Error: repo_url is required")
+        log.error("Error: repo_url is required")
         sys.exit(1)
     
-    print(f"Installing TTS from GitHub repository to {repo_dir}...")
+    log.info(f"Installing TTS from GitHub repository to {repo_dir}...")
     
     # Convert to Path object if string is provided
     if isinstance(repo_dir, str):
@@ -75,16 +78,15 @@ def install_coqui(venv_python):
     
     # Check if coqui directory already exists
     if repo_dir.exists():
-        print(f"Found existing TTS repository at {repo_dir}")
-        print("Removing existing installation...")
+        log.info(f"Found existing TTS repository at {repo_dir}")
         try:
             # Try to remove .git directory first separately if it exists
             remove_git_dir(repo_dir)
             # Then remove the whole directory
             shutil.rmtree(repo_dir)
-            print("Removed existing installation successfully.")
+            log.info("Removed existing installation successfully.")
         except Exception as e:
-            print(f"Error removing existing installation: {e}")
+            log.error(f"Error removing existing installation: {e}")
             return False
 
     # Create directory for the repository
@@ -92,7 +94,7 @@ def install_coqui(venv_python):
     
     # Download and extract repository
     try:
-        print(f"Downloading TTS repository from {TTS_REPO_URL}...")
+        log.info(f"Downloading TTS repository from {TTS_REPO_URL}...")
         
         # Create a temporary file to store the zip
         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_file:
@@ -100,13 +102,12 @@ def install_coqui(venv_python):
             
         # Download the zip file
         urllib.request.urlretrieve(TTS_REPO_URL, temp_path)
-        print("Download complete.")
+        log.info("Download complete.")
         
         # Extract the zip file
-        print(f"Extracting to {repo_dir}...")
+        log.info(f"Extracting to {repo_dir}...")
         with zipfile.ZipFile(temp_path, 'r') as zip_ref:
-            # The GitHub zip contains a top-level directory, typically named with branch
-            # Extract to a temporary directory first
+            # The GitHub zip contains a top-level directory; extract to a temporary directory first
             temp_extract_dir = tempfile.mkdtemp()
             zip_ref.extractall(temp_extract_dir)
             
@@ -127,17 +128,17 @@ def install_coqui(venv_python):
         
         # Clean up temp file
         os.unlink(temp_path)
-        print("Extraction complete.")
+        log.info("Extraction complete.")
         
         # Remove .git directory if present (sometimes can be in the zip)
         remove_git_dir(repo_dir)
         
     except Exception as e:
-        print(f"Error downloading or extracting TTS repository: {e}")
+        log.error(f"Error downloading or extracting TTS repository: {e}")
         return False
     
     # Install in development mode
-    print("Installing TTS in development mode...")
+    log.info("Installing TTS in development mode...")
     try:
         # Use a higher timeout for pip install to avoid issues
         subprocess.run(
@@ -145,14 +146,11 @@ def install_coqui(venv_python):
             check=True,
             timeout=300  # 5-minute timeout
         )
-        print("TTS installed successfully from GitHub!")
+        log.info("TTS installed successfully from GitHub!")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Error installing TTS: {e}")
-        print("TTS installation failed.")
+        log.error(f"Error installing TTS: {e}. TTS installation failed.")
         return False
     except subprocess.TimeoutExpired:
-        print("Installation timed out. This may be normal for complex packages.")
-        print("Installation might still be in progress or completed.")
-        print("Please check if TTS is working properly.")
+        log.warning("Installation timed out. This may be normal for complex packages; please verify if TTS is working properly.")
         return True
