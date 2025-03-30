@@ -11,7 +11,7 @@ assisted by regex
 
 
 actual github copilot artifact i got when it bugged:
-</copilot-edited-file>
+</copilot-edited-file> during merge feature in chat, it typed this in my file
 
 with a good system prompt, run wild with these:
 https://github.com/0xeb/TheBigPromptLibrary/blob/main/SystemPrompts/Anthropic/20250225-Claude3.7-Sonnet.md
