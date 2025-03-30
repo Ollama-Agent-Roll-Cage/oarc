@@ -30,9 +30,7 @@ def main():
     
     log.info("Installing PyTorch...")
     pytorch_success = install_pytorch(venv_python)
-    
-    log.info("Installing OARC package...")
-    self_success = install_self(venv_python)
+    # self_success = install_self(venv_python)
     
     if pip_success and pytorch_success and pyaudio_success and tts_success:
         log.info("All dependencies installed successfully!")
@@ -45,9 +43,9 @@ def main():
         if not pytorch_success:
             log.error("- PyTorch installation failed")
         if not pyaudio_success:
-            log.error("- PyAudio installation failed")
-        if not self_success:
-            log.error("- Self installation failed")
+            print("- PyAudio installation failed")
+        # if not self_success:
+        #     print("- Self installation failed")
 
 if __name__ == "__main__":
     main()
