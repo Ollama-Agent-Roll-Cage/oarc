@@ -6,6 +6,7 @@ from oarc.utils.setup.setup_utils import ensure_pip
 from oarc.utils.setup.tts_utils import install_coqui
 from oarc.utils.setup.cuda_utils import install_pytorch
 from oarc.utils.setup.pyaudio_utils import install_pyaudio
+from oarc.utils.setup.setup_utils import install_self
 
 
 def main():
@@ -21,6 +22,7 @@ def main():
     tts_success = install_coqui(venv_python)
     pyaudio_success = install_pyaudio(venv_python)
     pytorch_success = install_pytorch(venv_python)
+    self_success = install_self(venv_python)
     
     if pip_success and pytorch_success and pyaudio_success and tts_success:
         print("All dependencies installed successfully!")
@@ -34,6 +36,8 @@ def main():
             print("- PyTorch installation failed")
         if not pyaudio_success:
             print("- PyAudio installation failed")
+        if not self_success:
+            print("- Self installation failed")
 
 if __name__ == "__main__":
     main()
