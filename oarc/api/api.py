@@ -120,14 +120,14 @@ class SpellLoader():
             self.parent_dir = os.path.abspath(os.path.join(self.current_dir, os.pardir))
             
             # Environment variables for model directories
-            model_git_dir = os.getenv('OARC_MODEL_GIT')
-            ollama_models_dir = os.getenv('OLLAMA_MODELS')
-            hf_cache_dir = os.getenv('HF_HOME', os.path.join(model_git_dir, 'huggingface'))
+            self.model_git_dir = os.getenv('OARC_MODEL_GIT')
+            self.ollama_models_dir = os.getenv('OLLAMA_MODELS')
+            self.hf_cache_dir = os.getenv('HF_HOME', os.path.join(self.model_git_dir, 'huggingface'))
             
             # Validate environment variables
-            if not model_git_dir:
+            if not self.model_git_dir:
                 raise EnvironmentError("OARC_MODEL_GIT environment variable not set")
-            if not ollama_models_dir:
+            if not self.ollama_models_dir:
                 raise EnvironmentError("OLLAMA_MODELS environment variable not set")
             
             # Initialize base path structure
@@ -137,16 +137,16 @@ class SpellLoader():
                 # Main directories
                 'current_dir': self.current_dir,
                 'parent_dir': self.parent_dir,
-                'model_git_dir': model_git_dir,
-                'ollama_models_dir': ollama_models_dir,
+                'model_git_dir': self.model_git_dir,
+                'ollama_models_dir': self.ollama_models_dir,
                 
                 # Model directories 
                 'huggingface_models': {
-                    'base_dir': os.path.join(model_git_dir, 'huggingface'),
-                    'whisper': os.path.join(model_git_dir, 'huggingface', 'whisper'),
-                    'xtts': os.path.join(model_git_dir, 'huggingface', 'xtts'),
-                    'yolo': os.path.join(model_git_dir, 'huggingface', 'yolo'),
-                    'llm': os.path.join(model_git_dir, 'huggingface', 'llm')
+                    'base_dir': os.path.join(self.model_git_dir, 'huggingface'),
+                    'whisper': os.path.join(self.model_git_dir, 'huggingface', 'whisper'),
+                    'xtts': os.path.join(self.model_git_dir, 'huggingface', 'xtts'),
+                    'yolo': os.path.join(self.model_git_dir, 'huggingface', 'yolo'),
+                    'llm': os.path.join(self.model_git_dir, 'huggingface', 'llm')
                 },
                 
                 # Agent directories
@@ -195,6 +195,7 @@ class SpellLoader():
 from oarc.api import LLMPromptAPI
 from oarc.api import AgentAPI
 from oarc.pandasDB import AgentStorage
+from oarc.speechToSpeech import TextToSpeechAPI, SpeechToTextAPI
 
 class oarcAPI():
     def __init__(self):

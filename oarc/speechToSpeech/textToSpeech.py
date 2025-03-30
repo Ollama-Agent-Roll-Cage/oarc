@@ -467,38 +467,119 @@ class textToSpeech:
                 'audio_data': list(audio_data)
             }))
 
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, Form, File
+from pydantic import BaseModel
+from oarc.base_api import BaseToolAPI
+import os
+import numpy as np
+import asyncio
+import logging
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_name: str = "c3po"
+    speed: float = 1.0
+    language: str = "en"
+
 class TextToSpeechAPI(BaseToolAPI):
     def __init__(self):
         super().__init__(prefix="/tts", tags=["text-to-speech"])
         self.tts_instance = None
+        self.model_git_dir = os.getenv('OARC_MODEL_GIT', '')
+        if not self.model_git_dir:
+            logging.warning("OARC_MODEL_GIT environment variable not set")
     
     def setup_routes(self):
         @self.router.post("/synthesize")
         async def synthesize_speech(self, text: str, voice_name: str = "c3po"):
-            if not self.tts_instance:
-                developer_tools_dict = {
-                    'current_dir': os.getcwd(),
-                    'parent_dir': os.path.dirname(os.getcwd()),
-                    'speech_dir': os.path.join(self.model_git_dir, 'coqui'),
-                    'recognize_speech_dir': os.path.join(self.model_git_dir, 'whisper'),
-                    'generate_speech_dir': os.path.join(self.model_git_dir, 'generated'),
-                    'tts_voice_ref_wav_pack_path_dir': os.path.join(self.model_git_dir, 'coqui', 'voice_reference_pack')
-                }
-                self.tts_instance = textToSpeech(
-                    developer_tools_dict=developer_tools_dict,
-                    voice_type="xtts_v2", 
-                    voice_name=voice_name
-                )
-            
             try:
+                if not self.tts_instance:
+                    developer_tools_dict = {
+                        'current_dir': os.getcwd(),
+                        'parent_dir': os.path.dirname(os.getcwd()),
+                        'speech_dir': os.path.join(self.model_git_dir, 'coqui'),
+                        'recognize_speech_dir': os.path.join(self.model_git_dir, 'whisper'),
+                        'generate_speech_dir': os.path.join(self.model_git_dir, 'generated'),
+                        'tts_voice_ref_wav_pack_path_dir': os.path.join(self.model_git_dir, 'coqui', 'voice_reference_pack')
+                    }
+                    self.tts_instance = textToSpeech(
+                        developer_tools_dict=developer_tools_dict,
+                        voice_type="xtts_v2", 
+                        voice_name=voice_name
+                    )
+                
                 audio_data = self.tts_instance.process_tts_responses(text, voice_name)
-                return {"audio_data": audio_data.tolist(), "sample_rate": self.tts_instance.sample_rate}
+                if audio_data is not None:
+                    return {"audio_data": audio_data.tolist(), "sample_rate": self.tts_instance.sample_rate}
+                else:
+                    raise HTTPException(status_code=500, detail="Failed to generate audio")
+                    
             except Exception as e:
+                logging.error(f"TTS synthesis failed: {str(e)}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.router.post("/advanced-synthesize")
+        async def advanced_synthesize(self, request: TTSRequest):
+            try:
+                if not self.tts_instance:
+                    developer_tools_dict = {
+                        'current_dir': os.getcwd(),
+                        'parent_dir': os.path.dirname(os.getcwd()),
+                        'speech_dir': os.path.join(self.model_git_dir, 'coqui'),
+                        'recognize_speech_dir': os.path.join(self.model_git_dir, 'whisper'),
+                        'generate_speech_dir': os.path.join(self.model_git_dir, 'generated'),
+                        'tts_voice_ref_wav_pack_path_dir': os.path.join(self.model_git_dir, 'coqui', 'voice_reference_pack')
+                    }
+                    self.tts_instance = textToSpeech(
+                        developer_tools_dict=developer_tools_dict,
+                        voice_type="xtts_v2", 
+                        voice_name=request.voice_name
+                    )
+                
+                # Advanced options would be handled here
+                audio_data = self.tts_instance.process_tts_responses(request.text, request.voice_name)
+                if audio_data is not None:
+                    return {"audio_data": audio_data.tolist(), "sample_rate": self.tts_instance.sample_rate}
+                else:
+                    raise HTTPException(status_code=500, detail="Failed to generate audio")
+                    
+            except Exception as e:
+                logging.error(f"Advanced TTS synthesis failed: {str(e)}")
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.router.get("/voices")
         async def list_voices(self):
-            coqui_dir = os.path.join(self.model_git_dir, 'coqui')
-            voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
-                     if d.startswith('XTTS-v2_') and os.path.isdir(os.path.join(coqui_dir, d))]
-            return {"voices": voices}
+            try:
+                coqui_dir = os.path.join(self.model_git_dir, 'coqui')
+                if not os.path.exists(coqui_dir):
+                    return {"voices": [], "error": f"Coqui directory not found at {coqui_dir}"}
+                
+                voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
+                         if d.startswith('XTTS-v2_') and os.path.isdir(os.path.join(coqui_dir, d))]
+                return {"voices": voices}
+            except Exception as e:
+                logging.error(f"Error listing voices: {str(e)}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.post("/interrupt")
+        async def interrupt_speech(self):
+            try:
+                if self.tts_instance:
+                    self.tts_instance.interrupt_generation()
+                    return {"status": "success", "message": "Speech interrupted"}
+                return {"status": "warning", "message": "No active TTS instance to interrupt"}
+            except Exception as e:
+                logging.error(f"Error interrupting speech: {str(e)}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.router.post("/cleanup")
+        async def cleanup(self):
+            try:
+                if self.tts_instance:
+                    self.tts_instance.cleanup()
+                    self.tts_instance = None
+                    return {"status": "success", "message": "TTS resources cleaned up"}
+                return {"status": "warning", "message": "No active TTS instance to clean up"}
+            except Exception as e:
+                logging.error(f"Error cleaning up TTS: {str(e)}")
+                raise HTTPException(status_code=500, detail=str(e))

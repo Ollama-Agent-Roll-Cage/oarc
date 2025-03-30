@@ -15,7 +15,7 @@ import re
 import json
 import websockets
 import asyncio
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, BackgroundTasks
 from oarc.base_api import BaseToolAPI
 
 class speechToText:
@@ -88,12 +88,12 @@ class speechToText:
                 else:
                     silent_frames += 1
 
-                if sound_detected and (silent_frames * (self.CHUNK / self.RATE) > silence_duration):
-                    break
+                if sound_detected and (silent_frames * (self.CHUNK / self.RATE) > self.SILENCE_DURATION):
+                    return
 
             except Exception as e:
                 print(f"Error during recording: {e}")
-                break
+                return
 
         stream.stop_stream()
         stream.close()
@@ -217,14 +217,39 @@ class speechToText:
                     except:
                         pass
 
-    def silenceFiltering(self, audio_input):
+    def silenceFiltering(self, audio_input, threshold):
         frames = []
         silent_frames = 0
         sound_detected = False
 
-        while True:
-            data = stream.read(CHUNK, exception_on_overflow=False)
-            frames.append(data)
+        audio = pyaudio.PyAudio()
+        try:
+            stream = audio.open(
+                format=self.FORMAT,
+                channels=self.CHANNELS,
+                rate=self.RATE,
+                input=True,
+                frames_per_buffer=self.CHUNK
+            )
+
+            while True:
+                data = stream.read(self.CHUNK, exception_on_overflow=False)
+                frames.append(data)
+
+                rms = audioop.rms(data, 2)
+
+                if rms > self.SILENCE_THRESHOLD:
+                    silent_frames = 0
+                    sound_detected = True
+                else:
+                    silent_frames += 1
+
+                if sound_detected and (silent_frames * (self.CHUNK / self.RATE) > self.SILENCE_DURATION):
+                    break
+        finally:
+            stream.stop_stream()
+            stream.close()
+            audio.terminate()
 
             rms = audioop.rms(data, 2)
 
@@ -234,8 +259,8 @@ class speechToText:
             else:
                 silent_frames += 1
 
-            if sound_detected and (silent_frames * (CHUNK / RATE) > silence_duration):
-                break
+            if sound_detected and (silent_frames * (self.CHUNK / self.RATE) > self.SILENCE_DURATION):
+                return
             
     def cleanup(self):
         """Clean up resources"""
@@ -299,7 +324,7 @@ class speechToText:
                                             if self.speech_interrupted:
                                                 print("Speech was interrupted. Ready for next input.")
                                                 self.speech_interrupted = False
-                                break  # Exit the loop after recognizing speech
+                                return  # Exit the function after recognizing speech
                                 
                     # google speech recognition error exception: inaudible sample
                     except sr.UnknownValueError:
@@ -317,21 +342,111 @@ class speechToText:
                 'audio_type': audio_type,
                 'audio_data': list(audio_data)
             }))
-            
-# if __name__ == "__main__":
-#     # Example usage
-#     stt = speechToText()
-#     stt.wait_for_wake_word()
-#     stt.start_continuous_listening()
-#     stt.cleanup()
-#     print("Speech recognition complete")
      
 class SpeechtoTextAPI(BaseToolAPI):
     def __init__(self):
-        self.router = APIRouter()
-        self.setup_routes()
+        super().__init__(prefix="/stt", tags=["speech-to-text"])
+        self.stt_instance = None
     
     def setup_routes(self):
         @self.router.post("/recognize")
         async def recognize_speech(self, audio: UploadFile):
-            pass
+            try:
+                # Initialize speech recognizer if not already created
+                if not self.stt_instance:
+                    self.stt_instance = speechToText()
+                
+                # Create temporary file to store the uploaded audio
+                temp_file = None
+                try:
+                    # Create a temporary file
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+                    temp_file_path = temp_file.name
+                    
+                    # Write uploaded audio to the temporary file
+                    audio_data = await audio.read()
+                    with open(temp_file_path, 'wb') as f:
+                        f.write(audio_data)
+                    
+                    # Send audio to frontend for visualization (optional)
+                    await self.stt_instance.send_audio_to_frontend(temp_file_path, "stt")
+                    
+                    # Recognize speech from the file
+                    if self.stt_instance.use_whisper:
+                        text = await self.stt_instance.whisperSTT(temp_file_path)
+                    else:
+                        text = await self.stt_instance.googleSTT(temp_file_path)
+                    
+                    return {"text": text}
+                    
+                finally:
+                    # Clean up the temporary file
+                    if temp_file and os.path.exists(temp_file.name):
+                        os.unlink(temp_file.name)
+                        
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Speech recognition failed: {str(e)}")
+        
+        @self.router.post("/listen")
+        async def listen_for_speech(self, threshold: int = 605, silence_duration: float = 0.25):
+            try:
+                if not self.stt_instance:
+                    self.stt_instance = speechToText()
+                
+                # Listen for speech
+                audio_file = await self.stt_instance.listen(threshold, silence_duration)
+                if not audio_file:
+                    return {"status": "error", "message": "No speech detected"}
+                
+                # Recognize the speech
+                text = await self.stt_instance.recognizer(audio_file)
+                
+                # Clean up the audio file
+                if os.path.exists(audio_file):
+                    os.unlink(audio_file)
+                
+                return {"status": "success", "text": text}
+                
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Listening failed: {str(e)}")
+        
+        @self.router.post("/wake-word")
+        async def set_wake_word(self, wake_word: str):
+            try:
+                if not self.stt_instance:
+                    self.stt_instance = speechToText()
+                
+                self.stt_instance.set_wake_word(wake_word)
+                return {"status": "success", "message": f"Wake word set to '{wake_word}'"}
+                
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Setting wake word failed: {str(e)}")
+        
+        @self.router.post("/wait-for-wake-word")
+        async def wait_for_wake_word(self):
+            try:
+                if not self.stt_instance:
+                    self.stt_instance = speechToText()
+                
+                # This should be handled as a background task since it's blocking
+                background_tasks = BackgroundTasks()
+                background_tasks.add_task(self.stt_instance.wait_for_wake_word)
+                
+                return {"status": "listening", "message": f"Listening for wake word '{self.stt_instance.wake_word}'"}
+                
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Wake word detection failed: {str(e)}")
+        
+        @self.router.get("/models")
+        async def get_available_models(self):
+            try:
+                return {
+                    "models": [
+                        {"id": "google", "name": "Google Speech Recognition", "description": "Cloud-based speech recognition"},
+                        {"id": "whisper-tiny", "name": "Whisper Tiny", "description": "Lightweight local speech recognition"},
+                        {"id": "whisper-base", "name": "Whisper Base", "description": "Basic local speech recognition"},
+                        {"id": "whisper-small", "name": "Whisper Small", "description": "More accurate local speech recognition"}
+                    ]
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
