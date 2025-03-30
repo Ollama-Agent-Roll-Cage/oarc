@@ -6,8 +6,8 @@ A Python package for OARC functionality.
 
 ```bash
 # Clone the repository
-git clone https://github.com/Leoleojames1/oarc.git
-cd oarc
+git clone https://github.com/Leoleojames1/OARC.git
+cd OARC
 
 # Create & activate virtual environment
 python -m venv .venv
