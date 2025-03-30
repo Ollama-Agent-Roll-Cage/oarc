@@ -1,4 +1,7 @@
-"""Main functionality for the OARC package."""
+"""
+Main functionality for the OARC package.
+"""
+
 import sys
 from oarc.cli import cli
 

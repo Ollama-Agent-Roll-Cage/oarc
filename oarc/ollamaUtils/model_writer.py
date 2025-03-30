@@ -1,20 +1,15 @@
-""" model_write_class
-
-        The model_write_class provides methods for writing custom ollama modelfile's through automation.
-    This process allows for on the spot model creation with defined parameters for any given model or agent
-    build/workflow. 
-
-  File "D:\CodingGit_StorageHDD\Ollama_Custom_Mods\ollama_agent_roll_cage\ollama_mod_cage\wizard_spell_book\Public_Chatbot_Base_Wand\write_modelfile\model_write_class.py", line 22, in __init__
-    self.ignored_agents_dir = pathLibrary['ignored_agents_dir']
-
-created on: 5/23/2024
-by @LeoBorcherding
+"""
+The model_write_class provides methods for writing custom ollama modelfile's through automation.
+This process allows for on the spot model creation with defined parameters for any given model or agent
+build/workflow. 
 """
 
 import os
 
-# -------------------------------------------------------------------------------------------------
-class model_write_class:
+
+class ModelWriter:
+
+
     def __init__(self, pathLibrary):
         """a method for initializing the class
         """
@@ -23,12 +18,22 @@ class model_write_class:
         self.parent_dir = pathLibrary['parent_dir']
         self.ignored_agents_dir = pathLibrary['ignored_agents_dir']
 
-    # -------------------------------------------------------------------------------------------------    
+    
     def write_model_file(self):
-        """ a method to write a model file based on user inputs
-            args: none
-            returns: none
-        """ #TODO ADD WRITE MODEL FILE CLASS
+        """
+        Writes a model file using user provided inputs.
+
+        This method prompts the user for model details and writes the resulting
+        configuration to a model file. It serves as a template for model file generation,
+        ensuring that the necessary parameters are collected and formatted correctly.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
+        #TODO ADD WRITE MODEL FILE CLASS
         # collect agent data with text input
         self.user_create_agent_name = input(self.colors['WARNING'] + "<<< PROVIDE SAFETENSOR OR GGUF NAME (WITH .gguf or .safetensors) >>> " + self.colors['OKBLUE'])
         user_input_temperature = input(self.colors['WARNING'] + "<<< PROVIDE NEW AGENT TEMPERATURE (0.1 - 5.0) >>> " + self.colors['OKBLUE'])
@@ -54,10 +59,18 @@ class model_write_class:
         except Exception as e:
             return f"Error creating directory or text file: {str(e)}"
     
-    # -------------------------------------------------------------------------------------------------
+
     def write_model_file_and_run_agent_create_ollama(self):
-        """ a method to automatically generate a new agent via commands
-            returns: none
+        """
+        Executes the agent creation process by writing a model file and 
+        executing the associated command. 
+        
+        This method collects the necessary user inputs, generates a model file 
+        with the provided parameters, and triggers the agent creation command 
+        for Ollama automation.
+        
+        Returns:
+            None
         """
         # collect agent data with text input
         self.user_create_agent_name = input(self.colors['WARNING'] + "<<< PROVIDE NEW AGENT NAME TO CREATE >>> " + self.colors['OKBLUE'])
@@ -87,11 +100,16 @@ class model_write_class:
         except Exception as e:
             return f"Error creating directory or text file: {str(e)}"
 
-    # -------------------------------------------------------------------------------------------------
+
     def write_model_file_and_run_agent_create_gguf(self, model_git):
-        """ a method to automatically generate a new agent via commands
-            args: none
-            returns: none
+        """
+        Automatically generate a new agent using predefined command-line instructions.
+
+        This method sets up the configurations and executes the necessary command
+        to create a new agent. No arguments are required.
+
+        Returns:
+            None
         """
         self.model_git = model_git
 

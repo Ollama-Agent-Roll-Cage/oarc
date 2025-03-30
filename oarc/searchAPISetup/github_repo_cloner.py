@@ -1,10 +1,27 @@
+"""
+This module enables the cloning of GitHub repositories and their storage in a MongoDB database.
+It defines the GitHubRepoCloner class to handle cloning with Git, reading file contents with proper error handling,
+and inserting the files into a MongoDB collection, including metadata such as file paths and timestamps.
+Additionally, the GithubRepoClonerAPI class provides an HTTP API endpoint to trigger the cloning process,
+integrating the cloner into a larger system for agent-based code management and analysis.
+"""
+
+import logging
 import os
 import shutil
 import time
+
 import git
 import pymongo
-import logging
-from typing import Dict
+
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
 
 class GitHubRepoCloner:
     def __init__(self, storage_type: str = "mongodb", database_path: str = "mongodb://localhost:27017/"):
@@ -17,15 +34,7 @@ class GitHubRepoCloner:
         """
         self.storage_type = storage_type
         self.database_path = database_path
-        self.setup_logging()
     
-    def setup_logging(self):
-        """Configure logging for the cloner."""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
 
     def clone_and_store_repo(self, agent_id: str, repo_url: str) -> None:
         """Clone a Git repository and store the code in the agent's code database."""
@@ -61,9 +70,9 @@ class GitHubRepoCloner:
             # Clean up the temporary directory
             shutil.rmtree(temp_dir)
             
-            self.logger.info(f"Successfully cloned and stored repository {repo_url} for agent {agent_id}")
+            log.info(f"Successfully cloned and stored repository {repo_url} for agent {agent_id}")
         except Exception as e:
-            self.logger.error(f"Error cloning and storing repository {repo_url} for agent {agent_id}: {e}")
+            log.error(f"Error cloning and storing repository {repo_url} for agent {agent_id}: {e}")
             raise
         
 class GithubRepoClonerAPI:

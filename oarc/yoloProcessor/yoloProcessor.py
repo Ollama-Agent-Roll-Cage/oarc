@@ -1,17 +1,43 @@
+"""
+File: yoloProcessor.py
+Description:
+    Implements a YOLO-based object detection processor with oriented bounding boxes.
+    Provides functionality for:
+      - Loading and using a YOLO model for detection.
+      - Tracking objects with debouncing and drawing bounding boxes.
+      - Capturing screen content.
+      - Streaming processed frames to a virtual webcam.
+      - Exposing a FastAPI router for detection and streaming endpoints.
+      
+Usage:
+    Run this script directly to perform detections on a sample image, capture the screen,
+    or stream via a virtual webcam.
+    
+Dependencies:
+    - OpenCV (cv2)
+    - NumPy
+    - torch
+    - ultralytics
+    - pyvirtualcam (optional, for virtual webcam streaming)
+    - win32gui, win32ui, win32con, win32api (for screen capture on Windows)
+    - websockets, fastapi (for API integration)
+"""
+
+import os
+import json
+from time import time
+from typing import Optional, Dict, Any, Tuple, List
+
 import cv2
 import numpy as np
 import torch
-import os
 from ultralytics import YOLO
 import win32gui
-import win32ui
 import win32con
-import win32api 
-from time import time
-from typing import Optional, Dict, Any, Tuple, List 
-import json
+import win32ui
+import win32api
 import websockets
-from fastapi import FastAPI, APIRouter
+from fastapi import APIRouter, UploadFile, WebSocket
 
 try:
     import pyvirtualcam
@@ -254,7 +280,22 @@ class YoloProcessor:
         """Send YOLO detection response to frontend"""
         async with websockets.connect('ws://localhost:2020/yolo_stream') as websocket:
             await websocket.send(json.dumps(response))
+
+
+class YoloAPI:
+    def __init__(self):
+        self.router = APIRouter()
+        self.setup_routes()
+    
+    def setup_routes(self):
+        @self.router.post("/detect")
+        async def detect_objects(self, image: UploadFile):
+            pass
             
+        @self.router.websocket("/stream")
+        async def vision_stream(self, websocket: WebSocket):
+            pass
+
 if __name__ == "__main__":
     # Basic usage with oriented bounding boxes
     detector = YoloProcessor(model_path="path/to/model.pt", conf_threshold=0.7, debounce_ms=200)
@@ -272,17 +313,3 @@ if __name__ == "__main__":
     # Process screen capture
     screen = detector.capture_screen()
     processed_screen = detector.process_frame(screen)
-
-class YoloAPI:
-    def __init__(self):
-        self.router = APIRouter()
-        self.setup_routes()
-    
-    def setup_routes(self):
-        @self.router.post("/detect")
-        async def detect_objects(self, image: UploadFile):
-            pass
-            
-        @self.router.websocket("/stream")
-        async def vision_stream(self, websocket: WebSocket):
-            pass

@@ -1,9 +1,12 @@
-"""multiModalPrompting.py - Core messaging functionality for OARC chatbot."""
+"""
+Core messaging functionality for OARC chatbot.
+"""
 
 import base64
 import json
 import multiprocessing
 import time
+import logging
 from datetime import datetime
 from pprint import pformat
 from typing import Optional
@@ -11,18 +14,25 @@ from typing import Optional
 import ollama
 
 from oarc.database import PandasDB
-from oarc.decorators.log import log
-    
-@log()
-class multiModalPrompting:
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
+
+class MultiModalPrompting:
+
+
     def __init__(self):
         self.AGENT_FLAG = True
         self.SYSTEM_SELECT_FLAG = False
         self.loaded_agent = None
         self.chat_history = None
         self.conversation_handler = None
-        self.db = PandasDB()
+        self.pandas_db = PandasDB()
         
+
     def set_model(self, model_name: str) -> bool:
         """Set the model for the agent."""
         try:
@@ -36,6 +46,7 @@ class multiModalPrompting:
             log.error(f"Error setting model for agent {self.agent_id}: {e}")
             return False
         
+
     def swap(self, model_name):
         try:
             log.info(f"Swapping model to: {model_name}")
@@ -43,6 +54,7 @@ class multiModalPrompting:
             log.info(f"Model swapped to {model_name}, inheriting the previous chat history")
         except Exception as e:
             log.error(f"Error swapping model: {e}")
+            
             
     def swapClear(self, swap_model_selection):
         try:
@@ -55,13 +67,13 @@ class multiModalPrompting:
             log.error(f"Error swapping model and clearing chat history: {e}")
             return False
         
-    # -------------------------------------------------------------------------------------------------
+
     def initializeChat(self):
         """ a method to initilize the chatbot agent conversation
         """
         # initialize chat history
-        self.db.chat_history = []
-        self.db.llava_history = []
+        self.pandas_db.chat_history = []
+        self.pandas_db.llava_history = []
         
         # loaded agent
         self.loaded_agent = {}
@@ -72,7 +84,7 @@ class multiModalPrompting:
         # # Setup chat_history
         # self.headers = {'Content-Type': 'application/json'}
     
-    # -------------------------------------------------------------------------------------------------
+
     async def commandPromptCheck(self, user_input_prompt):
         try:
             if not user_input_prompt:
@@ -119,6 +131,7 @@ class multiModalPrompting:
             log.error(f"Error in commandPromptCheck: {e}", exc_info=True)
             return {"status": "error", "message": str(e)}
         
+
     async def promptSetManager(self, sys_prompt_select):
         """ a method for direct system prompt, and booster prompt selection & modification
             via the agent_matrix.db, allowing for any agent prompt to be selected and loaded
@@ -131,6 +144,7 @@ class multiModalPrompting:
             print("Invalid choice. Please select a valid prompt.")
         return sys_prompt_select
     
+
     def get_system_prompt(self):
         """Extract system prompt from loaded agent configuration."""
         try:
@@ -151,6 +165,7 @@ class multiModalPrompting:
             log.error(f"Error retrieving system prompt: {e}")
             return None
         
+
     async def send_prompt(self, loaded_agent, conversation_handler, chat_history):
         """Send prompt with multimodal data handling"""
         try:
@@ -264,14 +279,14 @@ class multiModalPrompting:
                 }
 
             # Store in PandasDB with metadata
-            await self.db.store_message(
+            await self.pandas_db.store_message(
                 role="user",
                 content=user_prompt,
                 metadata=metadata
             )
 
             # Store assistant response
-            await self.db.store_message(
+            await self.pandas_db.store_message(
                 role="assistant", 
                 content=model_response,
                 metadata={
@@ -291,6 +306,7 @@ class multiModalPrompting:
             log.error(f"Error in send_prompt: {e}")
             return f"Error: {e}"
         
+
     def ollamaConcurrentPrompts(self, model, promptList):
         """ a method for sending prompts in multiprocessing to the model, this will be recorded 
         to the conversation.
@@ -302,6 +318,7 @@ class multiModalPrompting:
                 pool.apply_async(self.send_prompt, args=(model,))
         pass
     
+
     def ollamaConcurrentModels(self, modelList, prompList, multiprocessEachModel):
         """ a method for sending prompts in multiprocessing to multiple model, this will be recorded
         to the conversation. This can be used to prompt multiple models with one prompt, multiple
@@ -312,6 +329,7 @@ class multiModalPrompting:
                 #TODO TEST AND IMPLEMENT
                 pool.apply_async(self.send_prompt, args=(model,))
         pass
+
     
     async def llava_prompt(self, user_input_prompt, user_screenshot_raw2, llava_user_input_prompt, language_and_vision_model="llava"):
         """ a method for prompting the vision model
@@ -382,6 +400,7 @@ class multiModalPrompting:
         except Exception as e:
             return f"Error: {e}"
 
+
     async def embedding_ollama_prompt(self, agent_id: str, message: str, stream: bool = True) -> Optional[str]:
         """Enhanced Ollama chat using agent's database configuration with MongoDB vector search."""
         # Load agent configuration
@@ -399,7 +418,7 @@ class multiModalPrompting:
         try:
             # Get collections
             collection_name = f"conversations_{agent_id}"
-            conv_collection = self.db[collection_name]
+            conv_collection = self.pandas_db[collection_name]
             
             # Ensure vector search index exists
             try:
@@ -507,6 +526,7 @@ class multiModalPrompting:
         except Exception as e:
             return f"Error in chat: {str(e)}"
         
+
     async def shot_prompt(self, prompt, modelSelect="none"):
         """ a method to perform a shot prompt with the selected model, this will not be recorded to
         the conversation, history and can be used to extract direct data from a model
@@ -545,6 +565,7 @@ class multiModalPrompting:
         except Exception as e:
             return f"Error: {e}"
     
+
     async def mod_prompt(self, prompt, modelSelect="none", appendHistory="new"):
         """ a method to perform a shot prompt with the selected model, this will not be recorded to
         the conversation, history and can be used to extract direct data from a model
@@ -606,6 +627,7 @@ class multiModalPrompting:
             except Exception as e:
                 return f"Error: {e}"
         
+
     async def design_prompt(self, prompt, modelSelect="none", contextChat="new", appendChat="new", ):
         """ a method to perform a shot prompt with the selected model, this will not be recorded to
         the conversation, history and can be used to extract direct data from a model
@@ -663,7 +685,8 @@ class multiModalPrompting:
             return model_response
         except Exception as e:
             return f"Error: {e}"
-        
+
+
     def chainOfThought(self, prompt, reasoningModules):
         """ a method to chain together a series of prompts, and responses to create a chain of thought
             for the agent to follow, this can be used to create a more human like conversation flow
@@ -697,12 +720,14 @@ class multiModalPrompting:
         # reasoning module, or combination of reasoning modules, to solve to problem.
         pass
     
+
     def selectReasoningModule(self):
         """ a method to select the reasoning algorithm for the chainOfThought method"""
         #TODO SELECT MODE
         # codingReasoningModule, searchReasoningModule, deepResearch
         pass
     
+
     def codingReasoningModule(self):
         """ a method defining the coding reasoning module for the chainOfThought method"""
         #TODO SELECT MODE
@@ -712,6 +737,7 @@ class multiModalPrompting:
         # WEB EXAMPLE, GITHUB, STACKOVERFLOW, ARXIV, WIKIPEDIA, DUCKDUCKGO
         pass
     
+
     def searchReasoningModule(self):
         """ a method defining the search reasoning module for the chainOfThought method"""
         #TODO DUCKDUCKGO
@@ -731,21 +757,3 @@ class multiModalPrompting:
         tasks.
         """
         pass
-
-# # Example usage
-# db = pandasDB()
-
-# # Store multimodal message
-# await db.store_message(
-#     role="user",
-#     content="What's in this image?",
-#     metadata={
-#         "images": ["base64_encoded_image"],
-#         "audio": {"stt": "audio_data"},
-#         "vision": {"yolo": ["detection_results"]}
-#     }
-# )
-
-# # Export conversation
-# conversation_json = db.export_conversation(format="json")
-# print(conversation_json)

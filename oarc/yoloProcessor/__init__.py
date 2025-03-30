@@ -2,5 +2,10 @@
 
 from .yoloProcessor import YoloAPI
 from .yoloProcessor import YoloProcessor
+from .yoloProcessor import DetectedObject
 
-__all__ = ['YoloProcessor', 'YoloAPI']
+__all__ = [
+    'YoloProcessor', 
+    'YoloAPI',
+    'DetectedObject'
+]

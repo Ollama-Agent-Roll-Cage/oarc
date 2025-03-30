@@ -1,11 +1,9 @@
-""" textToSpeech.py
-        
-        A class for processing the response sentences and audio generation for the 
-        ollama_chat_bot_base through hotkeys, flag managers, and a smart speech
-        rendering queue designed to optimize speech speed and speech quality.
-
-created on: 4/20/2024
-by @LeoBorcherding
+"""
+This module encapsulates the functionality to convert text into speech using Coqui TTS models.
+It handles audio processing, model initialization (either fine-tuned or base with speaker reference),
+and manages the generation, playback, and streaming of synthesized audio. The module also provides 
+a Gradio interface for testing, robust sentence splitting, user interruption capabilities during audio playback,
+and resource cleanup routines to ensure smooth performance.
 """
 
 import sounddevice as sd
@@ -24,21 +22,33 @@ import time
 import keyboard
 import json
 import websockets
-from fastapi import FastAPI, APIRouter
-from oarc.base_api import BaseToolAPI
 
-# -------------------------------------------------------------------------------------------------
-class textToSpeech:
+import os
+import numpy as np
+import asyncio
+import logging
+
+from oarc.utils.paths import Paths
+
+WEBSOCKET_URL = 'ws://localhost:2020/audio-stream'
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
+
+class TextToSpeech:
     """ a class for managing the text to speech conversation between the user, ollama, & coqui-tts.
     """
-    # -------------------------------------------------------------------------------------------------
+
+
     def __init__(self, developer_tools_dict, voice_type, voice_name):
         self.voice_type = voice_type
         self.voice_name = voice_name
         self.is_multi_speaker = None
         self.speech_interrupted = False
-        
-        # Audio processing settings
+        self.paths = Paths()
         self.sample_rate = 22050
         self.audio_buffer = np.array([], dtype=np.float32)
         
@@ -47,16 +57,12 @@ class textToSpeech:
         if self.device == "cpu":
             print("CUDA not available. Using CPU for TTS.")
             
-        # Initialize paths from developer tools
         self.setup_paths(developer_tools_dict)
-        
-        # Initialize TTS model
         self.initialize_tts_model()
         
-    # -------------------------------------------------------------------------------------------------
+
     def setup_paths(self, developer_tools_dict):
         """Setup paths from developer tools dictionary"""
-        #TODO RECONFIGURE WITH -> model_git_dir = os.getenv('OARC_MODEL_GIT')
         self.developer_tools_dict = developer_tools_dict
         self.current_dir = developer_tools_dict['current_dir']
         self.parent_dir = developer_tools_dict['parent_dir']
@@ -65,47 +71,23 @@ class textToSpeech:
         self.generate_speech_dir = developer_tools_dict['generate_speech_dir']
         self.tts_voice_ref_wav_pack_path = developer_tools_dict['tts_voice_ref_wav_pack_path_dir']
         
-    # -------------------------------------------------------------------------------------------------
+
     def initialize_tts_model(self):
-        """Initialize the appropriate finetuned text to speech with Coqui TTS
-        
-        Expects directory structure:
-        OARC_MODEL_GIT/
-            coqui/
-                XTTS-v2_c3po/
-                    config.json
-                    model.pth
-                    reference.wav
-                XTTS-v2_gandalf/
-                    config.json
-                    model.pth
-                    reference.wav
-                XTTS-v2_jarvis/
-                    config.json
-                    model.pth
-                    reference.wav
-                voice_reference_pack/
-                    c3po/
-                        clone_speech.wav
-                    gandalf/
-                        clone_speech.wav
-                    jarvis/
-                        clone_speech.wav
-        """
+        """Initialize the appropriate finetuned text to speech with Coqui TTS"""
         try:
-            model_git_dir = os.getenv('OARC_MODEL_GIT')
-            if not model_git_dir:
-                raise EnvironmentError("OARC_MODEL_GIT environment variable not set")
+            model_git_dir = self.paths.get_model_dir()
+            log.info(f"Using model directory: {model_git_dir}")
 
             # Construct paths
             coqui_dir = os.path.join(model_git_dir, 'coqui')
             if not os.path.exists(coqui_dir):
-                raise FileNotFoundError(f"Coqui directory not found at {coqui_dir}")
+                os.makedirs(coqui_dir, exist_ok=True)
+                log.warning(f"Coqui directory not found, creating: {coqui_dir}")
 
             # List available voices
             available_voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
                               if d.startswith('XTTS-v2_') and os.path.isdir(os.path.join(coqui_dir, d))]
-            print(f"Available voices: {', '.join(available_voices)}")
+            log.info(f"Available voices: {', '.join(available_voices) if available_voices else 'None'}")
             
             fine_tuned_model_path = os.path.join(coqui_dir, f'XTTS-v2_{self.voice_name}')
                 
@@ -119,6 +101,7 @@ class textToSpeech:
                 if not os.path.exists(model_path):
                     raise FileNotFoundError(f"Model file not found at {model_path}")
                     
+                log.info(f"Loading fine-tuned model from: {fine_tuned_model_path}")
                 self.tts = TTS(
                     model_path=fine_tuned_model_path,
                     config_path=config_path,
@@ -127,21 +110,22 @@ class textToSpeech:
                 ).to(self.device)
                 self.is_multi_speaker = False
                 self.voice_reference_path = os.path.join(fine_tuned_model_path, "reference.wav")
-                print(f"Loaded fine-tuned model for voice: {self.voice_name}")
+                log.info(f"Loaded fine-tuned model for voice: {self.voice_name}")
                     
             else:
                 # Use base model with reference voice
-                print(f"No fine-tuned model found for {self.voice_name}, using base model with voice reference")
+                log.info(f"No fine-tuned model found for {self.voice_name}, using base model with voice reference")
                 self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
                 self.is_multi_speaker = True
                     
                 # Look for voice reference in voice_reference_pack
                 voice_ref_dir = os.path.join(coqui_dir, 'voice_reference_pack', self.voice_name)
+                os.makedirs(voice_ref_dir, exist_ok=True)
                 self.voice_reference_path = os.path.join(voice_ref_dir, "clone_speech.wav")
                     
                 if not os.path.exists(self.voice_reference_path):
                     raise FileNotFoundError(
-                        f"Voice reference file not found at {self.voice_reference_path}\n"
+f"Voice reference file not found at {self.voice_reference_path}\n"
                         f"Please ensure voice reference exists at: {voice_ref_dir}\n"
                         f"Available voices in reference pack: {os.listdir(os.path.join(coqui_dir, 'voice_reference_pack'))}"
                     )
@@ -150,14 +134,19 @@ class textToSpeech:
             return True
                 
         except Exception as e:
-            print(f"Error initializing TTS model: {str(e)}")
+            log.error(f"Error initializing TTS model: {str(e)}", exc_info=True)
             if self.device == "cuda":
-                print("Attempting to fall back to CPU...")
+                log.info("Attempting to fall back to CPU...")
                 self.device = "cpu"
                 return self.initialize_tts_model()
-            raise
+            else:
+                # TODO Create a placeholder TTS object that returns silence
+                log.warning("Creating fallback TTS that will generate silence")
+                self.is_multi_speaker = False
+                self.tts = None
+                return True
     
-    # -------------------------------------------------------------------------------------------------
+
     def process_tts_responses(self, response, voice_name):
         """Process text response into audio data suitable for streaming"""
         try:
@@ -209,8 +198,8 @@ class textToSpeech:
         except Exception as e:
             print(f"Error generating audio: {e}")
             return None
-                
-    # -------------------------------------------------------------------------------------------------
+
+
     def play_audio_from_file(self, filename):
         """A method for audio playback from file."""
         # Check if the file exists
@@ -228,7 +217,7 @@ class textToSpeech:
         except Exception as e:
             print(f"Failed to play audio from file {filename}. Reason: {e}")
 
-    # -------------------------------------------------------------------------------------------------
+
     def generate_audio(self, sentence, ticker):
         """ a method to generate the audio for the chatbot
             args: sentence, voice_name_path, ticker
@@ -247,7 +236,7 @@ class textToSpeech:
         filename = os.path.join(self.generate_speech_dir, f"audio_{ticker}.wav")
         sf.write(filename, tts_audio, 22050)
     
-    # -------------------------------------------------------------------------------------------------
+
     def get_audio_data(self):
         """Get the current audio buffer in a format suitable for streaming"""
         if len(self.audio_buffer) > 0:
@@ -257,7 +246,7 @@ class textToSpeech:
             }
         return None
     
-    # -------------------------------------------------------------------------------------------------
+
     def generate_play_audio_loop(self, tts_response_sentences):
         """ a method to generate and play the audio for the chatbot
             args: tts_sentences
@@ -309,6 +298,7 @@ class textToSpeech:
         interrupted = False
         generation_complete = False
 
+
         def generate_audio_thread():
             nonlocal generation_complete
             for i, sentence in enumerate(tts_response_sentences):
@@ -346,21 +336,21 @@ class textToSpeech:
         if interrupted:
             print(self.colors["BRIGHT_YELLOW"] + "Speech interrupted by user." + self.colors["RED"])
             self.clear_remaining_audio_files(ticker, len(tts_response_sentences))
-            
-    # -------------------------------------------------------------------------------------------------
+
+
     def interrupt_generation(self):
         """Interrupt ongoing speech generation"""
         self.speech_interrupted = True
         self.audio_buffer = np.array([], dtype=np.float32)
         
-    # -------------------------------------------------------------------------------------------------  
+
     def cleanup(self):
         """Clean up resources"""
         self.speech_interrupted = True
         self.audio_buffer = np.array([], dtype=np.float32)
         torch.cuda.empty_cache()
         
-    # -------------------------------------------------------------------------------------------------
+
     def clear_remaining_audio_files(self, start_ticker, total_sentences):
         """ a method to clear the audio cache from the current splicing session
         """
@@ -369,7 +359,7 @@ class textToSpeech:
             if os.path.exists(filename):
                 os.remove(filename)
 
-    # -------------------------------------------------------------------------------------------------
+
     def clear_directory(self, directory):
         """ a method for clearing the given directory
             args: directory
@@ -385,7 +375,7 @@ class textToSpeech:
             except Exception as e:
                 print(f'Failed to delete {file_path}. Reason: {e}')
 
-    # -------------------------------------------------------------------------------------------------
+
     def split_into_sentences(self, text: str) -> list[str]:
         """A method for splitting the LLAMA response into sentences.
         Args:
@@ -442,6 +432,7 @@ class textToSpeech:
 
         return final_sentences
     
+
     def gradio_interface(self):
         """Create Gradio interface for the detector"""
         import gradio as gr
@@ -460,126 +451,10 @@ class textToSpeech:
 
         gr.Interface(fn=tts, inputs="text", outputs="text").launch()
 
+
     async def send_audio_to_frontend(self, audio_data, audio_type):
-        async with websockets.connect('ws://localhost:2020/audio-stream') as websocket:
+        async with websockets.connect(WEBSOCKET_URL) as websocket:
             await websocket.send(json.dumps({
                 'audio_type': audio_type,
                 'audio_data': list(audio_data)
             }))
-
-from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, Form, File
-from pydantic import BaseModel
-from oarc.base_api import BaseToolAPI
-import os
-import numpy as np
-import asyncio
-import logging
-
-class TTSRequest(BaseModel):
-    text: str
-    voice_name: str = "c3po"
-    speed: float = 1.0
-    language: str = "en"
-
-class TextToSpeechAPI(BaseToolAPI):
-    def __init__(self):
-        super().__init__(prefix="/tts", tags=["text-to-speech"])
-        self.tts_instance = None
-        self.model_git_dir = os.getenv('OARC_MODEL_GIT', '')
-        if not self.model_git_dir:
-            logging.warning("OARC_MODEL_GIT environment variable not set")
-    
-    def setup_routes(self):
-        @self.router.post("/synthesize")
-        async def synthesize_speech(self, text: str, voice_name: str = "c3po"):
-            try:
-                if not self.tts_instance:
-                    developer_tools_dict = {
-                        'current_dir': os.getcwd(),
-                        'parent_dir': os.path.dirname(os.getcwd()),
-                        'speech_dir': os.path.join(self.model_git_dir, 'coqui'),
-                        'recognize_speech_dir': os.path.join(self.model_git_dir, 'whisper'),
-                        'generate_speech_dir': os.path.join(self.model_git_dir, 'generated'),
-                        'tts_voice_ref_wav_pack_path_dir': os.path.join(self.model_git_dir, 'coqui', 'voice_reference_pack')
-                    }
-                    self.tts_instance = textToSpeech(
-                        developer_tools_dict=developer_tools_dict,
-                        voice_type="xtts_v2", 
-                        voice_name=voice_name
-                    )
-                
-                audio_data = self.tts_instance.process_tts_responses(text, voice_name)
-                if audio_data is not None:
-                    return {"audio_data": audio_data.tolist(), "sample_rate": self.tts_instance.sample_rate}
-                else:
-                    raise HTTPException(status_code=500, detail="Failed to generate audio")
-                    
-            except Exception as e:
-                logging.error(f"TTS synthesis failed: {str(e)}")
-                raise HTTPException(status_code=500, detail=str(e))
-
-        @self.router.post("/advanced-synthesize")
-        async def advanced_synthesize(self, request: TTSRequest):
-            try:
-                if not self.tts_instance:
-                    developer_tools_dict = {
-                        'current_dir': os.getcwd(),
-                        'parent_dir': os.path.dirname(os.getcwd()),
-                        'speech_dir': os.path.join(self.model_git_dir, 'coqui'),
-                        'recognize_speech_dir': os.path.join(self.model_git_dir, 'whisper'),
-                        'generate_speech_dir': os.path.join(self.model_git_dir, 'generated'),
-                        'tts_voice_ref_wav_pack_path_dir': os.path.join(self.model_git_dir, 'coqui', 'voice_reference_pack')
-                    }
-                    self.tts_instance = textToSpeech(
-                        developer_tools_dict=developer_tools_dict,
-                        voice_type="xtts_v2", 
-                        voice_name=request.voice_name
-                    )
-                
-                # Advanced options would be handled here
-                audio_data = self.tts_instance.process_tts_responses(request.text, request.voice_name)
-                if audio_data is not None:
-                    return {"audio_data": audio_data.tolist(), "sample_rate": self.tts_instance.sample_rate}
-                else:
-                    raise HTTPException(status_code=500, detail="Failed to generate audio")
-                    
-            except Exception as e:
-                logging.error(f"Advanced TTS synthesis failed: {str(e)}")
-                raise HTTPException(status_code=500, detail=str(e))
-
-        @self.router.get("/voices")
-        async def list_voices(self):
-            try:
-                coqui_dir = os.path.join(self.model_git_dir, 'coqui')
-                if not os.path.exists(coqui_dir):
-                    return {"voices": [], "error": f"Coqui directory not found at {coqui_dir}"}
-                
-                voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
-                         if d.startswith('XTTS-v2_') and os.path.isdir(os.path.join(coqui_dir, d))]
-                return {"voices": voices}
-            except Exception as e:
-                logging.error(f"Error listing voices: {str(e)}")
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.post("/interrupt")
-        async def interrupt_speech(self):
-            try:
-                if self.tts_instance:
-                    self.tts_instance.interrupt_generation()
-                    return {"status": "success", "message": "Speech interrupted"}
-                return {"status": "warning", "message": "No active TTS instance to interrupt"}
-            except Exception as e:
-                logging.error(f"Error interrupting speech: {str(e)}")
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.post("/cleanup")
-        async def cleanup(self):
-            try:
-                if self.tts_instance:
-                    self.tts_instance.cleanup()
-                    self.tts_instance = None
-                    return {"status": "success", "message": "TTS resources cleaned up"}
-                return {"status": "warning", "message": "No active TTS instance to clean up"}
-            except Exception as e:
-                logging.error(f"Error cleaning up TTS: {str(e)}")
-                raise HTTPException(status_code=500, detail=str(e))

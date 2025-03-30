@@ -1,12 +1,15 @@
-import asyncio
 from crawl4ai import AsyncWebCrawler
 import pymongo
 import logging
 from datetime import datetime
-from typing import List, Dict
+from typing import Dict
+
 
 class Crawl4AISearchAPI:
-    def __init__(self, storage_type: str = "mongodb", database_path: str = "mongodb://localhost:27017/"):
+
+    def __init__(self,
+                 storage_type: str = "mongodb",
+                 database_path: str = "mongodb://localhost:27017/"):
         """
         Initialize the Crawl4AI Search API wrapper.
         
@@ -17,13 +20,12 @@ class Crawl4AISearchAPI:
         self.storage_type = storage_type
         self.database_path = database_path
         self.setup_logging()
-    
+
     def setup_logging(self):
         """Configure logging for the API."""
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
 
     async def scrape_url(self, url: str) -> Dict:

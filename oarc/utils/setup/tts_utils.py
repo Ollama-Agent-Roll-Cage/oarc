@@ -3,6 +3,7 @@
 TTS installation utilities for OARC setup process.
 """
 
+import logging
 import os
 import shutil
 import stat
@@ -11,20 +12,24 @@ import sys
 import tempfile
 import urllib.request
 import zipfile
+
 from pathlib import Path
 
-from oarc.decorators.log import log
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 TTS_REPO_URL = "https://github.com/idiap/coqui-ai-TTS/archive/refs/heads/dev.zip"
 TTS_REPO_NAME = "coqui-ai-TTS"
 
-@log()
+
 def remove_readonly(func, path, _):
     """Clear the readonly bit and reattempt the removal."""
     os.chmod(path, stat.S_IWRITE)
     func(path)
 
-@log()
+
 def remove_git_dir(repo_dir):
     """Remove .git directory with special handling for Windows permission issues."""
     git_dir = repo_dir / ".git"
@@ -48,7 +53,7 @@ def remove_git_dir(repo_dir):
             log.error(f"Failed to remove Git directory: {e}")
             return False
 
-@log()
+
 def install_coqui(venv_python):
     """Install TTS directly from the GitHub repository.
     
@@ -69,6 +74,10 @@ def install_coqui(venv_python):
     if TTS_REPO_URL is None:
         log.error("Error: repo_url is required")
         sys.exit(1)
+
+    if repo_dir.exists():
+        log.info(f"TTS repository already exists at {repo_dir}. Skipping installation.")
+        return True
     
     log.info(f"Installing TTS from GitHub repository to {repo_dir}...")
     

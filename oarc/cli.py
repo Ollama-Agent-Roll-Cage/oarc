@@ -1,6 +1,6 @@
 """Command-line interface for OARC."""
 import argparse
-from oarc.decorators.log import log
+import logging
 from oarc.commands import (
     build_command,
     run_command,
@@ -9,7 +9,13 @@ from oarc.commands import (
 from oarc.commands.command_type import CommandType, get_command_type
 
 
-@log()
+# Create a proper logger
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+
+
 def cli(**kwargs):
     """Command line interface for OARC."""
     log.info("Starting OARC CLI")
@@ -39,7 +45,6 @@ def cli(**kwargs):
         log.error(f"Invalid command: {e}")
         return 1
     
-    # Remove command from config as it's not needed by the command functions
     if 'command' in config:
         del config['command']
     

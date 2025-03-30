@@ -1,15 +1,20 @@
 """Module to install additional dependencies for OARC."""
 
 import sys
+import logging
 from pathlib import Path
-from oarc.decorators.log import log
 from oarc.utils.setup.setup_utils import ensure_pip
 from oarc.utils.setup.tts_utils import install_coqui
 from oarc.utils.setup.cuda_utils import install_pytorch
 from oarc.utils.setup.pyaudio_utils import install_pyaudio
 
+# Create a proper logger
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
-@log()
+
 def main():
     """Run all dependency installation steps."""
     # Get the current Python executable path

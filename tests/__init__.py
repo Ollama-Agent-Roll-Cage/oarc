@@ -1,1 +1,9 @@
-from tests import TestAgent
+from tests import test_agent
+from tests import test_tts
+from tests import start_test_agent
+
+__all__ = [
+    "test_agent",
+    "test_tts",
+    "start_test_agent"
+]

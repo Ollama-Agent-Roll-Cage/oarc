@@ -6,10 +6,14 @@ PyAudio installation utilities for OARC setup process.
 import sys
 import subprocess
 import os
-from oarc.decorators.log import log
+import logging
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 
-@log()
 def install_pyaudio(venv_python):
     """Install platform-specific dependencies for PyAudio."""
     log.info("Installing PyAudio dependencies...")

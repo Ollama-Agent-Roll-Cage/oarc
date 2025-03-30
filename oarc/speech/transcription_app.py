@@ -1,27 +1,48 @@
+"""
+This script implements a real-time speech transcription and synthesis application with a graphical user interface.
+It listens for a specific wake word ("alexa") to start processing audio input using Whisper for transcription,
+and utilizes a language model via the ollama API to generate dynamic responses. Additionally, the application plays
+synthesized speech responses using gTTS and pygame, while handling asynchronous tasks through multithreading.
+The interface also features a search functionality to highlight transcribed text, making it a versatile tool
+for interactive voice-based interactions.
+"""
+
+import io
+import os
+import queue
 import threading
+import tempfile
+import wave
+import audioop
+import sys
+
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QColor, QTextCursor, QTextCharFormat, QTextDocument
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QFrame, QVBoxLayout, QHBoxLayout, 
+    QLineEdit, QPushButton, QTextEdit, QWidget
+)
+
 import whisper
 import pyaudio
-import wave
-import tkinter as tk
-from tkinter import scrolledtext
-import tempfile
-import audioop
-import os
-from tkinter import ttk
-import queue
 import ollama
 from gtts import gTTS
 import pygame
-import io
 
 os.environ["PATH"] += os.pathsep + r"ffmpeg\bin"
 
-#TODO THIS IS AN EXAMPLE OF A SILENCE WAKE WORD WE NEED TO MIGRATE ANYTHING THAT ISNT ALREADY INTO THE MAIN speechtoText.py and textToSpeech.py files
-class TranscriptionApp(tk.Frame):
-    def __init__(self, root):
-        super().__init__(root)
-        self.root = root
-        self.root.title("bot1")
+
+# TODO THIS IS AN EXAMPLE OF A SILENCE WAKE WORD WE NEED TO MIGRATE ANYTHING THAT ISNT ALREADY INTO THE MAIN speechtoText.py and textToSpeech.py files
+class TranscriptionApp(QMainWindow):
+
+    text_signal = pyqtSignal(str)
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("bot1")
+        self.setStyleSheet("background-color: black;")
+        self.setWindowOpacity(0.7)
+        self.setMinimumSize(100, 100)
         
         self.text_queue = queue.Queue()
         self.speech_queue = queue.Queue()
@@ -31,55 +52,78 @@ class TranscriptionApp(tk.Frame):
         # Initialize pygame mixer for audio playback
         pygame.mixer.init(frequency=24000)  # Higher frequency for faster playback
         
+        # Set up the central widget and main layout
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
+        
+        # Set up search frame
+        self.search_frame = QFrame()
+        self.search_frame.setStyleSheet("background-color: black;")
+        self.search_layout = QHBoxLayout(self.search_frame)
+        
+        self.search_entry = QLineEdit()
+        self.search_entry.setStyleSheet("background-color: black; color: white; font-size: 12pt;")
+        self.search_entry.returnPressed.connect(self.search_text)
+        
+        self.search_button = QPushButton("Search")
+        self.search_button.setStyleSheet("background-color: black; color: white; font-size: 12pt;")
+        self.search_button.clicked.connect(self.search_text)
+        
+        self.search_layout.addWidget(self.search_entry)
+        self.search_layout.addWidget(self.search_button)
+        
+        # Set up text display area
+        self.text_box = QTextEdit()
+        self.text_box.setStyleSheet("background-color: black; color: white; font-size: 17pt;")
+        self.text_box.setReadOnly(True)
+        
+        # Add widgets to main layout
+        self.main_layout.addWidget(self.search_frame)
+        self.main_layout.addWidget(self.text_box)
+        
+        # Connect the signal to update text
+        self.text_signal.connect(self.update_text_box)
+        
+        # Load whisper model
+        self.model = whisper.load_model("tiny")
+        
         # Start speech processing thread
         threading.Thread(target=self.process_speech_queue, daemon=True).start()
         
-        # Add search frame
-        self.search_frame = tk.Frame(root, bg='black')
-        self.search_frame.pack(fill=tk.X)
-        
-        self.search_entry = tk.Entry(
-            self.search_frame,
-            bg='black',
-            fg='white',
-            font=('Arial', 12),
-            insertbackground='white'
-        )
-        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=15, pady=15)
-        self.search_entry.bind('<Return>', lambda event: self.search_text())
-        
-        self.search_button = tk.Button(
-            self.search_frame,
-            text="Search",
-            command=self.search_text,
-            bg='black',
-            fg='white',
-            font=('Arial', 12)
-        )
-        self.search_button.pack(side=tk.RIGHT, padx=15, pady=15)
-        
-        self.text_box = scrolledtext.ScrolledText(
-            root, 
-            width=50, 
-            height=50,
-            bg='black',
-            fg='white',
-            font=('Arial', 17),
-            insertbackground='black',
-            takefocus=True,
-        )
-        self.text_box.pack(fill=tk.BOTH, expand=True)
-
-        self.model = whisper.load_model("tiny")
-        
         # Start the recording and transcribing thread
         threading.Thread(target=self.wait_for_wake_word, daemon=True).start()
-        # Start the UI update thread
-        self.process_queue()
+        
+        # Start the UI update timer
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.process_queue)
+        self.timer.start(10)  # Check the queue every 10ms
+        
+        # Enable dragging the window
+        self.dragging = False
+        self.offset = None
+
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragging = True
+            self.offset = event.pos()
+
+
+    def mouseMoveEvent(self, event):
+        if self.dragging and self.offset:
+            self.move(self.pos() + event.pos() - self.offset)
+
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragging = False
+
 
     def speak_text(self, text, lang='en'):
         if text.strip():
             self.speech_queue.put((text, lang))
+
 
     def process_speech_queue(self):
         while True:
@@ -92,7 +136,7 @@ class TranscriptionApp(tk.Frame):
                     fp.seek(0)
                     
                     # Load and play the audio
-                    pygame.mixer.music.unload()  # Clear any previous audio
+                    pygame.mixer.music.unload()
                     pygame.mixer.music.load(fp)
                     pygame.mixer.music.play()
                     
@@ -107,6 +151,7 @@ class TranscriptionApp(tk.Frame):
                 continue
             except Exception as e:
                 print(f"Queue processing error: {str(e)}")
+
 
     def get_llama_response(self, text):
         if "thanks alexa" in text.lower() or "thank you alexa" in text.lower() or "okay, thanks alexa" in text.lower():
@@ -153,6 +198,7 @@ class TranscriptionApp(tk.Frame):
                 self.text_queue.put(error_message)
                 return error_message
 
+
     def wait_for_wake_word(self):
         while True:
             temp_file = self.listen()
@@ -168,27 +214,36 @@ class TranscriptionApp(tk.Frame):
                 
                 os.remove(temp_file)
 
+
     def search_text(self):
-        search_term = self.search_entry.get().lower()
+        search_term = self.search_entry.text().lower()
         if not search_term:
             return
             
-        # Remove previous highlights
-        self.text_box.tag_remove('search', '1.0', tk.END)
+        # Clear previous formatting
+        cursor = self.text_box.textCursor()
+        self.text_box.selectAll()
+        format = self.text_box.currentCharFormat()
+        format.setBackground(QColor("black"))
+        format.setForeground(QColor("white"))
+        cursor.setCharFormat(format)
+        cursor.clearSelection()
+        self.text_box.setTextCursor(cursor)
         
         # Search and highlight
-        start_pos = '1.0'
-        while True:
-            start_pos = self.text_box.search(search_term, start_pos, tk.END, nocase=True)
-            if not start_pos:
-                break
-            end_pos = f"{start_pos}+{len(search_term)}c"
-            self.text_box.tag_add('search', start_pos, end_pos)
-            start_pos = end_pos
-            
-        # Configure highlight color
-        self.text_box.tag_config('search', background='yellow', foreground='black')
+        highlight_format = QTextCharFormat()
+        highlight_format.setBackground(QColor("yellow"))
+        highlight_format.setForeground(QColor("black"))
         
+        cursor = self.text_box.textCursor()
+        cursor.movePosition(QTextCursor.Start)
+        self.text_box.setTextCursor(cursor)
+        
+        while self.text_box.find(search_term, QTextDocument.FindCaseSensitively):
+            cursor = self.text_box.textCursor()
+            cursor.mergeCharFormat(highlight_format)
+
+
     def listen(self, threshold=605, silence_duration=0.25):
         FORMAT = pyaudio.paInt32      
         CHANNELS = 1
@@ -236,6 +291,7 @@ class TranscriptionApp(tk.Frame):
             return temp_file.name
         return None
 
+
     def transcribe(self, temp_file):
         if temp_file:
             transcript = self.model.transcribe(temp_file)
@@ -245,23 +301,27 @@ class TranscriptionApp(tk.Frame):
                 pass
         return {"text": "", "language": "unknown"}
 
+
     def detectlang(self, transcript):
         detected_language = transcript.get('language', 'unknown')
         return detected_language
 
+
+    @pyqtSlot(str)
     def update_text_box(self, text_data):
-        self.text_box.insert(tk.END, text_data)
-        self.text_box.see(tk.END)
+        self.text_box.moveCursor(QTextCursor.End)
+        self.text_box.insertPlainText(text_data)
+        self.text_box.ensureCursorVisible()
+
 
     def process_queue(self):
         try:
             while True:
                 text_data = self.text_queue.get_nowait()
-                self.update_text_box(text_data)
+                self.text_signal.emit(text_data)
         except queue.Empty:
             pass
-        finally:
-            self.root.after(10, self.process_queue)
+
 
     def record_and_transcribe(self):
         while self.is_listening:
@@ -287,35 +347,13 @@ class TranscriptionApp(tk.Frame):
                 threading.Thread(target=process_llm_response, daemon=True).start()
                 os.remove(temp_file)
 
+
 def main():
-    root = tk.Tk()
-    root.configure(bg='black')
-    root.attributes('-alpha', 0.7)
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-    root.minsize(100, 100)
-    
-    style = ttk.Style()
-    style.configure("Custom.TLabel", foreground="black", background="black", font=('Arial', 19))
-    
-    app = TranscriptionApp(root)
-    app.pack(fill=tk.BOTH, expand=True)
-    
-    def start_move(event):
-        root.x = event.x
-        root.y = event.y
+    app = QApplication(sys.argv)
+    window = TranscriptionApp()
+    window.show()
+    sys.exit(app.exec_())
 
-    def do_move(event):
-        deltax = event.x - root.x
-        deltay = event.y - root.y
-        x = root.winfo_x() + deltax
-        y = root.winfo_y() + deltay
-        root.geometry(f"+{x}+{y}")
-
-    root.bind("<Button-1>", start_move)
-    root.bind("<B1-Motion>", do_move)
-    
-    root.mainloop()
 
 if __name__ == "__main__":
     main()

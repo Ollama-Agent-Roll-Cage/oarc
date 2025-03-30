@@ -1,186 +1,437 @@
-"""_api.py - ollamaAgentRollCage API for the ollamaChatbotWizard and ollamaAgentRollCage toolkit.
+#!/usr/bin/env python3
+"""
+Entry point for the OARC API server.
 
-        ollamaChatbotWizard, is an opensource toolkit api for speech to text, text to speech 
-    commands, multi-modal agent building with local LLM api's, including tools such as ollama, 
-    transformers, keras, as well as closed source api endpoint integration such as openAI, 
-    anthropic, groq, and more!
-    
-    ===============================================================================================
-    
-         has its own chatbot agent endpoint which you can find in the fastAPI at the bottom 
-    of this file. This custom api is what empowers oarc to bundle/wrap AI models & other api endpoints 
-    into one cohesive agent including the following models;
-    
-    Ollama -
-        Llama: Text to Text 
-        LLaVA: Text & Image to Text
-        
-    CoquiTTS -
-        XTTSv2: Non-Emotive Transformer Text to Speech, With Custom Finetuned Voices
-        Bark: Emotional Diffusion Text to Speech Model
-        
-    F5_TTS -
-        Emotional TTS model, With Custom Finetuned Voices (coming soon) 
-        
-    YoloVX - 
-        Object Recognition within image & video streams, providing bounding box location data.
-        Supports YoloV6, YoloV7, YoloV8, and beyond! I would suggest YoloV8 seems to have the 
-        highest accuracy. 
-        
-    Whisper -
-        Speech to Text recognition, allowing the user to interface with any model directly
-        using a local whisper model.
-        
-    Google python speech-recognition -
-        A free alternative Speech to Text offered by google, powered by their api servers, this
-        STT api is a good alternative especially if you need to offload the speech recognition 
-        to the google servers due to your computers limitations.
-        
-    Musetalk -
-        A local lypc sync, Avatar Image & Audio to Video model. Allowing the chatbot agent to
-        generate in real time, the Avatar lypc sync for the current chatbot agent in OARC.
-        
-    ===============================================================================================
-    
-        This software was designed by Leo Borcherding with the intent of creating 
-    an easy to use ai interface for anyone, through Speech to Text and Text to Speech.
-        
-        With ollamaChatbotWizard we can provide hands free access to LLM data. 
-    This has a host of applications and I want to bring this software to users 
-    suffering from blindness/vision loss, and children suffering from austism spectrum 
-    disorder as way for learning and expanding communication and speech. 
-    
-        The C3PO ai is a great imaginary friend! I could envision myself 
-    talking to him all day telling me stories about a land far far away! 
-    This makes learning fun and accessible! Children would be directly 
-    rewarded for better speech as the ai responds to subtle differences 
-    in language ultimately educating them without them realizing it.
-
-    Development for this software was started on: 4/20/2024 
-    All users have the right to develop and distribute ollama agent roll cage,
-    with proper citation of the developers and repositories. Be weary that some
-    software may not be licensed for commerical use.
-
-    By: Leo Borcherding, 4/20/2024
-        on github @ 
-            leoleojames1/ollama_agent_roll_cage
+This module sets up the FastAPI application, integrates various tool APIs,
+and defines routes for functionalities such as speech recognition, text-to-speech,
+video processing, and agent interactions.
 """
 
-#TODO CREATE API FOR SMOL AGENTS SPEECH, OLLAMA, AND VISION TOOLS
-#TODO CREATE API FOR  WIZARD AGENT CONFIG LOADING FOR STORED AGENT CORE JSON TEMPLATE CONFIGS
-#TODO BUILD  pip install such that from .speechtoSpeech import textToSpeech, or speechtoText etc.
-#TODO so essentially all of the tools in the multimodal pip install  package can be written into scripts, 
-# or you can access the entire  api for loading agent configs, HANDLE WITH GRACE, BUILD WITH CARE, TAKE IT SLOW THIS IS A MARATHON NOT A SPRINT.
-
+import json
 import logging
-import os
-from pprint import pformat
 
-from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import ( 
+    FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+)
 
-from oarc.ollamaUtils.create_convert_manager import create_convert_manager
-from oarc.ollamaUtils import model_write_class
-from oarc.ollamaUtils.ollamaCommands import ollamaCommands
+from oarc.api.llm_prompt_api import LLMPromptAPI
+from oarc.api.agent_api import AgentAPI
+from oarc.api.spell_loader import SpellLoader
+from oarc.api.agent_access import AgentAccess
+from oarc.database.agent_storage import AgentStorage
+from oarc.database.pandas_db import PandasDB
+from oarc.promptModel import MultiModalPrompting
+from oarc.yoloProcessor import YoloAPI, YoloProcessor
+from oarc.speech import (
+    SpeechToText, TextToSpeech, TextToSpeechAPI, SpeechToTextAPI
+)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
-class PrettyFormatter(logging.Formatter):
-    def format(self, record):
-        if isinstance(record.msg, (dict, list)):
-            record.msg = f"\n{pformat(record.msg, indent=2, width=80)}"
-        return super().format(record)
-   
-class ModelRequest(BaseModel):
-    model_name: str
-    agent_id: str
-     
-class AgentAccess(BaseModel):
-    agent_id: str
-    
-class SpellLoader():
-    """Class for loading spells for the ollamaAgentRollCage"""
+
+class API():
+    """
+    Main API class for the OARC system.
+
+    This class initializes and configures the FastAPI application, sets up middleware,
+    integrates various tool APIs, and defines routes for functionalities such as speech
+    recognition, text-to-speech, video processing, and agent interactions.
+    """
+
+
     def __init__(self):
-        self.initializeBasePaths()
-        self.initializeSpells()
+        """
+        Initialize the API class, set up the FastAPI application, and configure
+        all necessary components such as middleware, routes, and tool APIs.
+        """
         
-    def initializeBasePaths(self):
-        """Initialize the base file path structure"""
+        log.info("Initializing OARC API")
+        
+        log.info("Initializing SpellLoader")
+        self.spellLoader = SpellLoader()
+        
+        log.info("Creating FastAPI application")
+        self.app = FastAPI()
+        self.setup_middleware()
+        
+        # Initialize all tools
+        log.info("Initializing tool APIs")
+        self.tool_apis = {}
+        
         try:
-            # Get base directories
-            self.current_dir = os.getcwd()
-            self.parent_dir = os.path.abspath(os.path.join(self.current_dir, os.pardir))
+            log.info("Initializing TextToSpeechAPI")
+            self.tool_apis['tts'] = TextToSpeechAPI()
             
-            # Environment variables for model directories
-            self.model_git_dir = os.getenv('OARC_MODEL_GIT')
-            self.ollama_models_dir = os.getenv('OLLAMA_MODELS')
-            self.hf_cache_dir = os.getenv('HF_HOME', os.path.join(self.model_git_dir, 'huggingface'))
+            log.info("Initializing SpeechToTextAPI")
+            self.tool_apis['stt'] = SpeechToTextAPI()
             
-            # Validate environment variables
-            if not self.model_git_dir:
-                raise EnvironmentError("OARC_MODEL_GIT environment variable not set")
-            if not self.ollama_models_dir:
-                raise EnvironmentError("OLLAMA_MODELS environment variable not set")
+            log.info("Initializing YoloAPI")
+            self.tool_apis['yolo'] = YoloAPI()
             
-            # Initialize base path structure
-            #TODO UPDATE TO STORE ALL NEW MODEL PATHS CORRECTLY and CREATE CENTRAL MODEL MANAGER FOR OLLAMA AND HUGGING FACE HUB
+            log.info("Initializing LLMPromptAPI")
+            self.tool_apis['llm'] = LLMPromptAPI()
             
-            self.pathLibrary = {
-                # Main directories
-                'current_dir': self.current_dir,
-                'parent_dir': self.parent_dir,
-                'model_git_dir': self.model_git_dir,
-                'ollama_models_dir': self.ollama_models_dir,
-                
-                # Model directories 
-                'huggingface_models': {
-                    'base_dir': os.path.join(self.model_git_dir, 'huggingface'),
-                    'whisper': os.path.join(self.model_git_dir, 'huggingface', 'whisper'),
-                    'xtts': os.path.join(self.model_git_dir, 'huggingface', 'xtts'),
-                    'yolo': os.path.join(self.model_git_dir, 'huggingface', 'yolo'),
-                    'llm': os.path.join(self.model_git_dir, 'huggingface', 'llm')
-                },
-                
-                # Agent directories
-                'ignored_agents_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredAgents'),
-                'agent_files_dir': os.path.join(self.model_git_dir, 'agentFiles', 'publicAgents'),
-                'ignored_agentfiles': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredAgentfiles'),
-                'public_agentfiles': os.path.join(self.model_git_dir, 'agentFiles', 'publicAgentfiles'),
-                
-                # Pipeline directories
-                'ignored_pipeline_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline'),
-                'llava_library_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline', 'llavaLibrary'),
-                'conversation_library_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline', 'conversationLibrary'),
-                
-                # Data constructor directories
-                'image_set_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline', 'dataConstructor', 'imageSet'),
-                'video_set_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline', 'dataConstructor', 'videoSet'),
-                
-                # Speech directories
-                'speech_library_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline', 'speechLibrary'),
-                'recognize_speech_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline', 'speechLibrary', 'recognizeSpeech'),
-                'generate_speech_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline', 'speechLibrary', 'generateSpeech'),
-                'tts_voice_ref_wav_pack_dir': os.path.join(self.model_git_dir, 'agentFiles', 'ignoredPipeline', 'speechLibrary', 'publicVoiceReferencePack'),
-            }
-            logger.info("Base paths initialized successfully.")
+            log.info("Initializing AgentAPI")
+            self.tool_apis['agent'] = AgentAPI()
+            
+            log.info("All tool APIs initialized successfully")
         except Exception as e:
-            logger.error(f"Error initializing base paths: {e}")
-            raise 
-
-    def initializeSpells(self):
-        """Initialize all spell classes for the chatbot wizard"""
-        try:
-            # initialize ollama commands
-            self.ollamaCommandInstance = ollamaCommands()
-            # Write model files
-            self.model_write_class_instance = model_write_class(self.pathLibrary)
-            # Create model manager
-            self.create_convert_manager_instance = create_convert_manager(self.pathLibrary)
-            # TTS processor (initialize as None, will be created when needed)
-            self.tts_processor_instance = None
-            
-            logger.info("Spells initialized successfully.")
-        except Exception as e:
-            logger.error(f"Error initializing spells: {e}")
+            log.error(f"Error initializing tool APIs: {e}", exc_info=True)
             raise
+            
+        # Include all routers
+        log.info("Including API routers")
+        for api_name, api in self.tool_apis.items():
+            log.info(f"Adding router for {api_name}")
+            self.app.include_router(api.router)
+            
+        self.setup_routes()
+        
+        # Initialize database
+        log.info("Initializing database")
+        self.pandas_db = PandasDB()
+        
+        log.info("OARC API initialization complete")
+    
+    def setup_middleware(self):
+        """
+        Configure middleware for the FastAPI application.
+
+        This method sets up middleware components such as CORS to handle cross-origin requests,
+        ensuring secure and flexible communication between the API and external clients.
+        """
+        log.info("Setting up CORS middleware")
+        # Set up CORS middleware to allow cross-origin requests
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],  # For development; restrict this in production
+            allow_credentials=True,
+            allow_methods=["*"],  # Allow all methods
+            allow_headers=["*"],  # Allow all headers
+        )
+        log.info("CORS middleware configured")
+        
+    def setup_routes(self):
+        """
+        Define and configure the API routes.
+
+        This method sets up the endpoints for various functionalities provided by the OARC API,
+        including speech recognition, text-to-speech, video processing, agent interactions, 
+        and WebSocket-based streaming. Each route is associated with a specific handler function 
+        to process incoming requests and return appropriate responses.
+        """
+        log.info("Setting up API routes")
+        
+        # Core
+        @self.app.get("/")
+        async def root():
+            """
+            Root endpoint for the API.
+
+            This endpoint serves as a basic health check and welcome message for the OARC API.
+            It provides a simple JSON response to confirm that the API is running and accessible.
+            """
+            log.info("Root endpoint accessed")
+            return {"message": "Welcome to OARC API"}
+
+        @self.app.post("/api/speech/recognize")
+        async def recognize_speech(audio: UploadFile):
+            """
+            Endpoint to process an uploaded audio file for speech recognition.
+
+            This endpoint accepts an audio file, processes it using the SpeechToText
+            module, and returns the recognized text as a response.
+            """
+            log.info(f"Speech recognition request received: {audio.filename}")
+            try:
+                stt = SpeechToText()
+                text = await stt.recognizer(audio.file)
+                log.info(f"Speech recognition successful: '{text}'")
+                return {"text": text}
+            except Exception as e:
+                log.error(f"Speech recognition failed: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"Speech recognition failed: {str(e)}")
+
+        @self.app.post("/api/chat/complete") 
+        async def chat_completion(text: str):
+            """
+            Handles POST requests to the "/api/chat/complete" endpoint for generating
+            chat completions using the MultiModalPrompting module.
+
+            Args:
+                text (str): The input text prompt for generating a chat response.
+
+            Returns:
+                dict: A dictionary containing the generated chat response.
+
+            Raises:
+                HTTPException: If an error occurs during chat completion, an HTTP 500
+                response is returned with details about the failure.
+
+            Logs:
+                - Logs the received chat completion request.
+                - Logs the successful completion of the chat response.
+                - Logs the generated chat response.
+                - Logs errors and exceptions if the chat completion fails.
+            """
+            log.info(f"Chat completion request received: '{text}'")
+            try:
+                prompt = MultiModalPrompting()
+                response = await prompt.send_prompt(text)
+                log.info("Chat completion successful")
+                log.info(f"Chat completion response: '{response}'")
+                return {"response": response}
+            except Exception as e:
+                log.error(f"Chat completion failed: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"Chat completion failed: {str(e)}")
+
+        @self.app.post("/api/speech/synthesize")
+        async def synthesize_speech(text: str):
+            """
+            Asynchronous endpoint to synthesize speech from the provided text.
+
+            Args:
+                text (str): The input text to be converted into speech.
+
+            Returns:
+                dict: A dictionary containing the synthesized audio data.
+
+            Logs:
+                - Logs the receipt of a speech synthesis request with the input text.
+                - Logs a success message upon successful speech synthesis.
+                - Logs an error message with exception details if speech synthesis fails.
+
+            Raises:
+                HTTPException: If speech synthesis fails, an HTTP 500 error is raised with the error details.
+            """
+            log.info(f"Speech synthesis request received: '{text}'")
+            try:
+                tts = TextToSpeech()
+                audio = await tts.process_tts_responses(text)
+                log.info("Speech synthesis successful")
+                return {"audio": audio}
+            except Exception as e:
+                log.error(f"Speech synthesis failed: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"Speech synthesis failed: {str(e)}")
+
+        @self.app.websocket("/ws/audio-stream")
+        async def audio_websocket(websocket: WebSocket):
+            """
+            WebSocket endpoint for real-time audio streaming.
+
+            This endpoint allows clients to establish a WebSocket connection
+            for sending and receiving audio data in real-time. The server
+            processes the incoming audio stream and can optionally send
+            responses back to the client.
+
+            Args:
+            websocket (WebSocket): The WebSocket connection instance.
+
+            Logs:
+            - Logs the initiation and acceptance of the WebSocket connection.
+            - Logs the size of received audio data in bytes.
+            - Logs disconnection or errors during the WebSocket session.
+
+            Raises:
+            WebSocketDisconnect: If the WebSocket connection is closed by the client.
+            Exception: For any other errors during the WebSocket session.
+            """
+            log.info("WebSocket connection initiated for audio streaming")
+            try:
+                await websocket.accept()
+                log.info("WebSocket connection accepted")
+                while True:
+                    audio_data = await websocket.receive_bytes()
+                    log.info(f"Received {len(audio_data)} bytes of audio data")
+                    # TODO Process streaming audio
+            except WebSocketDisconnect:
+                log.info("WebSocket disconnected")
+            except Exception as e:
+                log.error(f"WebSocket error: {e}", exc_info=True)
+                
+        @self.app.post("/api/yolo/stream")
+        async def yolo_stream(video: UploadFile):
+            """
+            Endpoint to process a video file using YOLO for object detection.
+
+            This endpoint accepts a video file, processes it using the YOLO object detection
+            module, and returns the detection results. The results include information about
+            detected objects, such as their labels, confidence scores, and bounding box coordinates.
+
+            Args:
+            video (UploadFile): The uploaded video file to be processed.
+
+            Returns:
+            dict: A dictionary containing the detection results, including object details.
+
+            Logs:
+            - Logs the receipt of the video processing request with the file name.
+            - Logs a success message upon successful YOLO processing.
+            - Logs an error message with exception details if YOLO processing fails.
+
+            Raises:
+            HTTPException: If YOLO processing fails, an HTTP 500 error is raised with the error details.
+            """
+            log.info(f"YOLO video processing request received: {video.filename}")
+            try:
+                yolo = YoloProcessor()
+                results = await yolo.process_video(video.file)
+                log.info("YOLO video processing successful")
+                return {"results": results}
+            except Exception as e:
+                log.error(f"YOLO video processing failed: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=f"YOLO video processing failed: {str(e)}")
+
+        # WebUI
+        @self.app.post("/api/agent/load")
+        async def load_agent(request: AgentAccess):
+            """
+            Endpoint to load an agent configuration.
+
+            This endpoint accepts a request containing the agent ID, retrieves the
+            corresponding agent configuration from storage, and returns it as a response.
+
+            Args:
+            request (AgentAccess): The request object containing the agent ID to load.
+
+            Returns:
+            dict: A dictionary containing the status of the operation and the loaded agent configuration.
+
+            Logs:
+            - Logs the receipt of the agent load request with the agent ID.
+            - Logs a success message upon successfully loading the agent configuration.
+            - Logs an error message with exception details if the agent loading fails.
+
+            Raises:
+            HTTPException: If the agent loading fails, an HTTP 500 error is raised with the error details.
+            """
+            log.info(f"Agent load request received: {request.agent_id}")
+            try:
+                agent_storage = AgentStorage()
+                agent = await agent_storage.load_agent(request.agent_id)
+                log.info(f"Agent {request.agent_id} loaded successfully")
+                return {"status": "success", "agent": agent}
+            except Exception as e:
+                log.error(f"Agent load failed: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/api/agents/list")
+        async def list_agents():
+            """
+            Endpoint to retrieve a list of all available agents.
+
+            This endpoint queries the agent storage to fetch and return a list of
+            all agents currently available in the system. The response includes
+            details about each agent, such as their IDs and configurations.
+
+            Logs:
+            - Logs the receipt of the agent list request.
+            - Logs the number of agents retrieved and their details.
+            - Logs an error message with exception details if the retrieval fails.
+
+            Raises:
+            HTTPException: If the agent list retrieval fails, an HTTP 500 error is raised with the error details.
+            """
+            log.info("Agent list request received")
+            try:
+                agent_storage = AgentStorage()
+                agents = await agent_storage.list_available_agents()
+                log.info(f"Retrieved {len(agents)} agents")
+                log.info(f"Agents retrieved: {agents}")
+                return {"agents": agents}
+            except Exception as e:
+                log.error(f"Agent list retrieval failed: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.post("/api/chat/stream")
+        async def chat_stream(websocket: WebSocket):
+            """
+            WebSocket endpoint for real-time chat streaming.
+
+            This endpoint allows clients to establish a WebSocket connection for
+            real-time chat interactions. Clients can send messages of various types
+            (e.g., text, audio, vision), and the server processes these messages
+            and sends appropriate responses back to the client.
+
+            Args:
+            websocket (WebSocket): The WebSocket connection instance.
+
+            Logs:
+            - Logs the initiation and acceptance of the WebSocket connection.
+            - Logs the type of each received message and its processing status.
+            - Logs disconnection or errors during the WebSocket session.
+
+            Raises:
+            WebSocketDisconnect: If the WebSocket connection is closed by the client.
+            Exception: For any other errors during the WebSocket session.
+            """
+            log.info("Chat stream WebSocket connection requested")
+            try:
+                await websocket.accept()
+                log.info("Chat stream WebSocket connection accepted")
+                
+                while True:
+                    data = await websocket.receive_json()
+                    log.info(f"Received chat message: {data['type']}")
+                    
+                    # Handle different message types
+                    if data["type"] == "text":
+                        log.info("Processing text message")
+                        response = await self.handle_text_message(data)
+                    elif data["type"] == "audio":
+                        log.info("Processing audio message")
+                        response = await self.handle_audio_message(data)
+                    elif data["type"] == "vision":
+                        log.info("Processing vision message")
+                        response = await self.handle_vision_message(data)
+                    else:
+                        log.warning(f"Unknown message type: {data['type']}")
+                        response = {"error": "Unknown message type"}
+                        
+                    await websocket.send_json(response)
+                    log.info("Response sent back to client")
+                    
+            except WebSocketDisconnect:
+                log.info("Chat stream WebSocket disconnected")
+            except Exception as e:
+                log.error(f"Chat stream error: {e}", exc_info=True)
+
+        @self.app.post("/api/conversation/export")
+        async def export_conversation(agent_id: str):
+            """
+            Endpoint to export the conversation history for a specific agent.
+
+            This endpoint retrieves the conversation history associated with the
+            specified agent ID from the database and exports it in JSON format.
+
+            Args:
+                agent_id (str): The unique identifier of the agent whose conversation
+                    history is to be exported.
+
+            Returns:
+                dict: A dictionary containing the exported conversation history in JSON format.
+
+            Logs:
+                - Logs the receipt of the conversation export request with the agent ID.
+                - Logs a success message upon successfully exporting the conversation history.
+                - Logs an error message with exception details if the export operation fails.
+
+            Raises:
+                HTTPException: If the conversation export fails, an HTTP 500 error is raised
+                    with the error details.
+            """
+            log.info(f"Conversation export request for agent: {agent_id}")
+            try:
+                pandas_db = PandasDB()
+                conversation = pandas_db.export_conversation(format="json")
+                log.info(f"Conversation exported successfully for agent: {agent_id}")
+                return {"conversation": json.loads(conversation)}
+            except Exception as e:
+                log.error(f"Conversation export failed: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
+
+        log.info("All API routes setup complete")

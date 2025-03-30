@@ -7,7 +7,11 @@ from enum import Enum, auto
 
 
 class CommandType(Enum):
-    """Enumeration of command types supported by OARC CLI."""
+    """Enumeration of command types supported by the OARC CLI.
+    
+    This enum defines the various commands that can be executed in the OARC CLI.
+    Each command corresponds to a specific functionality within the CLI.
+    """
     
     SETUP = "setup"
     BUILD = "build"

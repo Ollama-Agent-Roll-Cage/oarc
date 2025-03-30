@@ -6,10 +6,14 @@ CUDA setup utilities for OARC package.
 import os
 import subprocess
 import platform
-from oarc.decorators.log import log
+import logging
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 
-@log()
 def check_cuda_capable():
     """Check if the current system has CUDA capabilities.
     
@@ -115,7 +119,6 @@ def check_cuda_capable():
     return is_cuda_available, cuda_version
 
 
-@log()
 def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
     """Get the appropriate pip command for installing PyTorch with CUDA support.
     
@@ -171,7 +174,6 @@ def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
     return pip_command, packages, index_url
 
 
-@log()
 def install_pytorch(venv_python):
     """Install PyTorch with CUDA support if available.
     

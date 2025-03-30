@@ -3,14 +3,18 @@
 Build utilities for OARC package.
 """
 
-import shutil
-import subprocess
 import sys
+import shutil
+import logging
+import subprocess
 from pathlib import Path
 
-from oarc.decorators.log import log
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
-@log()
+
 def build_package(venv_python=None, clean=True):
     """Build the OARC package wheel.
     

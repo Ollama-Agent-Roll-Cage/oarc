@@ -59,7 +59,7 @@ dependencies = [
     "fastapi>=0.68.0",
     "gradio>=5.23.1",
     "duckduckgo-search>=7.5.5",
-    "Crawl4AI>=0.5.0.post8",
+    "Crawl4AI>=0.3.8",
 
     # TTS dependencies
     "gTTS>=2.5.4",

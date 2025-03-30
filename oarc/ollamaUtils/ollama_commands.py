@@ -1,37 +1,41 @@
-""" ollama_commands.py
-
-    This module contains the class ollama_commands which contains methods for interacting with the ollama library.
-    
-    @LBorcherding
 """
+This module contains the class ollama_commands which contains methods for interacting with the ollama library.
+"""
+
 import ollama
 import sys
 import logging
-from functools import partial
-import asyncio
 
-class ollamaCommands:
+class OllamaCommands:
+
+
     def __init__(self):
-        name = "ollamaCommands"
+        self.name = "ollamaCommands"
     
+
     def quit(self):
         sys.exit()
+
 
     async def ollama_show_modelfile(self, user_input_model_select):
         return ollama.show(f"{user_input_model_select}")
     
+
     async def ollama_show_template(self, user_input_model_select):
         modelfile_data = ollama.show(f"{user_input_model_select}")
         return modelfile_data.get('template', '')
     
+
     async def ollama_show_license(self, user_input_model_select):
         modelfile_data = ollama.show(f"{user_input_model_select}")
         return modelfile_data.get('license', '')
+
 
     async def ollama_show_loaded_models(self):
         ollama_loaded_models = ollama.ps()
         return ollama_loaded_models
     
+
     async def ollama_list(self):
         """Get list of available models"""
         try:

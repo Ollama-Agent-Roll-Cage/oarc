@@ -4,13 +4,16 @@ General setup utilities for OARC package.
 """
 
 import sys
+import logging
 import subprocess
 from pathlib import Path
 
-from oarc.decorators.log import log
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
 
-@log()
 def update_pip(venv_python=None):
     """Update pip to the latest version.
     
@@ -37,7 +40,6 @@ def update_pip(venv_python=None):
     return True
 
 
-@log()
 def ensure_pip_subprocess(venv_python=None):
     """Ensure pip subprocess is available.
     
@@ -70,7 +72,6 @@ def ensure_pip_subprocess(venv_python=None):
     return True
 
 
-@log()
 def ensure_pip(venv_python=None):
     """Update pip and verify it works as a subprocess.
     

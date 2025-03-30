@@ -1,23 +1,53 @@
-"""agentStorage.py
-
-    This module is responsible for storing the agents in a pandas dataframe.
 """
-from fastapi import APIRouter, HTTPException
+This module is responsible for storing the agents in a pandas dataframe.
+"""
+
 import time
 import logging
 from typing import Any, Dict, Optional
 
-from oarc.database import pandas_db
-from oarc.decorators.log import log
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
-@log(level=logging.INFO)
+
 class AgentStorage:
+    """
+    AgentStorage class for managing agent configurations, interactions, and lifecycle operations.
+    This class provides functionality to:
+    - Initialize and manage agent configurations, including default agents.
+    - Handle agent-specific attributes, flags, and states.
+    - Interact with a database for storing and retrieving agent data.
+    - Support agent initialization, purging, and reloading templates.
+    - Provide utilities for listing available agents and models.
+    - Manage agent-specific commands and conversation handling.
+    Key Features:
+    - Default agent setup with pre-defined configurations for various use cases.
+    - Integration with PandasDB for agent data persistence.
+    - Modular design for initializing core attributes, flags, and models.
+    - Support for asynchronous operations like fetching available models.
+    - Comprehensive error handling and logging for robust operation.
+    """
+
     def __init__(self):
-        self.agent_cores = pandas_db()
-        self.agent_df = None
-        self.load_agents()
+        """Initialize the AgentStorage class with default configurations and attributes.
         
+        This constructor sets up the necessary components for managing agent data, 
+        including initializing the PandasDB instance and preparing the agent dataframe.
+        """
+        from oarc.database.pandas_db import PandasDB
+        self.pandas_db = PandasDB()
+        self.agent_df = None
+        
+
     def setup_default_agents(self):
+        """
+        Set up default agents with pre-defined configurations.
+
+        This method initializes a collection of default agents with their respective configurations.
+        It ensures that each agent is created and stored in the database if it does not already exist.
+        """
         try:
             # Base default agent configuration
             default_agent_config = {
@@ -216,8 +246,8 @@ class AgentStorage:
             # Create or update each agent
             for agent_config in agents_to_create:
                 agent_id = agent_config['agentCore']['agent_id']
-                if not self.agent_cores.loadAgentCore(agent_id):
-                    self.agent_cores.mintAgent(agent_id, agent_config)
+                if not self.pandas_db.loadAgentCore(agent_id):
+                    self.pandas_db.mintAgent(agent_id, agent_config)
                     log.info(f"Created default agent: {agent_id}")
                 else:
                     log.info(f"Agent already exists: {agent_id}")
@@ -226,7 +256,31 @@ class AgentStorage:
             log.error(f"Error setting up default agents: {e}")
             
             
-    def initAgentStorage(self, agent_id):
+    def initialize_agent_storage(self, agent_id):
+        """
+        Initialize the agent storage with the given agent ID.
+        This method sets up the necessary components and configurations for the agent's storage,
+        including logging, paths, flags, attributes, tools, state variables, histories, model
+        settings, database connections, and conversation handling.
+        Steps performed:
+        - Sets up logging for the agent.
+        - Assigns the provided agent ID to the instance.
+        - Initializes base paths required for the agent's operations.
+        - Configures agent-specific flags.
+        - Sets up core model attributes.
+        - Prepares spell tools for the agent.
+        - Initializes state variables such as command library and current date.
+        - Sets up chat history management.
+        - Configures model-specific settings like user input prompt and screenshot path.
+        - Defines save and load names for conversation persistence.
+        - Loads the agent core using the provided agent ID.
+        - Establishes a connection to the database and retrieves the agent collection.
+        - Initializes conversation handling mechanisms.
+        - Finalizes agent and conversation initialization.
+        - Updates the command library with the latest commands.
+        Logs a success message upon successful initialization or raises an exception
+        with detailed error information if any step fails.
+        """
         try:
             # Initialize log first
             self.log = log.getLogger(__name__)
@@ -271,7 +325,7 @@ class AgentStorage:
             self._initialize_conversation_handler_and_prompting()
             
             # Initialize agent and conversation
-            self.initializeAgent()
+            self.initialize_agent()
             self.initializeConversation()
             
             # Update command library
@@ -283,30 +337,54 @@ class AgentStorage:
             log.exception("Detailed initialization error:")
             raise
 
+
     def runPurge(self, agent_id):
-        """Purge all agents and reinitialize the specified agent."""
+        """Purge all agents from the database and reinitialize the specified agent.
+        
+        This method performs the following steps:
+        - Deletes all existing agents from the database.
+        - Sets up default agents with pre-defined configurations.
+        - Reloads agent templates into the database.
+        - Initializes the specified agent to ensure it is ready for use.
+        
+        Args:
+            agent_id (str): The ID of the agent to reinitialize after purging.
+        """
         try:
             # TODO add if agent_id is None, purge all agents in selected matrix, or delete selected agent
             self.purge_agents()
             self.setup_default_agents()
             self.reload_templates()
-            self.initializeAgent()
+            self.initialize_agent()
         except Exception as e:
             log.error(f"Error purging and reinitializing agents: {e}")
             raise
             
-    def initializeAgent(self):
-        """Initialize agent state with core attributes and configuration"""
+
+    def initialize_agent(self):
+        """
+        Initializes the agent's state with core attributes, configuration, and conversation details.
+        This method performs the following steps:
+        1. Sets up the conversation handler and prompting mechanism.
+        2. Checks if an agent with the given ID already exists in the database:
+           - If it exists, loads the agent's core attributes.
+           - If it does not exist, creates a new agent and stores it in the database.
+        3. Configures conversation-related details, including save and load paths.
+        4. Initializes the prompt handler for managing interactions.
+        5. Logs the successful initialization or raises an error if any step fails.
+        Raises:
+            Exception: If an error occurs during the initialization process.
+        """
         try:
             self._initialize_conversation_handler_and_prompting()
 
             # Initialize agent
-            existing_agent = self.agent_cores.loadAgentCore(self.agent_id)
+            existing_agent = self.pandas_db.loadAgentCore(self.agent_id)
             if (existing_agent):
                 self.setAgent(self.agent_id)
             else:
                 self.coreAgent()
-                self.agent_cores.mintAgent(self.agent_id, self.agentCore)
+                self.pandas_db.mintAgent(self.agent_id, self.agentCore)
 
             # Initialize conversation details after agent setup
             self.save_name = f"conversation_{self.agent_id}_{self.current_date}"
@@ -319,8 +397,16 @@ class AgentStorage:
             log.error(f"Error initializing agent: {e}")
             raise
         
+
     def _initialize_core_attributes(self):
-        """Initialize core attributes for the agent"""
+        """
+        Initialize core attributes for the agent.
+
+        This method sets up the foundational attributes required for the agent's operation.
+        It initializes user input prompts, model attributes, voice settings, and flags to their
+        default states. This ensures the agent is in a clean and consistent state before further
+        configuration or usage.
+        """
         try:
             self.user_input_prompt = ""
 
@@ -344,8 +430,15 @@ class AgentStorage:
             log.error(f"Error initializing core attributes: {e}")
             raise
     
+
     def initializeAgentFlags(self):
-        """Initialize all agent flags with default values"""
+        """
+        Initialize all agent flags with their default values.
+
+        This method sets up the initial state for various agent flags, ensuring
+        that the agent starts with a consistent and predictable configuration.
+        These flags control different functionalities and behaviors of the agent.
+        """
         try:
             # Core flags
             self.TTS_FLAG = False
@@ -373,7 +466,20 @@ class AgentStorage:
             log.error(f"Error initializing agent flags: {e}")
             raise
         
+        
     async def get_available_models(self):
+        """
+        Retrieves a list of available models from the Ollama library.
+
+        This method interacts with the `ollamaCommandInstance` to fetch the list
+        of models. If the operation is successful, it returns the list of models.
+        If the result is not a list or an error occurs during the operation, it
+        logs the error and returns an empty list.
+
+        Returns:
+            list: A list of available models, or an empty list if an error occurs
+            or the result is not a valid list.
+        """
         try:
             models = await self.ollamaCommandInstance.ollama_list()
             return models if isinstance(models, list) else []
@@ -381,15 +487,30 @@ class AgentStorage:
             log.error(f"Error getting available models: {e}")
             return []
 
+
     async def list_available_agents(self) -> list:
-        """Get list of available agents with details."""
+        """
+        Retrieves a list of available agents along with their detailed configurations.
+        This method fetches agent data from the database, loads their full configurations,
+        and extracts relevant details such as model names and version information.
+        Returns:
+            list: A list of dictionaries, where each dictionary contains the following keys:
+                - agent_id (str): The unique identifier of the agent.
+                - largeLanguageModel (str or None): The name of the large language model used by the agent, if available.
+                - largeLanguageAndVisionAssistant (str or None): The name of the large language and vision assistant model, if available.
+                - voiceGenerationTTS (str or None): The name of the voice generation TTS model, if available.
+                - version (str): The version of the agent, or "Unknown" if not specified.
+        Logs:
+            Logs an error message if an exception occurs during the process.
+        Returns an empty list if an error occurs.
+        """
         try:
-            agents = self.agent_cores.listAgentCores()
+            agents = self.pandas_db.listAgentCores()
             formatted_agents = []
             
             for agent in agents:
                 # Load full config to get additional details
-                config = self.agent_cores.loadAgentCore(agent['agentCore']["agent_id"])
+                config = self.pandas_db.loadAgentCore(agent['agentCore']["agent_id"])
                 if config:
                     models = config["agentCore"]["models"]
                     formatted_agents.append({
@@ -405,24 +526,52 @@ class AgentStorage:
             log.error(f"Error listing agents: {e}")
             return []
 
+
     def purge_agents(self):
-        """Purge all agents from the PandasDB."""
+        """
+        Remove all agents from the PandasDB.
+
+        This method deletes all agent records stored in the database, effectively
+        clearing the agent collection. It is useful for resetting the database or
+        preparing for a fresh setup of agents.
+        """
         try:
             self.agent_collection.delete_many({})
             log.info("All agents purged from PandasDB.")
         except Exception as e:
             log.error(f"Error purging agents: {e}")
 
+
     def purge_agent(self, agent_id):
-        """Purge a specific agent from the PandasDB."""
+        """
+        Remove a specific agent from the PandasDB.
+
+        This method deletes the agent record associated with the given agent ID
+        from the database. It is useful for removing an individual agent's data
+        without affecting other agents in the database.
+
+        Args:
+            agent_id (str): The unique identifier of the agent to be removed.
+
+        Logs:
+            Logs a success message if the agent is successfully removed.
+            Logs an error message if the operation fails.
+        """
         try:
             self.agent_collection.delete_one({"agent_id": agent_id})
             log.info(f"Agent {agent_id} purged from PandasDB.")
         except Exception as e:
             log.error(f"Error purging agent {agent_id}: {e}")
         
+
     def reload_templates(self):
-        """Reload agent templates into PandasDB."""
+        """
+        Reload agent templates into PandasDB.
+
+        This method is responsible for reloading predefined agent templates into the database.
+        It ensures that the templates are available for creating new agents or updating existing ones.
+        If an error occurs during the process, it logs the error message for debugging purposes.
+        """
         try:
             # Assuming you have a method to create agents from templates
             self.create_agent_from_template('default_template', 'defaultAgent')
@@ -430,7 +579,24 @@ class AgentStorage:
         except Exception as e:
             log.error(f"Error reloading templates: {e}")
 
+
     def load_agent(self, agent_id: str) -> Dict[str, Any]:
+        """
+        Load the agent configuration from the database.
+
+        This method retrieves the configuration details for the specified agent ID
+        from the database. It ensures that the agent's core attributes, models, 
+        prompts, and other settings are properly loaded and returned as a dictionary.
+
+        Args:
+            agent_id (str): The unique identifier of the agent to be loaded.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the agent's configuration details.
+
+        Raises:
+            ValueError: If the agent configuration cannot be found in the database.
+        """
         agent_config = self.get_agent_config(agent_id)
         if not agent_config:
             raise ValueError(f"Agent configuration for {agent_id} not found")
@@ -481,148 +647,34 @@ class AgentStorage:
 
         return agent_config
     
+
     def get_agent_config(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        # Retrieve the agent configuration from the agentMatrix in agentCores
-        return self.agent_cores.agentMatrixObject.get_agent(agent_id)
+        """
+        Retrieve the configuration details for a specific agent from the agentMatrix in agentCores.
+
+        Args:
+            agent_id (str): The unique identifier of the agent whose configuration is to be retrieved.
+
+        Returns:
+            Optional[Dict[str, Any]]: A dictionary containing the agent's configuration details if found,
+            otherwise None.
+        """
+        return self.pandas_db.agentMatrixObject.get_agent(agent_id)
     
+
     async def get_command_library(self):
+        """
+        Asynchronously retrieves the list of command names available in the agent's command library.
+
+        Returns:
+            list: A list of command names (keys) from the command library if successful.
+            dict: A dictionary containing an error message if an exception occurs.
+
+        Logs:
+            Logs an error message if an exception is raised during the retrieval process.
+        """
         try:
             return list(self.command_library.keys())
         except Exception as e:
             log.error(f"Error getting command library: {e}")
             return {"error": str(e)}
-        
-class AgentStorageAPI:
-    def __init__(self):
-        self.router = APIRouter()
-        self.setup_routes()
-    
-    def setup_routes(self):
-        @self.router.post("/api/agent/create")
-        async def create_agent(self, template_name: str, agent_id: str, custom_config: Optional[Dict] = None):
-            """Create a new agent from a template"""
-            try:
-                agent_storage = AgentStorage()
-                agent = agent_storage.create_agent_from_template(template_name, agent_id, custom_config)
-                return {"status": "success", "agent": agent}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.get("/api/agent/list")
-        async def list_agents(self):
-            """Get list of available agents"""
-            try:
-                agent_storage = AgentStorage()
-                agents = await agent_storage.list_available_agents()
-                return {"agents": agents}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.get("/api/agent/{agent_id}")
-        async def get_agent(self, agent_id: str):
-            """Get agent configuration"""
-            try:
-                agent_storage = AgentStorage()
-                agent_config = agent_storage.get_agent_config(agent_id)
-                if not agent_config:
-                    raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
-                return agent_config
-            except HTTPException:
-                raise
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.post("/api/agent/load")
-        async def load_agent(self, agent_id: str):
-            """Load an existing agent"""
-            try:
-                agent_storage = AgentStorage()
-                agent = agent_storage.load_agent(agent_id)
-                return {"status": "success", "agent": agent}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.delete("/api/agent/{agent_id}")
-        async def delete_agent(self, agent_id: str):
-            """Delete an existing agent"""
-            try:
-                agent_storage = AgentStorage()
-                agent_storage.purge_agent(agent_id)
-                return {"status": "success", "message": f"Agent {agent_id} deleted"}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.post("/api/agent/reset")
-        async def reset_agents(self):
-            """Reset all agents to default templates"""
-            try:
-                agent_storage = AgentStorage()
-                agent_storage.purge_agents()
-                agent_storage.setup_default_agents()
-                agent_storage.reload_templates()
-                return {"status": "success", "message": "All agents reset to defaults"}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.get("/api/agent/models")
-        async def get_available_models(self):
-            """Get list of available models"""
-            try:
-                agent_storage = AgentStorage()
-                models = await agent_storage.get_available_models()
-                return {"models": models}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.get("/api/agent/commands")
-        async def get_command_library(self):
-            """Get available command library"""
-            try:
-                agent_storage = AgentStorage()
-                commands = await agent_storage.get_command_library()
-                return {"commands": commands}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.put("/api/agent/{agent_id}/flags")
-        async def update_agent_flags(self, agent_id: str, flags: Dict[str, bool]):
-            """Update agent flags"""
-            try:
-                agent_storage = AgentStorage()
-                agent_storage.initAgentStorage(agent_id)
-                
-                # Update flags
-                for flag_name, flag_value in flags.items():
-                    if hasattr(agent_storage, flag_name):
-                        setattr(agent_storage, flag_name, flag_value)
-                
-                agent_storage.save_agent_state()
-                return {"status": "success", "message": f"Agent {agent_id} flags updated"}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-        
-        @self.router.put("/api/agent/{agent_id}/models")
-        async def update_agent_models(self, agent_id: str, models: Dict[str, str]):
-            """Update agent models"""
-            try:
-                agent_storage = AgentStorage()
-                agent_storage.initAgentStorage(agent_id)
-                
-                # Update models
-                if "largeLanguageModel" in models:
-                    agent_storage.large_language_model = models["largeLanguageModel"]
-                if "embeddingModel" in models:
-                    agent_storage.embedding_model = models["embeddingModel"]
-                if "visionModel" in models:
-                    agent_storage.language_and_vision_model = models["visionModel"]
-                if "yoloModel" in models:
-                    agent_storage.yolo_model = models["yoloModel"]
-                if "whisperModel" in models:
-                    agent_storage.whisper_model = models["whisperModel"]
-                if "voiceName" in models:
-                    agent_storage.voice_name = models["voiceName"]
-                
-                agent_storage.save_agent_state()
-                return {"status": "success", "message": f"Agent {agent_id} models updated"}
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))

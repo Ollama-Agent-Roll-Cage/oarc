@@ -3,7 +3,7 @@
 This module provides the implementation of the run command for the OARC CLI.
 """
 
-from oarc import oarc
+from oarc import app
 
 
 def execute(**kwargs):
@@ -19,6 +19,6 @@ def execute(**kwargs):
     Returns:
         dict: Results from the OARC application
     """
-    result = oarc.main(**kwargs)
+    result = app.main(**kwargs)
     print(f"OARC execution completed: {result}")
     return result

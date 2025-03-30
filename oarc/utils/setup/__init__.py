@@ -1,5 +1,4 @@
-"""Setup utilities package for OARC.
-
+"""
 This package contains utility modules for setting up the OARC environment,
 installing dependencies, and building packages.
 """
