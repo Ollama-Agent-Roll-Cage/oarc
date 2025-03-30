@@ -191,3 +191,5 @@ __pycache__/
 .pytest_cache/
 oarc.egg-info/
 coqui-ai-TTS
+models
+huggingface
