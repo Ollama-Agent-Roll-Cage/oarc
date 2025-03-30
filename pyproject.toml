@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=70.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -12,78 +12,130 @@ authors = [
     {name = "OARC Team"}
 ]
 dependencies = [
-    # Build tools
-    "build",
-    "setuptools>=45", 
-    "wheel",
-    
     # Core libraries
     "cython>=0.30.0",
-    "numpy>=1.24.3",
     "scipy>=1.13.0",
-    
+    "numpy>=1.24.3",
+    "pywin32>=305; platform_system == 'Windows'",
+    "aiofiles>=22.0,<24.0",
+
+    # Database
+    "pymongo>=4.11.3",
+
+    # Machine Learning
+    "ollama>=0.4.7",
+    "llama-index-experimental>=0.5.4",
+    "llama-index>=0.12.26",
+    "transformers>=4.47.0",
+
+    # Additional YOLO core dependencies
+    "py-cpuinfo",
+    "psutil",
+    "seaborn>=0.11.0",
+    "ultralytics-thop>=2.0.0",
+    "torchvision>=0.9.0",
+    "torch>=1.8.0",
+
+    # Vision processing
+    "ultralytics>=8.3.98",
+    "opencv-python>=4.11.0.86",
+    "pyvirtualcam>=0.12.1",
+
     # Audio processing
-    "librosa>=0.11.0",
     "sounddevice>=0.5.1",
     "soundfile>=0.12.0",
-    
+    "librosa>=0.11.0",
+
+    # Speech processing
+    "SpeechRecognition>=3.8.1",
+    "openai-whisper>=20240930",
+
     # Web & API
+    "requests>=2.26.0",
+    "python-multipart>=0.0.5",
+    "pydantic>=1.8.0",
+    "websockets>=10.0",
+    "uvicorn>=0.15.0",
     "fastapi>=0.68.0",
     "gradio>=5.23.1",
-    "pydantic>=1.8.0",
-    "python-multipart>=0.0.5",
-    "requests>=2.26.0",
-    "uvicorn>=0.15.0",
-    "websockets>=10.0",
-    
-    # Machine Learning
-    "llama-index>=0.12.26",
-    "llama-index-experimental>=0.5.4",
-    "ollama>=0.4.7",
-    "transformers>=4.47.0",
-    
-    # Speech
-    "openai-whisper>=20240930",
-    "SpeechRecognition>=3.8.1",
-    
+    "duckduckgo-search>=7.5.5",
+    "Crawl4AI>=0.5.0.post8",
+
     # TTS dependencies
-    "anyascii>=0.3.0",
-    "encodec>=0.1.1",
-    "einops>=0.6.0",
-    "inflect>=5.6.0",
-    "num2words>=0.5.14",
-    "pysbd>=0.3.4",
+    "gTTS>=2.5.4",
     "tqdm>=4.64.1",
-    
+    "anyascii>=0.3.0",
+    "pysbd>=0.3.4",
+    "num2words>=0.5.14",
+    "inflect>=5.6.0",
+    "einops>=0.6.0",
+    "encodec>=0.1.1",
+
+    # Interactive tools
+    "pygame>=2.6.1",
+    "PyQt5>=5.15.11",
+
     # Utilities
-    "fsspec[http]>=2023.6.0",
-    "keyboard>=0.13.5",
-    "matplotlib>=3.8.4",
-    "packaging>=23.1",
-    "pandas>=1.3.0",
-    "pyyaml>=6.0",
     "typing_extensions>=4.10",
+    "pyyaml>=6.0",
+    "pandas>=1.3.0",
+    "packaging>=23.1",
+    "matplotlib>=3.8.4",
+    "keyboard>=0.13.5",
+    "fsspec[http]>=2023.6.0",
+
+    # Build tools
+    "wheel",
+    "setuptools>=45",
+    "build",
+
+    # YOLO solutions dependencies
+    "shapely>=2.0.0",
+    "streamlit",
 ]
 
 [project.optional-dependencies]
 dev = [
     # Testing & code quality
     "black",
-    "coverage[toml]>=7",
+    "twine",
     "flake8",
-    "pre-commit>=4",
     "pytest>=8",
     "ruff==0.9.1",
-    "twine",
+    "pre-commit>=4",
+    "coverage[toml]>=7",
     
     # Documentation
-    "furo>=2024.8.6",
     "sphinx==7.4.7",
+    "furo>=2024.8.6",
     "sphinx_copybutton>=0.5.2",
     
     # Additional tools
     "bokeh>=3.0.3",
     "umap-learn>=0.5.1",
+    
+    # YOLO export dependencies
+    "keras",
+    "onnx>=1.12.0",
+    "tensorflow>=2.0.0",
+    "tensorflowjs>=4.0.0",
+    "openvino>=2024.0.0,!=2025.0.0",
+    "h5py!=3.11.0; platform_machine == 'aarch64'",
+    "flatbuffers>=23.5.26,<100; platform_machine == 'aarch64'",
+    "coremltools>=8.0; platform_system != 'Windows' and python_version <= '3.12'",
+    "tensorstore>=0.1.63; platform_machine == 'aarch64' and python_version >= '3.9'",
+    "scikit-learn>=1.3.2; platform_system != 'Windows' and python_version <= '3.12'",
+    
+    # YOLO logging dependencies
+    "comet",
+    "dvclive>=2.12.0",
+    "tensorboard>=2.13.0",
+    
+    # YOLO extra dependencies
+    "ipython",
+    "hub-sdk>=0.0.12",
+    "pycocotools>=2.0.7",
+    "albumentations>=1.4.6",
 ]
 
 [project.scripts]
