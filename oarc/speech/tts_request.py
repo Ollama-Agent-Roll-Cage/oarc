@@ -3,15 +3,8 @@ Defines the TTSRequest model using Pydantic for handling text-to-speech request 
 This module encapsulates the configuration for voice name, speed, language, and text.
 """
 
-import logging
-
 from pydantic import BaseModel
-
-# Create a proper logger
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+from oarc.utils.log import log
 
 
 class TTSRequest(BaseModel):

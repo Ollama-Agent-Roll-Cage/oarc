@@ -1,19 +1,22 @@
-"""Module to install additional dependencies for OARC."""
+#!/usr/bin/env python3
+"""
+OARC Setup Module
+
+This module provides the main dependency installation functionality for the OARC project.
+It installs key dependencies like Coqui TTS, PyAudio, and PyTorch with appropriate
+platform-specific optimizations.
+
+When run as a script, it performs a complete setup of all dependencies.
+It can also be imported and used programmatically through the main() function.
+"""
 
 import sys
-import logging
 from pathlib import Path
 from oarc.utils.setup.setup_utils import ensure_pip
 from oarc.utils.setup.tts_utils import install_coqui
 from oarc.utils.setup.cuda_utils import install_pytorch
 from oarc.utils.setup.pyaudio_utils import install_pyaudio
-
-# Create a proper logger
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-
+from oarc.utils.log import log
 
 def main():
     """Run all dependency installation steps."""
@@ -49,5 +52,6 @@ def main():
             print("- PyAudio installation failed")
 
 
+# Make the module directly runnable
 if __name__ == "__main__":
     main()

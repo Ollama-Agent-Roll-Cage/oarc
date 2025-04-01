@@ -1,32 +1,19 @@
 """
-File: yoloProcessor.py
-Description:
-    Implements a YOLO-based object detection processor with oriented bounding boxes.
-    Provides functionality for:
-      - Loading and using a YOLO model for detection.
-      - Tracking objects with debouncing and drawing bounding boxes.
-      - Capturing screen content.
-      - Streaming processed frames to a virtual webcam.
-      - Exposing a FastAPI router for detection and streaming endpoints.
-      
-Usage:
-    Run this script directly to perform detections on a sample image, capture the screen,
-    or stream via a virtual webcam.
-    
-Dependencies:
-    - OpenCV (cv2)
-    - NumPy
-    - torch
-    - ultralytics
-    - pyvirtualcam (optional, for virtual webcam streaming)
-    - win32gui, win32ui, win32con, win32api (for screen capture on Windows)
-    - websockets, fastapi (for API integration)
+YoloProcessor: A singleton class for YOLO-based object detection with Oriented Bounding Box (OBB) support.
+This class offers functionalities for:
+- Loading and managing YOLO models.
+- Processing frames to detect objects with confidence thresholds.
+- Tracking objects over time with debouncing mechanisms.
+- Drawing oriented bounding boxes on frames for visualization.
+- Capturing screen content for processing.
+- Streaming processed frames to a virtual webcam or via WebSocket.
 """
 
 import os
 import json
 from time import time
 from typing import Optional, Dict, Any, Tuple, List
+from fastapi import WebSocket
 
 import cv2
 import numpy as np
@@ -37,7 +24,7 @@ import win32con
 import win32ui
 import win32api
 import websockets
-from fastapi import APIRouter, UploadFile, WebSocket
+import tempfile
 
 try:
     import pyvirtualcam
@@ -46,26 +33,32 @@ try:
 except ImportError:
     VIRTUAL_CAM_AVAILABLE = False
 
-class DetectedObject:
-    def __init__(self, points: np.ndarray, class_name: str, confidence: float):
-        self.points = points
-        self.class_name = class_name
-        self.confidence = confidence
-        self.last_seen = time()
-        self.is_visible = True
+from oarc.yolo.detected_object import DetectedObject
+from oarc.utils.log import log
 
-    def update(self, points: np.ndarray, confidence: float):
-        self.points = points
-        self.confidence = confidence
-        self.last_seen = time()
-        self.is_visible = True
-
-    def check_visibility(self, debounce_time: float) -> bool:
-        if self.is_visible and time() - self.last_seen > debounce_time:
-            self.is_visible = False
-        return self.is_visible
 
 class YoloProcessor:
+    """
+    A YOLO-based object detection processor designed to handle oriented bounding boxes (OBB).
+    This class provides functionalities for:
+    - Loading and managing a YOLO model.
+    - Detecting objects with confidence thresholds.
+    - Tracking objects over time with debouncing.
+    - Drawing oriented bounding boxes on frames.
+    - Capturing screen content for processing.
+    - Streaming processed frames to a virtual webcam.
+    """
+    
+    # Singleton instance
+    _instance = None
+    
+    @classmethod
+    def get_instance(cls, *args, **kwargs):
+        """Get or create the singleton instance of YoloProcessor"""
+        if cls._instance is None:
+            cls._instance = cls(*args, **kwargs)
+        return cls._instance
+
     def __init__(self, 
                  model_path: Optional[str] = None, 
                  conf_threshold: float = 0.5,
@@ -78,6 +71,10 @@ class YoloProcessor:
             conf_threshold: Confidence threshold for detections (0-1)
             debounce_ms: Debounce time in milliseconds for object tracking
         """
+        # Only initialize once when used as singleton
+        if hasattr(self.__class__, '_initialized') and self.__class__._initialized:
+            return
+            
         self.model = None
         self.conf_threshold = conf_threshold
         self.model_path = model_path
@@ -100,10 +97,13 @@ class YoloProcessor:
 
         # Device selection
         self.device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
-        print(f"Using device: {self.device}")
+        log.info(f"Using device: {self.device}")
 
         if model_path:
             self.load_model(model_path)
+            
+        self.__class__._initialized = True
+        log.info("YoloProcessor singleton initialized")
 
     def load_model(self, model_path: str) -> bool:
         """Load YOLO model from specified path"""
@@ -281,35 +281,146 @@ class YoloProcessor:
         async with websockets.connect('ws://localhost:2020/yolo_stream') as websocket:
             await websocket.send(json.dumps(response))
 
-
-class YoloAPI:
-    def __init__(self):
-        self.router = APIRouter()
-        self.setup_routes()
-    
-    def setup_routes(self):
-        @self.router.post("/detect")
-        async def detect_objects(self, image: UploadFile):
-            pass
+    async def process_video(self, video_file):
+        """
+        Process a video file with YOLO object detection
+        
+        Args:
+            video_file: Video file object (from FastAPI UploadFile)
             
-        @self.router.websocket("/stream")
-        async def vision_stream(self, websocket: WebSocket):
-            pass
+        Returns:
+            List of detection results for each frame
+        """
+        try:
+            # Create a temporary file to save the uploaded video
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp:
+                temp_path = temp.name
+                # Write the uploaded video to the temporary file
+                content = await video_file.read()
+                temp.write(content)
+            
+            # Process the video with OpenCV
+            cap = cv2.VideoCapture(temp_path)
+            all_detections = []
+            
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                    
+                _, frame_detections = self.process_frame(frame, return_detections=True)
+                all_detections.append(frame_detections)
+                
+            cap.release()
+            
+            # Clean up the temporary file
+            os.unlink(temp_path)
+            
+            return all_detections
+            
+        except Exception as e:
+            log.error(f"Error processing video: {e}", exc_info=True)
+            raise
 
-if __name__ == "__main__":
-    # Basic usage with oriented bounding boxes
-    detector = YoloProcessor(model_path="path/to/model.pt", conf_threshold=0.7, debounce_ms=200)
+    async def detect_api(self, image_data: bytes):
+        """Process image bytes with YOLO and return detections
+        
+        Args:
+            image_data: Raw image bytes to process
+            
+        Returns:
+            Tuple of (processed image, detections)
+        """
+        try:
+            # Convert bytes to numpy array
+            nparr = np.frombuffer(image_data, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if img is None:
+                raise ValueError("Invalid image data")
+            
+            # Process image with YOLO
+            processed_img, detections = self.process_frame(img, return_detections=True)
+            log.info(f"Processed image with {len(detections) if detections else 0} detections")
+            
+            return processed_img, detections
+            
+        except Exception as e:
+            log.error(f"Error in detect_api: {str(e)}", exc_info=True)
+            raise
 
-    # Process a single frame
-    frame = cv2.imread("image.jpg")
-    processed_frame = detector.process_frame(frame)
+    async def stream_api(self, websocket: WebSocket):
+        """Handle WebSocket streaming of YOLO detections
+        
+        Args:
+            websocket: FastAPI WebSocket connection
+        """
+        log.info("Starting WebSocket stream handler")
+        try:
+            await websocket.accept()
+            log.info("WebSocket connection accepted")
+            
+            # Keep the WebSocket connection alive
+            while True:
+                # Receive image from client
+                data = await websocket.receive_bytes()
+                log.info(f"Received {len(data)} bytes of image data")
+                
+                try:
+                    # Process with detect_api
+                    processed_img, detections = await self.detect_api(data)
+                    
+                    # Encode processed image to JPEG
+                    success, encoded_img = cv2.imencode('.jpg', processed_img)
+                    
+                    if not success:
+                        log.error("Failed to encode processed image")
+                        await websocket.send_json({"error": "Failed to encode image"})
+                        continue
+                    
+                    # Send both processed image and detections
+                    await websocket.send_bytes(encoded_img.tobytes())
+                    await websocket.send_json({"detections": detections})
+                    log.info("Sent processed image and detections")
+                    
+                except Exception as e:
+                    log.error(f"Error processing stream frame: {str(e)}", exc_info=True)
+                    await websocket.send_json({"error": str(e)})
+                
+        except Exception as e:
+            log.error(f"WebSocket error: {str(e)}", exc_info=True)
 
-    # Get frame with detections data
-    processed_frame, detections = detector.process_frame(frame, return_detections=True)
 
-    # Use virtual webcam feature
-    detector.virtual_webcam_stream()
-
-    # Process screen capture
-    screen = detector.capture_screen()
-    processed_screen = detector.process_frame(screen)
+def initialize_yolo(model_path=None, port=8000):
+    """Initialize the YOLO processor and API
+    
+    Args:
+        model_path (str, optional): Path to a YOLO model file
+        port (int, optional): Port for the API server if starting it
+        
+    Returns:
+        tuple: (YoloProcessor instance, YoloAPI instance)
+    """
+    log.info("Initializing YOLO processor and API")
+    
+    # Initialize YoloProcessor with default model if available
+    if not model_path:
+        # Use Paths utility to get the proper model paths
+        from oarc.utils.paths import Paths
+        default_model_path = Paths.get_yolo_default_model_path()
+            
+        if os.path.exists(default_model_path):
+            model_path = default_model_path
+            log.info(f"Using default model from {default_model_path}")
+        else:
+            log.warning(f"Default model not found at {default_model_path}, initializing without model")
+            
+    # Get or create the YoloProcessor singleton instance
+    yolo_processor = YoloProcessor.get_instance(model_path=model_path)
+    
+    # Get or create the YoloAPI singleton instance
+    from oarc.yolo.yolo_server_api import YoloServerAPI
+    yolo_api = YoloServerAPI.get_instance()
+    
+    log.info("YOLO initialization complete")
+    return yolo_processor, yolo_api

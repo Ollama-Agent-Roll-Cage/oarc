@@ -10,7 +10,6 @@ The module also includes resource cleanup and utilities for seamless voice-comma
 import asyncio
 import audioop
 import json
-import logging
 import os
 import queue
 import re
@@ -25,14 +24,10 @@ import torch
 import websockets
 from whisper import load_model
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+from oarc.utils.log import log
 
 
 class SpeechToText:
-
 
     def __init__(self):
         """Initialize speech recognizer with queues and improved wake word detection"""
@@ -498,4 +493,4 @@ class SpeechToText:
                 log.info("Audio data sent to frontend")
         except Exception as e:
             log.error(f"Error sending audio to frontend: {e}", exc_info=True)
-     
+

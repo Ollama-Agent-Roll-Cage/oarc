@@ -23,19 +23,10 @@ import keyboard
 import json
 import websockets
 
-import os
-import numpy as np
-import asyncio
-import logging
-
+from oarc.utils.log import log
 from oarc.utils.paths import Paths
 
 WEBSOCKET_URL = 'ws://localhost:2020/audio-stream'
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
 
 
 class TextToSpeech:
@@ -48,14 +39,14 @@ class TextToSpeech:
         self.voice_name = voice_name
         self.is_multi_speaker = None
         self.speech_interrupted = False
-        self.paths = Paths()
+        self.paths = Paths
         self.sample_rate = 22050
         self.audio_buffer = np.array([], dtype=np.float32)
         
         # Configure device
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         if self.device == "cpu":
-            print("CUDA not available. Using CPU for TTS.")
+            log.info("CUDA not available. Using CPU for TTS.")
             
         self.setup_paths(developer_tools_dict)
         self.initialize_tts_model()
@@ -75,6 +66,14 @@ class TextToSpeech:
     def initialize_tts_model(self):
         """Initialize the appropriate finetuned text to speech with Coqui TTS"""
         try:
+            # Redirect TTS logs to our logging system before initializing
+            import logging
+            for logger_name in ['TTS.utils.manage', 'TTS.tts.models', 'TTS']:
+                external_logger = logging.getLogger(logger_name)
+                external_logger.handlers.clear()
+                external_logger.propagate = True  # Let it propagate to root logger
+
+            log.info(f"=========== INITIALIZING TEXT-TO-SPEECH ===========")
             model_git_dir = self.paths.get_model_dir()
             log.info(f"Using model directory: {model_git_dir}")
 
@@ -130,7 +129,8 @@ f"Voice reference file not found at {self.voice_reference_path}\n"
                         f"Available voices in reference pack: {os.listdir(os.path.join(coqui_dir, 'voice_reference_pack'))}"
                     )
                     
-            print(f"TTS Model initialized successfully on {self.device}")
+            log.info(f"TTS Model initialized successfully on {self.device}")
+            log.info(f"=========== TEXT-TO-SPEECH INITIALIZED ===========")
             return True
                 
         except Exception as e:

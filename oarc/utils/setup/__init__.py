@@ -1,18 +1,11 @@
 """
-This package contains utility modules for setting up the OARC environment,
-installing dependencies, and building packages.
+Initialization file for the setup utility package.
+
+This package provides utilities for setting up OARC dependencies.
 """
 
-from oarc.utils.setup import build_utils
-from oarc.utils.setup import cuda_utils
-from oarc.utils.setup import pyaudio_utils
-from oarc.utils.setup import setup_utils
-from oarc.utils.setup import tts_utils
+# Import only what's needed for package identification
+__version__ = "0.1.0"
 
-__all__ = [
-    'build_utils',
-    'cuda_utils',
-    'pyaudio_utils',
-    'setup_utils',
-    'tts_utils',
-]
+# Don't import modules to prevent circular imports
+# Individual modules should be imported directly as needed

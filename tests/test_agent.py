@@ -3,21 +3,119 @@ TestAgent: Multimodal AI agent that integrates text, speech, and vision capabili
 Provides a unified interface for processing and responding to various input types.
 """
 
+import sys
 import gradio as gr
-import logging
 import traceback
+import platform
+import os
 
 from oarc.api import API
 from oarc.database import PandasDB
 from oarc.promptModel import MultiModalPrompting
 from oarc.speech import TextToSpeech, SpeechToText
-from oarc.yoloProcessor import YoloProcessor
+from oarc.yolo import YoloProcessor
 from oarc.utils.paths import Paths
+from oarc.utils.speech_utils import SpeechUtils
+from oarc.utils.log import log
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+# Import our server infrastructure
+from oarc.server.gradio import GradioServer, GradioServerAPI
+from fastapi import Request
+
+
+class TestAgentGradioServer(GradioServer):
+    """
+    Gradio server implementation for TestAgent.
+    
+    Creates and manages the Gradio web UI for the TestAgent, handling
+    the interface layout and event registrations.
+    """
+    
+    def __init__(self, test_agent, host="localhost", port=7860):
+        """Initialize TestAgent's Gradio server."""
+        super().__init__(server_name="OARC Test Agent", host=host, port=port)
+        self.test_agent = test_agent
+    
+    def _setup_layout(self):
+        """Set up the TestAgent's Gradio interface layout."""
+        log.info("Setting up TestAgent Gradio interface layout")
+        
+        with self.demo:
+            gr.Markdown("# 🤖 OARC Multimodal Agent Demo")
+            
+            with gr.Row():
+                with gr.Column():
+                    # Input components
+                    log.info("Setting up Gradio input components")
+                    text_input = self.add_component("text_input", "Textbox", 
+                                                  label="Text Input", 
+                                                  placeholder="Type your question here...")
+                    
+                    audio_input = self.add_component("audio_input", "Audio", 
+                                                   label="Speech Input",
+                                                   type="filepath")
+                    
+                    image_input = self.add_component("image_input", "Image",
+                                                   label="Vision Input")
+                    
+                    submit_btn = self.add_component("submit_btn", "Button",
+                                                  value="Submit",
+                                                  variant="primary")
+                    
+                with gr.Column():
+                    # Output components
+                    log.info("Setting up Gradio output components")
+                    text_output = self.add_component("text_output", "Textbox",
+                                                   label="Agent Response")
+                    
+                    audio_output = self.add_component("audio_output", "Audio",
+                                                    label="Speech Output")
+                    
+                    vision_output = self.add_component("vision_output", "JSON",
+                                                     label="Vision Analysis")
+            
+            # Register event handler for the submit button
+            self.add_event_handler(
+                trigger_component=submit_btn,
+                fn=self.test_agent.process_input,
+                inputs=[text_input, audio_input, image_input],
+                outputs=[text_output, audio_output, vision_output]
+            )
+
+
+class TestAgentAPI(GradioServerAPI):
+    """
+    API server implementation for TestAgent.
+    
+    Provides REST API endpoints for programmatic access to TestAgent's
+    functionality, including processing multimodal inputs.
+    """
+    
+    def __init__(self, test_agent, host="localhost", port=7861):
+        """Initialize TestAgent's API server."""
+        super().__init__(server_name="OARC Test Agent API", host=host, port=port)
+        self.test_agent = test_agent
+    
+    def setup_routes(self):
+        """Set up API routes for TestAgent."""
+        super().setup_routes()
+        
+        # Add API endpoints specific to TestAgent
+        @self.app.post("/api/process")
+        async def process_input(request: Request):
+            """Process multimodal inputs via API."""
+            data = await request.json()
+            result = await self.test_agent.process_input(
+                text_input=data.get("text"),
+                audio_input=data.get("audio"),
+                image_input=data.get("image")
+            )
+            return result
+        
+        @self.app.get("/api/config")
+        async def get_config():
+            """Get the agent's current configuration."""
+            return self.test_agent.agent_config
 
 
 class TestAgent:
@@ -26,12 +124,14 @@ class TestAgent:
     """
 
     def __init__(self):
-        log.info("TestAgent script started")
         log.info("Initializing TestAgent components")
         
-        # Initialize paths utility first
-        self.paths = Paths()
-        log.info(f"Using model directory: {self.paths.get_model_dir()}")
+        # Log system info to help with debugging
+        log.info(f"System: {platform.system()} {platform.release()} ({platform.platform()})")
+        log.info(f"Python: {platform.python_version()}")
+        
+        # Log all configured paths for transparency and debugging
+        Paths.log_paths()
         
         # Core components
         log.info("Initializing API components")
@@ -46,18 +146,37 @@ class TestAgent:
         self.stt = SpeechToText()
         log.info("Speech-to-text component initialized")
 
-        # Get TTS-related directories using the Paths utility
+        # Get TTS-related directories and ensure voice reference file exists
         log.info("Setting up text-to-speech component")
-        self.tts = TextToSpeech(
-            developer_tools_dict=self.paths.get_tts_paths_dict(),
-            voice_type="xtts_v2",
-            voice_name="c3po"
-        )
-        log.info("Text-to-speech component initialized")
+        
+        # Check if voice reference file exists, if not create it using the utility method
+        if not SpeechUtils.ensure_voice_reference_file("c3po"):
+            log.error("Failed to ensure voice reference file exists")
+            sys.exit(1)
+        
+        try:
+            # Get TTS paths dictionary from our singleton Paths class
+            tts_paths_dict = Paths.get_tts_paths_dict()
+            
+            # Log the voice configuration
+            voice_type = "xtts_v2"
+            voice_name = "c3po"
+            log.info(f"Configuring TTS with voice type '{voice_type}', voice '{voice_name}'")
+            
+            self.tts = TextToSpeech(
+                developer_tools_dict=tts_paths_dict,
+                voice_type=voice_type,
+                voice_name=voice_name
+            )
+            log.info("Text-to-speech component initialized")
+        except FileNotFoundError as e:
+            log.error(f"Critical TTS initialization error: {str(e)}")
+            log.error("Cannot continue without proper TTS initialization. Exiting.")
+            sys.exit(1)
         
         # Vision component initialization
         log.info("Setting up vision component")
-        self.yolo = YoloProcessor()
+        self.yolo = YoloProcessor.get_instance()
         log.info("Vision component initialized")
         
         # Agent configuration
@@ -89,8 +208,11 @@ class TestAgent:
         except Exception as e:
             log.error(f"Failed to store agent configuration: {e}", exc_info=True)
         
-        log.info("TestAgent initialization complete")
+        # Initialize servers
+        self.gradio_server = None
+        self.api_server = None
         
+        log.info("TestAgent initialization complete")
 
     async def process_input(self, text_input=None, audio_input=None, image_input=None):
         """
@@ -184,7 +306,7 @@ class TestAgent:
                 response_data["text"] = "I'm sorry, I encountered an error generating a response."
             
             # Text-to-speech processing
-            if self.agent_config["flags"]["TTS_FLAG"] and response_data["text"]:
+            if self.agent_config["flags"]["TTS_FLAG"] and response_data["text"] != "I'm sorry, I encountered an error generating a response.":
                 log.info("Converting text response to speech")
                 try:
                     audio = await self.tts.process_tts_responses(response_data["text"])
@@ -201,53 +323,71 @@ class TestAgent:
             return {"error": str(e), "text": "Sorry, an error occurred while processing your request."}
 
 
-    def launch_gradio(self):
-        """Launch interactive Gradio UI for the agent"""
-        log.info("Starting Gradio interface")
+    def launch_gradio(self, web_port=7860, api_port=7861):
+        """Launch interactive Gradio UI and API servers for the agent"""
+        log.info("Starting Gradio interface and API servers")
         
         try:
-            with gr.Blocks(title="OARC Test Agent") as demo:
-                gr.Markdown("# 🤖 OARC Multimodal Agent Demo")
-                log.info("Gradio interface title and header set")
-                
-                with gr.Row():
-                    with gr.Column():
-                        # Input components
-                        log.info("Setting up Gradio input components")
-                        text_input = gr.Textbox(label="Text Input", placeholder="Type your question here...")
-                        audio_input = gr.Audio(label="Speech Input", source="microphone")
-                        image_input = gr.Image(label="Vision Input", source="webcam")
-                        
-                        submit_btn = gr.Button("Submit", variant="primary")
-                    
-                    with gr.Column():
-                        # Output components
-                        log.info("Setting up Gradio output components")
-                        text_output = gr.Textbox(label="Agent Response")
-                        audio_output = gr.Audio(label="Speech Output")
-                        vision_output = gr.JSON(label="Vision Analysis")
-                
-                # Handle submission
-                log.info("Setting up Gradio event handlers")
-                submit_btn.click(
-                    fn=self.process_input,
-                    inputs=[text_input, audio_input, image_input],
-                    outputs=[text_output, audio_output, vision_output]
-                )
+            # Create and initialize the servers
+            self.gradio_server = TestAgentGradioServer(self, port=web_port)
+            self.api_server = TestAgentAPI(self, port=api_port)
             
-            log.info("Launching Gradio server on port 7860")
-            demo.launch(server_port=7860)
-            log.info("Gradio server started successfully")
+            # Connect them for seamless integration
+            self.api_server.connect_gradio_server(self.gradio_server)
+            
+            # Initialize both servers
+            self.gradio_server.initialize()
+            self.api_server.initialize()
+            
+            # Start the servers
+            api_success = self.api_server.start()
+            if api_success:
+                log.info(f"API server running at {self.api_server.get_url()}")
+            
+            # The Gradio server will block as it runs in the main thread
+            web_success = self.gradio_server.start()
+            log.info(f"Web interface running at {self.gradio_server.get_url()}")
+            
+            return web_success and api_success
             
         except Exception as e:
-            log.critical(f"Failed to launch Gradio interface: {e}", exc_info=True)
+            log.critical(f"Failed to launch servers: {e}", exc_info=True)
             raise
 
+    def cleanup(self):
+        """Clean up resources when shutting down"""
+        log.info("Cleaning up TestAgent resources")
+        
+        # Stop servers if running
+        if self.api_server and self.api_server.is_running:
+            self.api_server.stop()
+            
+        if self.gradio_server and self.gradio_server.is_running:
+            self.gradio_server.stop()
+            
+        # Clean up component resources
+        if hasattr(self, 'stt'):
+            self.stt.cleanup()
+            
+        if hasattr(self, 'tts'):
+            self.tts.cleanup()
+            
+        log.info("TestAgent cleanup complete")
 
-if __name__ == "__main__":
+
+def main():
+    log.info("TestAgent script running...")
+    
     try:
         agent = TestAgent()
         agent.launch_gradio()
     except Exception as e:
         log.critical(f"Fatal error: {e}\nTrace: {traceback.format_exc()}", exc_info=True)
         raise
+    finally:
+        if agent:
+            agent.cleanup()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,22 +1,19 @@
-"""Setup command implementation for OARC CLI.
+"""
+Setup command module for OARC.
 
-This module provides the implementation of the setup command for the OARC CLI.
+This module handles the 'setup' command which installs all dependencies.
 """
 
-from oarc import setup
-
+from oarc.utils.log import log
+# Import the setup function directly from setup.py instead of through __init__
+from oarc.utils.setup.setup import main as setup_main
 
 def execute(**kwargs):
-    """Execute the setup command.
+    """Execute the setup command."""
+    log.info("Setting up OARC dependencies")
     
-    This command sets up dependencies for the OARC package.
+    # Call the setup main function
+    setup_main()
     
-    Args:
-        **kwargs: Command-specific arguments
-        
-    Returns:
-        Any: Result of the setup operation
-    """
-    print("Setting up OARC dependencies...")
-    result = setup.main()
-    return result
+    log.info("Setup completed successfully")
+    return 0

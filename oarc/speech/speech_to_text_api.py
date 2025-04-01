@@ -1,6 +1,10 @@
-# speechToText.py
+"""
+Speech-to-text API for handling audio recognition and wake word detection.
+This module provides endpoints for recognizing speech from audio files,
+listening for speech, setting wake words, and managing available models.
+It uses FastAPI for the web framework and integrates with the SpeechToText class
+"""
 
-import logging
 import os
 import tempfile
 
@@ -8,15 +12,24 @@ from fastapi import HTTPException, UploadFile, BackgroundTasks
 
 from oarc.speech import SpeechToText
 from oarc.base_api import BaseToolAPI
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+from oarc.utils.log import log
 
 
 class SpeechToTextAPI(BaseToolAPI):
-
+    """
+    A FastAPI-based wrapper for speech-to-text functionality, providing endpoints for 
+    speech recognition, wake word detection, and model management. This API integrates 
+    with various speech recognition backends, such as Google Speech Recognition and 
+    Whisper, to process audio input and return transcribed text.
+    Key Features:
+    - Recognize speech from uploaded audio files.
+    - Listen for speech in real-time with configurable thresholds and silence durations.
+    - Set and wait for a wake word to trigger specific actions.
+    - Retrieve a list of available speech recognition models.
+    This class is designed to simplify the integration of speech-to-text capabilities 
+    into applications, offering a robust and extensible interface for handling audio 
+    input and transcription tasks.
+    """
 
     def __init__(self):
         log.info("Initializing SpeechToTextAPI")

@@ -13,7 +13,6 @@ and follows best practices for error handling and resource management.
 """
 
 import os
-import logging
 
 from oarc.base_api import BaseToolAPI
 
@@ -22,11 +21,7 @@ from oarc.base_api import BaseToolAPI
 from oarc.utils.paths import Paths
 from oarc.speech import TextToSpeech
 from oarc.speech.tts_request import TTSRequest
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+from oarc.utils.log import log
 
 
 class TextToSpeechAPI(BaseToolAPI):
@@ -43,7 +38,7 @@ class TextToSpeechAPI(BaseToolAPI):
         
         # Initialize core attributes
         self.tts_instance = None
-        self.paths = Paths()
+        self.paths = Paths
         self.model_dir = self.paths.get_model_dir()
         
         # Get TTS paths and ensure they exist

@@ -1,20 +1,12 @@
 """Command-line interface for OARC."""
 import argparse
-import logging
 from oarc.commands import (
     build_command,
     run_command,
     setup_command
 )
 from oarc.commands.command_type import CommandType, get_command_type
-
-
-# Create a proper logger
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-
+from oarc.utils.log import log
 
 def cli(**kwargs):
     """Command line interface for OARC."""

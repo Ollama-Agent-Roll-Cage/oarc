@@ -15,6 +15,8 @@ import tempfile
 import wave
 import audioop
 import sys
+# Set environment variable to hide pygame welcome message
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QTextCursor, QTextCharFormat, QTextDocument
@@ -29,7 +31,18 @@ import ollama
 from gtts import gTTS
 import pygame
 
+from oarc.utils.log import log
+
 os.environ["PATH"] += os.pathsep + r"ffmpeg\bin"
+
+# Redirect print statements to our logging system
+_original_print = print
+def _logged_print(*args, **kwargs):
+    message = " ".join(map(str, args))
+    log.info(message)
+    # Uncomment the following line if you still want the print to appear in the console
+    # _original_print(*args, **kwargs)
+print = _logged_print
 
 
 # TODO THIS IS AN EXAMPLE OF A SILENCE WAKE WORD WE NEED TO MIGRATE ANYTHING THAT ISNT ALREADY INTO THE MAIN speechtoText.py and textToSpeech.py files
@@ -50,6 +63,7 @@ class TranscriptionApp(QMainWindow):
         self.is_active = True
         
         # Initialize pygame mixer for audio playback
+        log.info("Initializing pygame mixer")
         pygame.mixer.init(frequency=24000)  # Higher frequency for faster playback
         
         # Set up the central widget and main layout
@@ -122,6 +136,7 @@ class TranscriptionApp(QMainWindow):
 
     def speak_text(self, text, lang='en'):
         if text.strip():
+            log.info(f"Queuing speech: {text[:30]}...")
             self.speech_queue.put((text, lang))
 
 
@@ -130,6 +145,7 @@ class TranscriptionApp(QMainWindow):
             try:
                 text, lang = self.speech_queue.get()
                 try:
+                    log.info(f"Converting text to speech: {text[:30]}...")
                     tts = gTTS(text=text, lang=lang, slow=False)
                     fp = io.BytesIO()
                     tts.write_to_fp(fp)
@@ -140,20 +156,23 @@ class TranscriptionApp(QMainWindow):
                     pygame.mixer.music.load(fp)
                     pygame.mixer.music.play()
                     
+                    log.info("Playing speech")
                     # Wait for the audio to finish playing
                     while pygame.mixer.music.get_busy():
                         pygame.time.Clock().tick(-1)
+                    log.info("Speech playback complete")
                         
                 except Exception as e:
-                    print(f"Speech error: {str(e)}")
+                    log.error(f"Speech error: {e}")
                     
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"Queue processing error: {str(e)}")
+                log.error(f"Queue processing error: {e}")
 
 
     def get_llama_response(self, text):
+        log.info(f"Processing input: {text}")
         if "thanks alexa" in text.lower() or "thank you alexa" in text.lower() or "okay, thanks alexa" in text.lower():
             self.is_listening = False
             response_text = "It was my pleasure to assist you. If you need anything else, just say 'Alexa' to wake me up. Have a great day!"
@@ -161,6 +180,7 @@ class TranscriptionApp(QMainWindow):
             self.speak_text(response_text)
         else:
             try:
+                log.info(f"Getting response from LLM model llama3.2:1b")
                 stream = ollama.chat(
                     model='llama3.2:1b',
                     messages=[{'role': 'user', 'content': text}],
@@ -187,7 +207,7 @@ class TranscriptionApp(QMainWindow):
                                 self.speak_text(complete_sentence)
                             
                             # Keep the remainder in the buffer
-                            sentence_buffer = sentence_buffer[first_end + 1:].strip()
+                            sentence_buffer = sentence_buffer[first_end + 1:].trip()
                 
                 # Speak any remaining text
                 if sentence_buffer.strip():
@@ -245,6 +265,7 @@ class TranscriptionApp(QMainWindow):
 
 
     def listen(self, threshold=605, silence_duration=0.25):
+        log.info(f"Starting audio listening with threshold={threshold}, silence_duration={silence_duration}")
         FORMAT = pyaudio.paInt32      
         CHANNELS = 1
         RATE = 44100
@@ -254,7 +275,7 @@ class TranscriptionApp(QMainWindow):
         try:
             stream = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
         except IOError:
-            print("Error: Could not access the microphone.")
+            log.error("Could not access the microphone.")
             audio.terminate()
             return None
 
@@ -349,6 +370,7 @@ class TranscriptionApp(QMainWindow):
 
 
 def main():
+    log.info("Starting TranscriptionApp")
     app = QApplication(sys.argv)
     window = TranscriptionApp()
     window.show()

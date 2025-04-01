@@ -5,14 +5,10 @@ Build utilities for OARC package.
 
 import sys
 import shutil
-import logging
 import subprocess
 from pathlib import Path
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+from oarc.utils.log import log
 
 
 def build_package(venv_python=None, clean=True):

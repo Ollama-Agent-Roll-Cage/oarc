@@ -3,7 +3,7 @@
 This module provides the implementation of the run command for the OARC CLI.
 """
 
-from oarc import app
+from oarc.app import app
 
 
 def execute(**kwargs):

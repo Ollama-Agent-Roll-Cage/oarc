@@ -1,23 +1,19 @@
-"""Build command implementation for OARC CLI.
+"""
+Build command module for OARC.
 
-This module provides the implementation of the build command for the OARC CLI.
+This module handles the 'build' command which builds the package.
 """
 
-from oarc.utils.setup import build_utils
-
+from oarc.utils.log import log
+# Import build utilities directly from the module, not through __init__
+from oarc.utils.setup.build_utils import build_package
 
 def execute(**kwargs):
-    """Execute the build command.
+    """Execute the build command."""
+    log.info("Building OARC package")
     
-    This command builds the OARC package wheel.
+    # Call the build function
+    build_package()
     
-    Args:
-        **kwargs: Command-specific arguments
-        
-    Returns:
-        Any: Result of the build operation
-    """
-    print("Building OARC package...")
-    result = build_utils.build_package()
-    print("Build completed successfully!")
-    return result
+    log.info("Build completed successfully")
+    return 0

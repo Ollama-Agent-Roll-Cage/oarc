@@ -4,10 +4,15 @@ This package contains various utility modules and subpackages
 used throughout the OARC project.
 """
 
-from oarc.utils import setup
+from .log import get_logger, log
 from .paths import Paths
+from .speech_utils import SpeechUtils
+from oarc.utils import setup
 
 __all__ = [
-    'setup',
+    'get_logger',
+    'log',
     'Paths',
+    'SpeechUtils',
+    'setup',
 ]

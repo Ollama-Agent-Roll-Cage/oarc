@@ -3,7 +3,6 @@
 TTS installation utilities for OARC setup process.
 """
 
-import logging
 import os
 import shutil
 import stat
@@ -12,13 +11,9 @@ import sys
 import tempfile
 import urllib.request
 import zipfile
-
 from pathlib import Path
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+from oarc.utils.log import log
 
 TTS_REPO_URL = "https://github.com/idiap/coqui-ai-TTS/archive/refs/heads/dev.zip"
 TTS_REPO_NAME = "coqui-ai-TTS"

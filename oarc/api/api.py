@@ -22,7 +22,8 @@ from oarc.api.agent_access import AgentAccess
 from oarc.database.agent_storage import AgentStorage
 from oarc.database.pandas_db import PandasDB
 from oarc.promptModel import MultiModalPrompting
-from oarc.yoloProcessor import YoloAPI, YoloProcessor
+from oarc.yolo.yolo_server_api import YoloServerAPI  # Updated import
+from oarc.yolo.yolo_processor import YoloProcessor  # Added to use in endpoints
 from oarc.speech import (
     SpeechToText, TextToSpeech, TextToSpeechAPI, SpeechToTextAPI
 )
@@ -70,7 +71,7 @@ class API():
             self.tool_apis['stt'] = SpeechToTextAPI()
             
             log.info("Initializing YoloAPI")
-            self.tool_apis['yolo'] = YoloAPI()
+            self.tool_apis['yolo'] = YoloServerAPI()
             
             log.info("Initializing LLMPromptAPI")
             self.tool_apis['llm'] = LLMPromptAPI()
@@ -83,6 +84,10 @@ class API():
             log.error(f"Error initializing tool APIs: {e}", exc_info=True)
             raise
             
+        # Initialize YOLO processor for direct use in endpoints
+        log.info("Initializing YoloProcessor")
+        self.yolo_processor = YoloProcessor()
+        
         # Include all routers
         log.info("Including API routers")
         for api_name, api in self.tool_apis.items():
@@ -278,8 +283,7 @@ class API():
             """
             log.info(f"YOLO video processing request received: {video.filename}")
             try:
-                yolo = YoloProcessor()
-                results = await yolo.process_video(video.file)
+                results = await self.yolo_processor.process_video(video.file)
                 log.info("YOLO video processing successful")
                 return {"results": results}
             except Exception as e:
