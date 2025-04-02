@@ -8,7 +8,6 @@
 </p>
 
 # 👽🧙 OARC 🤬🤖
-***[🦙 Ollama Discord Server 🦙](https://discord.gg/ollama)*** 
 
 A Python package for OARC functionality.
 
