@@ -3,7 +3,7 @@
 </p>
 <p align="center">
   <a href="https://ko-fi.com/theborch"><img src="assets/buy me a coffee button (2).png" height="48"></a>
-  <a href="https://discord.gg/mNeQZzBHuW"><img src="assets/Discord Button Ollama v4.png" height="48"></a>
+  <a href="https://discord.gg/mNeQZzBHuW"><img src="assets/Discord Button Ollama v3.png" height="48"></a>
   <a href="https://discord.gg/mNeQZzBHuW"><img src="assets/Discord Button Ollama v4.png" height="48"></a>
 </p>
 
