@@ -6,7 +6,7 @@
   <a href="https://discord.gg/mNeQZzBHuW"><img src="docs/assets/icons/Discord button.png" height="48"></a>
 </p>
 
-# 👽🧙 OARC VX.X.X 🤬🤖
+# 👽🧙 OARC 🤬🤖
 ***[🦙 Ollama Discord Server 🦙](https://discord.gg/ollama)*** 
 
 A Python package for OARC functionality.
