@@ -5,24 +5,24 @@ Provides a unified interface for processing and responding to various input type
 
 import sys
 import gradio as gr
-import traceback
 import platform
-import os
 
 from oarc.api import API
 from oarc.database import PandasDB
 from oarc.promptModel import MultiModalPrompting
-from oarc.speech import TextToSpeech, SpeechToText
+from oarc.speech import TextToSpeech, SpeechToText, SpeechManager
 from oarc.yolo import YoloProcessor
 from oarc.utils.paths import Paths
 from oarc.speech.speech_errors import TTSInitializationError
 from oarc.utils.speech_utils import SpeechUtils
 from oarc.utils.log import log
 
-# Import our server infrastructure
 from oarc.server.gradio import GradioServer, GradioServerAPI
 from fastapi import Request
 
+from oarc.utils.const import (
+    SUCCESS, FAILURE
+)
 
 class TestAgentGradioServer(GradioServer):
     """
@@ -378,21 +378,24 @@ def main():
     """Run the TestAgent application"""
     log.info("TestAgent script running...")
     
+    manager = None
     agent = None
+
     try:
+        manager = SpeechManager()
         agent = TestAgent()
         agent.launch_gradio()
-        return 0
+        return SUCCESS
     except TTSInitializationError as e:
         log.critical(f"Failed to initialize TTS: {e}")
-        print(f"\n{'='*80}\nERROR: Failed to initialize Text-to-Speech component.\n{e}\n{'='*80}\n")
-        return 1
+        return FAILURE
     except Exception as e:
         log.critical(f"Fatal error: {e}", exc_info=True)
-        return 1
+        return FAILURE
     finally:
         if agent:
-            log.info("Cleaning up resources...")
+            log.info("Cleaning up...")
+            manager.cleanup()
             agent.cleanup()
 
 if __name__ == "__main__":

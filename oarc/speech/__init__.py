@@ -6,6 +6,7 @@ SpeechToText, and their corresponding API classes, as well as TTSRequest for han
 text-to-speech requests.
 """
 
+from .speech_manager import SpeechManager
 from .text_to_speech import TextToSpeech
 from .text_to_speech_api import TextToSpeechAPI
 from .speech_to_text import SpeechToText
@@ -16,6 +17,7 @@ from .speech_errors import TTSInitializationError
 
 __all__ = [
     # Classes
+    'SpeechManager',
     'TextToSpeech', 
     'SpeechToText', 
     'TextToSpeechAPI', 

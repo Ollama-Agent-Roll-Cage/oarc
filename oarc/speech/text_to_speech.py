@@ -28,11 +28,9 @@ from oarc.utils.paths import Paths
 
 WEBSOCKET_URL = 'ws://localhost:2020/audio-stream'
 
-
 class TextToSpeech:
     """ a class for managing the text to speech conversation between the user, ollama, & coqui-tts.
     """
-
 
     def __init__(self, developer_tools_dict, voice_type, voice_name):
         self.voice_type = voice_type

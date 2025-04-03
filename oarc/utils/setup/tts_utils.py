@@ -158,3 +158,54 @@ def install_coqui(venv_python):
     except subprocess.TimeoutExpired:
         log.warning("Installation timed out. This may be normal for complex packages; please verify if TTS is working properly.")
         return True
+
+
+def accept_coqui_license():
+    """
+    Create .coquirc file and set environment variables to pre-accept the Coqui TTS license and configure model storage.
+    
+    This ensures that TTS doesn't prompt for license acceptance during initialization and 
+    that models are stored in our project directory rather than in AppData.
+    
+    Returns:
+        bool: True if license acceptance was successful
+    """
+    # Set environment variable to accept Coqui TTS license
+    os.environ["COQUI_TTS_AGREED"] = "1"
+    
+    # Set TTS_HOME to our Coqui directory from Paths API
+    from oarc.utils.paths import Paths
+    paths_instance = Paths()
+    coqui_dir = paths_instance.get_coqui_dir()  # Use the existing Coqui directory
+    os.environ["TTS_HOME"] = coqui_dir
+    os.makedirs(coqui_dir, exist_ok=True)
+    log.info(f"Set TTS_HOME to Coqui directory: {coqui_dir}")
+    
+    # Create license acceptance file content
+    license_content = "license_accepted: true\n"
+    
+    # Place in user's home directory (default location)
+    home_dir = Path.home()
+    home_coquirc = home_dir / ".coquirc"
+    
+    if not home_coquirc.exists():
+        log.info(f"Creating .coquirc file in home directory: {home_coquirc}")
+        try:
+            with open(home_coquirc, "w") as f:
+                f.write(license_content)
+        except Exception as e:
+            log.warning(f"Failed to create .coquirc in home directory: {e}")
+    
+    # Also place in Coqui directory for redundancy
+    coqui_coquirc = Path(coqui_dir) / ".coquirc"
+    
+    if not coqui_coquirc.exists():
+        log.info(f"Creating .coquirc file in Coqui directory: {coqui_coquirc}")
+        try:
+            with open(coqui_coquirc, "w") as f:
+                f.write(license_content)
+        except Exception as e:
+            log.warning(f"Failed to create .coquirc in Coqui directory: {e}")
+    
+    log.info("Coqui TTS license pre-accepted via environment variable and config files")
+    return True

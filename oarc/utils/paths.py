@@ -9,58 +9,53 @@ across the entire application.
 
 import os
 from oarc.utils.log import log
+from oarc.utils.decorators.singleton import singleton
+from oarc.utils.const import (
+    DEFAULT_MODELS_DIR, 
+    HUGGINGFACE_DIR,
+    OLLAMA_MODELS_DIR, 
+    SPELLS_DIR,
+    COQUI_DIR, 
+    WHISPER_DIR, 
+    GENERATED_DIR, 
+    VOICE_REFERENCE_DIR,
+    YOLO_DIR
+)
 
-# Global paths dictionary to store all path values
-_PATHS = {
-    'base': {},
-    'models': {},
-    'tts': {},
-    'env_vars': {}  # Track last seen environment variables
-}
-
-# Flag to track if the paths have been initialized
-_INITIALIZED = False
-
-
+@singleton
 class Paths:
     """
     Singleton class for managing paths in the OARC project.
     
-    This class provides static methods to access paths, ensuring that only
+    This class provides methods to access paths, ensuring that only
     one instance of the paths configuration exists across the application.
     """
     
-    
-    @classmethod
-    def initialize(cls):
-        """Initialize the paths configuration if not already initialized"""
-        global _INITIALIZED, _PATHS
-        
-        if _INITIALIZED:
-            log.debug("Paths already initialized, skipping initialization")
-            return
+    def __init__(self):
+        """Initialize the paths configuration"""
+        self._paths = {
+            'base': {},
+            'models': {},
+            'tts': {},
+            'env_vars': {}  # Track last seen environment variables
+        }
         
         # Get and cache the project root path
-        # Fix: Go up one more directory level to get to the actual project root
         file_path = os.path.abspath(__file__)
         package_dir = os.path.dirname(os.path.dirname(file_path))  # oarc package dir
         project_root = os.path.dirname(package_dir)  # actual project root
-        _PATHS['base']['project_root'] = project_root
+        self._paths['base']['project_root'] = project_root
         
         # Initialize paths
-        cls.refresh_paths()
+        self.refresh_paths()
         
-        _INITIALIZED = True
         log.info("Paths singleton initialized")
-        
 
-    @classmethod
-    def refresh_paths(cls):
+    def refresh_paths(self):
         """
         Refresh all paths by checking environment variables and updating paths if needed.
         This allows paths to be updated when environment variables change without restarting.
         """
-        global _PATHS
         log.info("Refreshing paths configuration")
         
         # Store current environment variables
@@ -71,132 +66,113 @@ class Paths:
         }
         
         # Check if environment variables have changed
-        if _PATHS['env_vars'] != env_vars:
+        if self._paths['env_vars'] != env_vars:
             log.info("Environment variables changed, updating paths")
-            _PATHS['env_vars'] = env_vars
+            self._paths['env_vars'] = env_vars
             
             # Update model directory
             model_dir = env_vars['OARC_MODEL_GIT']
             if not model_dir:
-                model_dir = os.path.join(_PATHS['base']['project_root'], 'models')
+                model_dir = os.path.join(self._paths['base']['project_root'], DEFAULT_MODELS_DIR)
                 os.makedirs(model_dir, exist_ok=True)
                 log.warning(f"OARC_MODEL_GIT environment variable not set. Using default: {model_dir}")
-            _PATHS['base']['model_dir'] = model_dir
+            self._paths['base']['model_dir'] = model_dir
             
             # Update HF cache directory
             hf_home = env_vars['HF_HOME']
             if not hf_home:
-                hf_home = os.path.join(_PATHS['base']['model_dir'], 'huggingface')
+                hf_home = os.path.join(self._paths['base']['model_dir'], HUGGINGFACE_DIR)
                 os.makedirs(hf_home, exist_ok=True)
                 log.warning(f"HF_HOME environment variable not set. Using default: {hf_home}")
-            _PATHS['models']['hf_cache'] = hf_home
+            self._paths['models']['hf_cache'] = hf_home
             
             # Update Ollama models directory
             ollama_models = env_vars['OLLAMA_MODELS']
             if not ollama_models:
-                ollama_models = os.path.join(_PATHS['base']['model_dir'], 'ollama_models')
+                ollama_models = os.path.join(self._paths['base']['model_dir'], OLLAMA_MODELS_DIR)
                 os.makedirs(ollama_models, exist_ok=True)
                 log.warning(f"OLLAMA_MODELS environment variable not set. Using default: {ollama_models}")
-            _PATHS['models']['ollama_models'] = ollama_models
+            self._paths['models']['ollama_models'] = ollama_models
             
             # Update other paths that derive from the base model directory
-            spells_path = os.path.join(_PATHS['base']['model_dir'], 'spells')
+            spells_path = os.path.join(self._paths['base']['model_dir'], SPELLS_DIR)
             os.makedirs(spells_path, exist_ok=True)
-            _PATHS['models']['spells'] = spells_path
+            self._paths['models']['spells'] = spells_path
             
             # TTS-related paths
-            coqui_dir = os.path.join(_PATHS['base']['model_dir'], 'coqui')
+            coqui_dir = os.path.join(self._paths['base']['model_dir'], COQUI_DIR)
             os.makedirs(coqui_dir, exist_ok=True)
-            _PATHS['tts']['coqui'] = coqui_dir
+            self._paths['tts']['coqui'] = coqui_dir
             
-            whisper_dir = os.path.join(_PATHS['base']['model_dir'], 'whisper')
+            whisper_dir = os.path.join(self._paths['base']['model_dir'], WHISPER_DIR)
             os.makedirs(whisper_dir, exist_ok=True)
-            _PATHS['tts']['whisper'] = whisper_dir
+            self._paths['tts']['whisper'] = whisper_dir
             
-            generated_dir = os.path.join(_PATHS['base']['model_dir'], 'generated')
+            generated_dir = os.path.join(self._paths['base']['model_dir'], GENERATED_DIR)
             os.makedirs(generated_dir, exist_ok=True)
-            _PATHS['tts']['generated'] = generated_dir
+            self._paths['tts']['generated'] = generated_dir
             
-            voice_ref_dir = os.path.join(coqui_dir, 'voice_reference_pack')
+            voice_ref_dir = os.path.join(coqui_dir, VOICE_REFERENCE_DIR)
             os.makedirs(voice_ref_dir, exist_ok=True)
-            _PATHS['tts']['voice_reference'] = voice_ref_dir
+            self._paths['tts']['voice_reference'] = voice_ref_dir
             
             # Update working directory values
-            _PATHS['base']['current_dir'] = os.getcwd()
-            _PATHS['base']['parent_dir'] = os.path.dirname(os.getcwd())
+            self._paths['base']['current_dir'] = os.getcwd()
+            self._paths['base']['parent_dir'] = os.path.dirname(os.getcwd())
             
             log.info("Path refresh complete")
         else:
             log.debug("No environment variable changes detected")
 
-
-    @classmethod
-    def get_model_dir(cls):
+    # Convert all class methods to instance methods
+    def get_model_dir(self):
         """Get and validate model directory with fallback"""
-        return _PATHS['base']['model_dir']
+        return self._paths['base']['model_dir']
     
-
-    @classmethod
-    def get_hf_cache_dir(cls):
+    def get_hf_cache_dir(self):
         """Get and validate HuggingFace cache directory with fallback"""
-        return _PATHS['models']['hf_cache']
+        return self._paths['models']['hf_cache']
     
-
-    @classmethod
-    def get_ollama_models_dir(cls):
+    def get_ollama_models_dir(self):
         """Get and validate Ollama models directory with fallback"""
-        return _PATHS['models']['ollama_models']
+        return self._paths['models']['ollama_models']
     
-
-    @classmethod
-    def get_spell_path(cls):
+    def get_spell_path(self):
         """Get and validate spell directory with fallback"""
-        return _PATHS['models']['spells']
+        return self._paths['models']['spells']
     
-
-    @classmethod
-    def get_coqui_dir(cls):
+    def get_coqui_dir(self):
         """Get Coqui TTS models directory"""
-        return _PATHS['tts']['coqui']
+        return self._paths['tts']['coqui']
     
-
-    @classmethod
-    def get_whisper_dir(cls):
+    def get_whisper_dir(self):
         """Get Whisper STT models directory"""
-        return _PATHS['tts']['whisper']
+        return self._paths['tts']['whisper']
     
-
-    @classmethod
-    def get_generated_dir(cls):
+    def get_generated_dir(self):
         """Get generated audio output directory"""
-        return _PATHS['tts']['generated']
+        return self._paths['tts']['generated']
     
-
-    @classmethod
-    def get_voice_reference_dir(cls):
+    def get_voice_reference_dir(self):
         """Get voice reference samples directory"""
-        return _PATHS['tts']['voice_reference']
+        return self._paths['tts']['voice_reference']
     
-
-    @classmethod
-    def get_tts_paths_dict(cls):
+    def get_tts_paths_dict(self):
         """Get dictionary of TTS-related paths
         
         Returns:
             dict: Dictionary containing all paths needed for TTS functionality
         """
         return {
-            'current_dir': _PATHS['base']['current_dir'],
-            'parent_dir': _PATHS['base']['parent_dir'],
-            'speech_dir': _PATHS['tts']['coqui'],
-            'recognize_speech_dir': _PATHS['tts']['whisper'],
-            'generate_speech_dir': _PATHS['tts']['generated'],
-            'tts_voice_ref_wav_pack_path_dir': _PATHS['tts']['voice_reference']
+            'current_dir': self._paths['base']['current_dir'],
+            'parent_dir': self._paths['base']['parent_dir'],
+            'speech_dir': self._paths['tts']['coqui'],
+            'recognize_speech_dir': self._paths['tts']['whisper'],
+            'generate_speech_dir': self._paths['tts']['generated'],
+            'tts_voice_ref_wav_pack_path_dir': self._paths['tts']['voice_reference']
         }
     
-
-    @classmethod
-    def ensure_paths(cls, path_dict):
+    def ensure_paths(self, path_dict):
         """Ensures all directories in a nested path dictionary exist
         
         Args:
@@ -225,9 +201,7 @@ class Paths:
             log.error(f"Error ensuring paths exist: {e}")
             return False
             
-
-    @classmethod
-    def dump_paths(cls):
+    def dump_paths(self):
         """Dump all configured paths for debugging
         
         Returns:
@@ -235,11 +209,9 @@ class Paths:
         """
         log.debug("Dumping current paths configuration")
         # Return a copy to prevent modification of the original
-        return {k: v.copy() for k, v in _PATHS.items() if k != 'env_vars'}
+        return {k: v.copy() for k, v in self._paths.items() if k != 'env_vars'}
 
-
-    @classmethod
-    def log_paths(cls):
+    def log_paths(self):
         """
         Log all currently configured paths to help with debugging and verification.
         This provides a clear overview of where the system is looking for various resources.
@@ -248,47 +220,39 @@ class Paths:
         
         # Base paths
         log.info("--- Base Paths ---")
-        log.info(f"Project Root: {_PATHS['base'].get('project_root', 'Not set')}")
-        log.info(f"Model Directory: {_PATHS['base'].get('model_dir', 'Not set')}")
-        log.info(f"Current Directory: {_PATHS['base'].get('current_dir', 'Not set')}")
-        log.info(f"Parent Directory: {_PATHS['base'].get('parent_dir', 'Not set')}")
+        log.info(f"Project Root: {self._paths['base'].get('project_root', 'Not set')}")
+        log.info(f"Model Directory: {self._paths['base'].get('model_dir', 'Not set')}")
+        log.info(f"Current Directory: {self._paths['base'].get('current_dir', 'Not set')}")
+        log.info(f"Parent Directory: {self._paths['base'].get('parent_dir', 'Not set')}")
         
         # Model paths
         log.info("--- Model Paths ---")
-        log.info(f"HuggingFace Cache: {_PATHS['models'].get('hf_cache', 'Not set')}")
-        log.info(f"Ollama Models: {_PATHS['models'].get('ollama_models', 'Not set')}")
-        log.info(f"Spells: {_PATHS['models'].get('spells', 'Not set')}")
+        log.info(f"HuggingFace Cache: {self._paths['models'].get('hf_cache', 'Not set')}")
+        log.info(f"Ollama Models: {self._paths['models'].get('ollama_models', 'Not set')}")
+        log.info(f"Spells: {self._paths['models'].get('spells', 'Not set')}")
         
         # TTS paths
         log.info("--- TTS Paths ---")
-        log.info(f"Coqui: {_PATHS['tts'].get('coqui', 'Not set')}")
-        log.info(f"Whisper: {_PATHS['tts'].get('whisper', 'Not set')}")
-        log.info(f"Generated: {_PATHS['tts'].get('generated', 'Not set')}")
-        log.info(f"Voice Reference: {_PATHS['tts'].get('voice_reference', 'Not set')}")
+        log.info(f"Coqui: {self._paths['tts'].get('coqui', 'Not set')}")
+        log.info(f"Whisper: {self._paths['tts'].get('whisper', 'Not set')}")
+        log.info(f"Generated: {self._paths['tts'].get('generated', 'Not set')}")
+        log.info(f"Voice Reference: {self._paths['tts'].get('voice_reference', 'Not set')}")
         
         # Environment variables status
         log.info("--- Environment Variables ---")
-        for var_name, value in _PATHS['env_vars'].items():
+        for var_name, value in self._paths['env_vars'].items():
             status = "Set" if value else "Not set (using default)"
             log.info(f"{var_name}: {status}")
         
         log.info("==========================================")
     
-
     # YOLO-related path methods
-    @classmethod
-    def get_yolo_models_dir(cls):
+    def get_yolo_models_dir(self):
         """Get directory for YOLO models"""
-        yolo_dir = os.path.join(cls.get_model_dir(), "huggingface", "yolo")
+        yolo_dir = os.path.join(self.get_model_dir(), HUGGINGFACE_DIR, YOLO_DIR)
         os.makedirs(yolo_dir, exist_ok=True)
         return yolo_dir
     
-
-    @classmethod
-    def get_yolo_default_model_path(cls, model_name="yolov8n-obb.pt"):
+    def get_yolo_default_model_path(self, model_name="yolov8n-obb.pt"):
         """Get path to a specific YOLO model file with default model name"""
-        return os.path.join(cls.get_yolo_models_dir(), model_name)
-
-
-# Initialize paths when the module is imported
-Paths.initialize()
+        return os.path.join(self.get_yolo_models_dir(), model_name)
