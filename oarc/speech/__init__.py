@@ -12,12 +12,17 @@ from .speech_to_text import SpeechToText
 from .speech_to_text_api import SpeechToTextAPI
 from .tts_request import TTSRequest
 from .transcription_app import TranscriptionApp
+from .speech_errors import TTSInitializationError
 
 __all__ = [
+    # Classes
     'TextToSpeech', 
     'SpeechToText', 
     'TextToSpeechAPI', 
     'SpeechToTextAPI',
     'TTSRequest',
-    'TranscriptionApp'
+    'TranscriptionApp',
+
+    # Errors
+    'TTSInitializationError',
 ]

@@ -15,6 +15,7 @@ from oarc.promptModel import MultiModalPrompting
 from oarc.speech import TextToSpeech, SpeechToText
 from oarc.yolo import YoloProcessor
 from oarc.utils.paths import Paths
+from oarc.speech.speech_errors import TTSInitializationError
 from oarc.utils.speech_utils import SpeechUtils
 from oarc.utils.log import log
 
@@ -32,7 +33,7 @@ class TestAgentGradioServer(GradioServer):
     """
     
     def __init__(self, test_agent, host="localhost", port=7860):
-        """Initialize TestAgent's Gradio server."""
+        """Initialize TestAgent's Gradio server."""        
         super().__init__(server_name="OARC Test Agent", host=host, port=port)
         self.test_agent = test_agent
     
@@ -92,7 +93,7 @@ class TestAgentAPI(GradioServerAPI):
     """
     
     def __init__(self, test_agent, host="localhost", port=7861):
-        """Initialize TestAgent's API server."""
+        """Initialize TestAgent's API server."""        
         super().__init__(server_name="OARC Test Agent API", host=host, port=port)
         self.test_agent = test_agent
     
@@ -146,15 +147,13 @@ class TestAgent:
         self.stt = SpeechToText()
         log.info("Speech-to-text component initialized")
 
-        # Get TTS-related directories and ensure voice reference file exists
+        # Get TTS-related directories and verify voice reference file exists
         log.info("Setting up text-to-speech component")
         
-        # Check if voice reference file exists, if not create it using the utility method
-        if not SpeechUtils.ensure_voice_reference_file("c3po"):
-            log.error("Failed to ensure voice reference file exists")
-            sys.exit(1)
-        
+        # Check if voice reference file exists - will raise FileNotFoundError if it doesn't
         try:
+            SpeechUtils.ensure_voice_reference_file("c3po")
+            
             # Get TTS paths dictionary from our singleton Paths class
             tts_paths_dict = Paths.get_tts_paths_dict()
             
@@ -170,9 +169,9 @@ class TestAgent:
             )
             log.info("Text-to-speech component initialized")
         except FileNotFoundError as e:
-            log.error(f"Critical TTS initialization error: {str(e)}")
-            log.error("Cannot continue without proper TTS initialization. Exiting.")
-            sys.exit(1)
+            log.critical(f"Critical TTS initialization error: {str(e)}")
+            log.critical("Cannot continue without proper TTS initialization. Exiting.")
+            raise TTSInitializationError(str(e)) from e
         
         # Vision component initialization
         log.info("Setting up vision component")
@@ -376,18 +375,25 @@ class TestAgent:
 
 
 def main():
+    """Run the TestAgent application"""
     log.info("TestAgent script running...")
     
+    agent = None
     try:
         agent = TestAgent()
         agent.launch_gradio()
+        return 0
+    except TTSInitializationError as e:
+        log.critical(f"Failed to initialize TTS: {e}")
+        print(f"\n{'='*80}\nERROR: Failed to initialize Text-to-Speech component.\n{e}\n{'='*80}\n")
+        return 1
     except Exception as e:
-        log.critical(f"Fatal error: {e}\nTrace: {traceback.format_exc()}", exc_info=True)
-        raise
+        log.critical(f"Fatal error: {e}", exc_info=True)
+        return 1
     finally:
         if agent:
+            log.info("Cleaning up resources...")
             agent.cleanup()
 
-
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
