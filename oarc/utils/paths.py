@@ -41,7 +41,10 @@ class Paths:
             return
         
         # Get and cache the project root path
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Fix: Go up one more directory level to get to the actual project root
+        file_path = os.path.abspath(__file__)
+        package_dir = os.path.dirname(os.path.dirname(file_path))  # oarc package dir
+        project_root = os.path.dirname(package_dir)  # actual project root
         _PATHS['base']['project_root'] = project_root
         
         # Initialize paths
