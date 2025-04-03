@@ -6,6 +6,8 @@ CUDA setup utilities for OARC package.
 import os
 import subprocess
 import platform
+import sys
+import tempfile
 
 from oarc.utils.log import log
 
@@ -104,6 +106,21 @@ def check_cuda_capable():
         is_cuda_available = False
         cuda_version = None
     
+    # Verify that CUDA installation is functional by checking nvidia-smi
+    if is_cuda_available:
+        try:
+            nvidia_smi_cmd = subprocess.run(
+                ["nvidia-smi"], capture_output=True, text=True, check=False
+            )
+            if nvidia_smi_cmd.returncode != 0:
+                log.warning("nvidia-smi command failed - CUDA might not be properly installed")
+                is_cuda_available = False
+                cuda_version = None
+            else:
+                log.info("nvidia-smi detected a working NVIDIA GPU")
+        except Exception as e:
+            log.warning(f"Failed to run nvidia-smi: {e}")
+    
     # Log result
     if is_cuda_available and cuda_version:
         log.info(f"CUDA is available! Detected CUDA version: {cuda_version}")
@@ -113,6 +130,56 @@ def check_cuda_capable():
         log.info("CUDA is not available on this system.")
     
     return is_cuda_available, cuda_version
+
+
+def verify_pytorch_cuda():
+    """Verify if the currently installed PyTorch has CUDA support.
+    
+    Returns:
+        bool: True if PyTorch has CUDA support, False otherwise
+    """
+    log.info("Verifying if PyTorch has CUDA support...")
+    
+    # Create a temporary Python script to check PyTorch CUDA
+    with tempfile.NamedTemporaryFile(suffix='.py', delete=False, mode='w') as f:
+        f.write("""
+import torch
+import sys
+
+if torch.cuda.is_available():
+    print(f"PyTorch has CUDA support! Version: {torch.__version__}")
+    print(f"CUDA Version: {torch.version.cuda}")
+    sys.exit(0)
+else:
+    print("PyTorch does not have CUDA support.")
+    sys.exit(1)
+""")
+        script_path = f.name
+    
+    try:
+        # Run the verification script
+        result = subprocess.run(
+            [sys.executable, script_path],
+            capture_output=True, text=True, check=False
+        )
+        
+        has_cuda = result.returncode == 0
+        if has_cuda:
+            log.info(result.stdout.strip())
+        else:
+            log.warning(result.stdout.strip())
+        
+        # Clean up the temporary file
+        os.unlink(script_path)
+        return has_cuda
+    
+    except Exception as e:
+        log.error(f"Error verifying PyTorch CUDA support: {e}")
+        try:
+            os.unlink(script_path)
+        except:
+            pass
+        return False
 
 
 def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
@@ -130,7 +197,7 @@ def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
             index_url (str): URL for package index, if applicable
     """
     # Define base pip command and packages
-    pip_command = ["pip", "install"]
+    pip_command = ["pip", "install", "--force-reinstall"]
     packages = ["torch", "torchvision", "torchaudio"]
     
     # Return CPU version if skip_cuda is True or no CUDA version provided
@@ -144,6 +211,7 @@ def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
         "12.4": ("cu124", "https://download.pytorch.org/whl/cu124"),
         "12.3": ("cu123", "https://download.pytorch.org/whl/cu123"),
         "12.1": ("cu121", "https://download.pytorch.org/whl/cu121"),
+        "11.8": ("cu118", "https://download.pytorch.org/whl/cu118"),
     }
     
     # Select the appropriate CUDA version
@@ -184,6 +252,26 @@ def install_pytorch(venv_python):
     # Check if CUDA is available
     is_cuda_available, cuda_version = check_cuda_capable()
     
+    # First check if PyTorch is already installed
+    try:
+        subprocess.run(
+            [str(venv_python), "-c", "import torch"],
+            check=True, capture_output=True
+        )
+        log.info("PyTorch is already installed. Checking if it has CUDA support...")
+        
+        # Check if the installed PyTorch has CUDA support
+        if verify_pytorch_cuda():
+            log.info("Existing PyTorch installation already has CUDA support. No need to reinstall.")
+            return True
+        elif is_cuda_available:
+            log.warning("PyTorch is installed but doesn't have CUDA support. Reinstalling with CUDA...")
+        else:
+            log.info("PyTorch is installed but without CUDA support, which is expected since no CUDA was detected.")
+            return True
+    except subprocess.CalledProcessError:
+        log.info("PyTorch is not installed. Installing now...")
+    
     # Get installation command
     pip_command, packages, index_url = get_pytorch_cuda_command(
         cuda_version=cuda_version, 
@@ -201,13 +289,29 @@ def install_pytorch(venv_python):
     
     # Run the installation
     try:
-        result = subprocess.run(full_cmd, check=True)
+        # Use higher timeout for potentially large downloads
+        result = subprocess.run(full_cmd, check=True, timeout=1800)  # 30 minutes
         success = result.returncode == 0
+        
         if success:
-            log.info("PyTorch installation completed successfully!")
+            log.info("PyTorch installation completed. Verifying CUDA support...")
+            has_cuda = verify_pytorch_cuda()
+            
+            if has_cuda and is_cuda_available:
+                log.info("PyTorch with CUDA support installed successfully!")
+                return True
+            elif not has_cuda and is_cuda_available:
+                log.error("PyTorch was installed but CUDA support is not working. Something might be wrong with your CUDA setup.")
+                return False
+            else:
+                log.info("PyTorch (CPU version) installed successfully!")
+                return True
         else:
             log.error(f"PyTorch installation failed with return code {result.returncode}")
-        return success
+            return False
     except subprocess.CalledProcessError as e:
         log.error(f"Error installing PyTorch: {e}")
+        return False
+    except subprocess.TimeoutExpired:
+        log.error("PyTorch installation timed out. This might be due to network issues or large download size.")
         return False

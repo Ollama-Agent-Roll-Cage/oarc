@@ -378,25 +378,38 @@ def main():
     """Run the TestAgent application"""
     log.info("TestAgent script running...")
     
-    manager = None
-    agent = None
-
     try:
-        manager = SpeechManager()
-        agent = TestAgent()
+        # Initialize speech manager - this must succeed before we proceed
+        try:
+            manager = SpeechManager()
+        except (TTSInitializationError, FileNotFoundError) as e:
+            log.critical(f"Failed to initialize SpeechManager: {e}")
+            # Exit immediately on any SpeechManager error
+            return FAILURE
+        
+        # At this point we have a valid SpeechManager
+        try:
+            agent = TestAgent()
+        except Exception as e:
+            log.critical(f"Failed to initialize TestAgent: {e}", exc_info=True)
+            return FAILURE
+            
         agent.launch_gradio()
         return SUCCESS
-    except TTSInitializationError as e:
-        log.critical(f"Failed to initialize TTS: {e}")
-        return FAILURE
+        
     except Exception as e:
         log.critical(f"Fatal error: {e}", exc_info=True)
         return FAILURE
+        
     finally:
-        if agent:
-            log.info("Cleaning up...")
-            manager.cleanup()
+        # Only cleanup if we have fully initialized objects
+        if 'agent' in locals() and agent is not None and hasattr(agent, 'cleanup'):
+            log.info("Cleaning up agent resources...")
             agent.cleanup()
+            
+        if 'manager' in locals() and manager is not None and hasattr(manager, 'cleanup'):
+            log.info("Cleaning up speech manager resources...")
+            manager.cleanup()
 
 if __name__ == "__main__":
     sys.exit(main())

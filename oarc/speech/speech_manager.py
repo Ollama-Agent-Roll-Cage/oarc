@@ -17,6 +17,8 @@ from oarc.utils.log import log
 from oarc.utils.paths import Paths
 from oarc.utils.decorators.singleton import singleton
 from oarc.utils.setup.tts_utils import accept_coqui_license
+from oarc.speech.speech_errors import TTSInitializationError
+from oarc.utils.setup.cuda_utils import check_cuda_capable
 
 
 @singleton
@@ -46,9 +48,25 @@ class SpeechManager:
         self.paths = Paths()  # Correctly gets the singleton instance via the decorator
         self.sample_rate = 22050
         
-        # Configure device
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        if self.device == "cpu":
+        # Configure device using more reliable CUDA detection
+        is_cuda_available, cuda_version = check_cuda_capable()
+        
+        # Verify torch was actually compiled with CUDA if CUDA is detected
+        if is_cuda_available:
+            try:
+                # Test if torch can actually use CUDA (simple tensor creation)
+                test_tensor = torch.zeros(1).cuda()
+                del test_tensor  # Clean up
+                self.device = "cuda"
+                log.info(f"Using CUDA {cuda_version} for speech processing.")
+            except (AssertionError, RuntimeError) as e:
+                # This will catch "Torch not compiled with CUDA enabled" and similar errors
+                log.warning(f"CUDA detected but torch cannot use it: {e}")
+                log.warning("Using CPU for speech processing instead.")
+                is_cuda_available = False
+                self.device = "cpu"
+        else:
+            self.device = "cpu"
             log.info("CUDA not available. Using CPU for speech processing.")
         
         # Set up path dictionary
@@ -90,6 +108,9 @@ class SpeechManager:
         
         Returns:
             bool: True if initialization was successful
+        
+        Raises:
+            TTSInitializationError: If the TTS model could not be initialized
         """
         try:
             # Pre-accept the Coqui license and set TTS_HOME to prevent AppData storage
@@ -102,7 +123,7 @@ class SpeechManager:
                 external_logger.propagate = True  # Let it propagate to root logger
 
             log.info(f"=========== INITIALIZING TEXT-TO-SPEECH ===========")
-            model_git_dir = self.paths.get_model_dir()  # Use the singleton instance
+            model_git_dir = self.paths.get_model_dir()
             log.info(f"Using model directory: {model_git_dir}")
 
             # Construct paths
@@ -142,27 +163,74 @@ class SpeechManager:
             else:
                 # Use base model with reference voice
                 log.info(f"No fine-tuned model found for {self.voice_name}, using base model with voice reference")
-                self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
-                self.is_multi_speaker = True
+                try:
+                    # Explicitly catch torch CUDA errors here instead of relying on fallback
+                    if self.device == "cuda":
+                        try:
+                            self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
+                        except (RuntimeError, AssertionError) as e:
+                            if "Torch not compiled with CUDA enabled" in str(e) or "CUDA" in str(e):
+                                log.warning(f"CUDA error when loading TTS model: {e}")
+                                log.info("Falling back to CPU for TTS model")
+                                self.device = "cpu"
+                                self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
+                            else:
+                                raise
+                    else:
+                        self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
+                        
+                    self.is_multi_speaker = True
+                except Exception as e:
+                    # If we can't initialize the model at all, raise immediately
+                    log.error(f"Failed to initialize TTS model: {e}")
+                    raise TTSInitializationError(f"Failed to initialize TTS model: {e}")
                     
                 # Look for voice reference in voice_reference_pack
                 voice_ref_dir = os.path.join(coqui_dir, 'voice_reference_pack', self.voice_name)
                 os.makedirs(voice_ref_dir, exist_ok=True)
                 self.voice_reference_path = os.path.join(voice_ref_dir, "clone_speech.wav")
                     
+                voice_ref_pack_dir = os.path.join(coqui_dir, 'voice_reference_pack')
+                # Check voice reference directory content
+                if os.path.exists(voice_ref_pack_dir):
+                    voice_dirs = os.listdir(voice_ref_pack_dir)
+                    log.info(f"Voice reference pack directory exists with folders: {voice_dirs}")
+                    
+                    # If the c3po directory exists, check its contents
+                    if self.voice_name in voice_dirs:
+                        c3po_dir = os.path.join(voice_ref_pack_dir, self.voice_name)
+                        files = os.listdir(c3po_dir)
+                        log.info(f"Voice directory '{self.voice_name}' contains: {files}")
+                
                 if not os.path.exists(self.voice_reference_path):
-                    raise FileNotFoundError(
+                    error_message = (
                         f"Voice reference file not found at {self.voice_reference_path}\n"
                         f"Please ensure voice reference exists at: {voice_ref_dir}\n"
-                        f"Available voices in reference pack: {os.listdir(os.path.join(coqui_dir, 'voice_reference_pack'))}"
+                        f"The file should be named 'clone_speech.wav'.\n"
                     )
+                    
+                    # Also check if the voice directory exists but has different files
+                    if os.path.exists(voice_ref_dir):
+                        files = os.listdir(voice_ref_dir)
+                        if files:
+                            error_message += f"Available files in {self.voice_name} directory: {files}\n"
+                    
+                    # Check available voice reference packs
+                    if os.path.exists(voice_ref_pack_dir):
+                        voices = os.listdir(voice_ref_pack_dir)
+                        error_message += f"Available voices in reference pack: {voices}"
+                    
+                    log.error(error_message)
+                    raise FileNotFoundError(error_message)
                     
             log.info(f"TTS Model initialized successfully on {self.device}")
             log.info(f"=========== TEXT-TO-SPEECH INITIALIZED ===========")
             return True
                 
         except Exception as e:
-            raise RuntimeError(f"Error initializing TTS model: {str(e)}", exc_info=True)
+            log.error(f"Error initializing TTS model: {str(e)}", exc_info=True)
+            # Don't attempt CPU fallback here if there's a non-CUDA error, just raise
+            raise TTSInitializationError(f"Error initializing TTS model: {str(e)}")
 
     def generate_speech(self, text, speed=1.0, language="en"):
         """
