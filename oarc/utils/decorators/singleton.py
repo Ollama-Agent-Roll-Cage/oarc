@@ -39,9 +39,14 @@ def singleton(cls: Type[T]) -> Type[T]:
     original_init = cls.__init__
     original_new = cls.__new__
     
-    # Get the parameter names from the original __init__ method
-    init_signature = inspect.signature(original_init)
-    param_names = [p for p in init_signature.parameters if p != 'self']
+    try:
+        # Get the parameter names from the original __init__ method
+        init_signature = inspect.signature(original_init)
+        param_names = [p for p in init_signature.parameters if p != 'self']
+    except (ValueError, TypeError) as e:
+        # Handle case where signature cannot be inspected
+        log.warning(f"Could not inspect signature for {cls.__name__}: {e}")
+        param_names = []
     
     @functools.wraps(original_new)
     def __new__(cls, *args, **kwargs):

@@ -1,0 +1,28 @@
+# UNSLOTH API Todolist
+
+1. integrate unsloth api, and or fix with unsloth webui, for at least 
+llama3.2 3b and llama 3.1 8b, with our sharegpt format in the agentChef dataset
+formating utilies.
+
+i. ensure we have several efficient dataset collection to formatting to training pipelines
+    - ollama teacher datasets
+    - each user can make custom oarc datasets
+    - super groq key cluster agent chef thinker mix
+    - deep research long search and scrape
+    - arxiv conversational distillation
+
+ii. setup unslothAPI or UI
+
+iii. train ollama models and load in OARC agents 
+
+-who cares about fine tuning anything else-
+
+### Wizard Training
+
+2. Wizard Training is our web-based platform for training and fine-tuning large 
+language models. Key features include:
+
+- Support for training models up to 405B parameters
+- Utilization of high-performance GPUs (H100s and 3090s)
+- Implementation of LoRA (Low-Rank Adaptation) for efficient fine-tuning
+- Training of 3B models and other sizes

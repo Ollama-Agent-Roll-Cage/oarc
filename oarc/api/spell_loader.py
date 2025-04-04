@@ -8,7 +8,7 @@ and integrates necessary components such as the Ollama commands, model writer, a
 import os
 import logging
 
-from oarc.ollamaUtils.conversion_manager import ConversionManager
+from oarc.ollamaUtils.modelfileFactory.conversion_manager import ConversionManager
 from oarc.ollamaUtils import ModelWriter
 from oarc.ollamaUtils.ollama_commands import OllamaCommands
 from oarc.utils.paths import Paths

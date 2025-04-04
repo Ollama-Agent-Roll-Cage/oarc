@@ -12,11 +12,16 @@ from huggingface_hub import (
 import os
 from typing import Optional, Dict, Any, List, Union
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 class HuggingFaceHub:
     """Manages interactions with Hugging Face Hub for model and dataset management"""
+    
+    #TODO add dataset download and upload methods and inetgrate with agentChef - uses conversation 
+    # and knowledge to create multimodal highway datasets, store in pandas query engine and upload to hub
+    # same with agent management, create parquests and upload to hub from agentstorage and pandasdb
     
     def __init__(self, token: Optional[str] = None):
         """Initialize HuggingFaceHub manager
@@ -171,4 +176,14 @@ class HuggingFaceHub:
 
     async def upload_model_async(self, *args, **kwargs): 
         """Async wrapper for upload_model"""
+        return await asyncio.to_thread(self.upload_model, *args, **kwargs)
+    
+    async def upload_dataset_async(self, *args, **kwargs):
+        """Async wrapper for upload_dataset"""
+        api = HfApi(token=os.getenv("HF_TOKEN"))
+        api.upload_folder(
+            folder_path="/path/to/local/dataset",
+            repo_id="repo-id",
+            repo_type="dataset",
+        )
         return await asyncio.to_thread(self.upload_model, *args, **kwargs)

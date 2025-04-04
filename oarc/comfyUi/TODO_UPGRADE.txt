@@ -1,0 +1,7 @@
+#comfyui todo
+
+get custom SDXL and flux workflows with extention
+
+setup differernt controlnet pipelines and base setups
+
+integrate with ollama teacher

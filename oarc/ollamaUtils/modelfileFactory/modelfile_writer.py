@@ -7,7 +7,7 @@ build/workflow.
 import os
 
 
-class ModelWriter:
+class ModelfileWriter:
 
 
     def __init__(self, pathLibrary):

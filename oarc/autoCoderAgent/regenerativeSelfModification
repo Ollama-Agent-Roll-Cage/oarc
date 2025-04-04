@@ -1,1 +1,0 @@
-a class that imports the coding agent utils, so construct a coding agent capable of being tasked with building, ans integrating new functionality into oarc. the defined task comes from qwars such that we can call this method in many places

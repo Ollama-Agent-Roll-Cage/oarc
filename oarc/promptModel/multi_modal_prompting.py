@@ -720,14 +720,12 @@ class MultiModalPrompting:
         # reasoning module, or combination of reasoning modules, to solve to problem.
         pass
     
-
     def selectReasoningModule(self):
         """ a method to select the reasoning algorithm for the chainOfThought method"""
         #TODO SELECT MODE
         # codingReasoningModule, searchReasoningModule, deepResearch
         pass
     
-
     def codingReasoningModule(self):
         """ a method defining the coding reasoning module for the chainOfThought method"""
         #TODO SELECT MODE
@@ -737,7 +735,6 @@ class MultiModalPrompting:
         # WEB EXAMPLE, GITHUB, STACKOVERFLOW, ARXIV, WIKIPEDIA, DUCKDUCKGO
         pass
     
-
     def searchReasoningModule(self):
         """ a method defining the search reasoning module for the chainOfThought method"""
         #TODO DUCKDUCKGO
@@ -746,6 +743,7 @@ class MultiModalPrompting:
         #TODO CRAWL 4 AI
         # ----> WIKIPEDIA - AUTO CRAWL FOR DUCKDUCKGO WIKIPEDIA PAGES
         # ----> OTHER AUTO CRAWL FOR DUCKDUCKGO PAGES, GITHUB, ARXIV, ETC
+        #TODO !!NEW!! Web crawlers for the most part will be moved to agent chef modules
         pass
     
     def deepResearch(self, prompt):
@@ -756,4 +754,9 @@ class MultiModalPrompting:
         be retreived by the agent for future reference when coding, writing, or performing other
         tasks.
         """
+        pass
+    
+    def swarmPrompt(self, multimodalStream):
+        """ a method to allow the agent to perform a swarm prompt on 
+        the specified topic using multiple models in swarm configuration with the agentCore metadata from the pandaDB"""
         pass
