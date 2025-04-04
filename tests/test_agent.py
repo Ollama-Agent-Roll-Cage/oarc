@@ -132,7 +132,7 @@ class TestAgent:
         log.info(f"Python: {platform.python_version()}")
         
         # Log all configured paths for transparency and debugging
-        Paths.log_paths()
+        Paths.get_instance().log_paths()
         
         # Core components
         log.info("Initializing API components")
