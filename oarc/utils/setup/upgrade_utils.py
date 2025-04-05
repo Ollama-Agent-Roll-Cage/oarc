@@ -12,6 +12,8 @@ import shutil
 import json
 import tomli
 import tomli_w
+import os
+from pathlib import Path
 from typing import Dict, Tuple, List
 from oarc.utils.log import log
 
@@ -54,9 +56,17 @@ def fix_toml_file(pyproject_path: str) -> bool:
         bool: True if file is valid or was fixed successfully
     """
     try:
+        # Convert to Path object and check existence
+        path = Path(pyproject_path)
+        if not path.exists():
+            log.error(f"TOML file not found at: {path}")
+            return False
+        
+        log.info(f"Found pyproject.toml at: {path}")
+        
         # First try to parse with tomli to see if it's valid
         try:
-            with open(pyproject_path, "rb") as f:
+            with open(path, "rb") as f:
                 tomli.load(f)
             log.info("TOML file is valid. No fixes needed.")
             return True
@@ -64,7 +74,7 @@ def fix_toml_file(pyproject_path: str) -> bool:
             log.warning(f"TOML syntax error detected: {e}")
             
         # If parsing failed, apply manual fixes
-        with open(pyproject_path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             content = f.read()
         
         # Apply a series of common fixes
@@ -102,12 +112,12 @@ def fix_toml_file(pyproject_path: str) -> bool:
         content = '\n'.join(lines)
         
         # Write back the fixed content
-        with open(pyproject_path, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(content)
             
         # Verify if our fixes worked
         try:
-            with open(pyproject_path, "rb") as f:
+            with open(path, "rb") as f:
                 tomli.load(f)
             log.info("TOML file fixed successfully.")
             return True
@@ -190,15 +200,65 @@ def upgrade_project_dependencies(use_uv: bool = True) -> bool:
     """
     log.info("Upgrading dependencies...")
     try:
-        if use_uv:
-            subprocess.run(["uv", "pip", "install", "--upgrade", "-e", "."], check=True)
-        else:
-            subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "-e", "."], check=True)
+        # Get the project directory (where pyproject.toml is located)
+        project_root = None
         
-        log.info("Dependencies upgraded successfully!")
-        return True
+        # Try to find the project root
+        cwd = Path.cwd()
+        if (cwd / "pyproject.toml").exists():
+            project_root = cwd
+        
+        # If not found in current directory, try a few levels up
+        if not project_root:
+            current_dir = Path(__file__).resolve().parent
+            for _ in range(5):  # Try up to 5 levels up
+                if (current_dir / "pyproject.toml").exists():
+                    project_root = current_dir
+                    break
+                parent = current_dir.parent
+                if parent == current_dir:  # Reached filesystem root
+                    break
+                current_dir = parent
+        
+        if not project_root:
+            # Last resort, try the repo root (3 levels up from utils/setup)
+            project_root = Path(__file__).resolve().parents[3]
+        
+        log.info(f"Using project directory: {project_root}")
+        
+        # Change to project directory for installation
+        old_cwd = os.getcwd()
+        os.chdir(str(project_root))
+        
+        try:
+            cmd = ["uv", "pip", "install", "--upgrade", "-e", "."] if use_uv else [sys.executable, "-m", "pip", "install", "--upgrade", "-e", "."]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                # Check for specific error about oarc.exe being in use
+                if "oarc.exe" in result.stderr and "process cannot access the file" in result.stderr:
+                    log.error("Cannot upgrade while oarc.exe is in use. Please try one of the following:")
+                    log.error("1. Exit any running OARC processes and try again")
+                    log.error("2. Run the upgrade from a regular command prompt instead of through the oarc command")
+                    log.error("3. Temporarily rename the oarc.exe file, upgrade, then rename it back")
+                    return False
+                else:
+                    log.error(f"Upgrade failed with error: {result.stderr}")
+                    return False
+            
+            log.info("Dependencies upgraded successfully!")
+            return True
+        finally:
+            # Always restore original working directory
+            os.chdir(old_cwd)
+            
     except subprocess.CalledProcessError as e:
         log.error(f"Error upgrading dependencies: {e}")
+        if e.stderr and "oarc.exe" in e.stderr.decode():
+            log.error("Cannot upgrade while oarc.exe is in use. Try running upgrade from a regular command prompt.")
+        return False
+    except Exception as e:
+        log.error(f"Unexpected error during dependency upgrade: {e}")
         return False
 
 def get_current_package_versions() -> Dict[str, str]:
@@ -278,8 +338,14 @@ def update_pyproject_toml(pyproject_path: str) -> bool:
     log.info("Updating pyproject.toml with latest versions...")
     
     try:
+        # Ensure the path exists
+        path = Path(pyproject_path)
+        if not path.exists():
+            log.error(f"pyproject.toml not found at: {path}")
+            return False
+            
         # Read the current pyproject.toml
-        with open(pyproject_path, "rb") as f:
+        with open(path, "rb") as f:
             pyproject_data = tomli.load(f)
         
         # Get current versions directly from pip
@@ -309,7 +375,7 @@ def update_pyproject_toml(pyproject_path: str) -> bool:
                             dependencies[i] = new_dep
             
             # Write back updated pyproject.toml
-            with open(pyproject_path, "wb") as f:
+            with open(path, "wb") as f:
                 tomli_w.dump(pyproject_data, f)
             
             log.info("pyproject.toml updated successfully!")

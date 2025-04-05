@@ -1,19 +1,33 @@
 """
-Upgrade command module for OARC.
+OARC Upgrade Command
 
-This module handles the 'upgrade' command which upgrades all dependencies.
+This module implements the upgrade command for the OARC CLI,
+which upgrades and maintains project dependencies.
 """
 
 from oarc.utils.log import log
-# Import the setup function directly from setup.py instead of through __init__
 from oarc.utils.setup.upgrade import main as upgrade_main
 
-def execute(**kwargs):
-    """Execute the upgrade command."""
-    log.info("Ugrade up OARC dependencies")
+def execute(args=None, debug=False, config=None, **kwargs):
+    """
+    Execute the upgrade command.
     
-    # Call the setup main function
-    upgrade_main()
+    Args:
+        args: Command line arguments
+        debug: Whether to enable debug logging
+        config: Configuration dictionary
+        **kwargs: Additional keyword arguments
+        
+    Returns:
+        int: Exit status code (0 for success, non-zero for failure)
+    """
+    log.info("Upgrade OARC dependencies")
     
-    log.info("Upgrade completed successfully")
-    return 0
+    success = upgrade_main()
+    
+    if success:
+        log.info("Upgrade completed successfully")
+        return 0
+    else:
+        log.error("Upgrade failed - see error messages above for details")
+        return 1

@@ -28,30 +28,39 @@ def main():
     log.info("Setting up pip...")
     pip_success = ensure_pip(venv_python)
     
+    # Track errors
+    errors = []
+    if not pip_success:
+        errors.append("Pip setup failed")
+    
     # Run installation steps with proper error handling
     log.info("Installing Coqui TTS...")
     tts_success = install_coqui(venv_python)
+    if not tts_success:
+        errors.append("TTS installation failed")
     
     log.info("Installing PyAudio...")
     pyaudio_success = install_pyaudio(venv_python)
+    if not pyaudio_success:
+        errors.append("PyAudio installation failed")
     
     log.info("Installing PyTorch...")
     pytorch_success = install_pytorch(venv_python)
+    if not pytorch_success:
+        errors.append("PyTorch installation failed")
     
-    if pip_success and pytorch_success and pyaudio_success and tts_success:
+    success = len(errors) == 0
+    if success:
         log.info("All dependencies installed successfully!")
     else:
         log.error("Some dependencies could not be installed")
-        if not pip_success:
-            log.error("- Pip setup failed")
-        if not tts_success:
-            log.error("- TTS installation failed")
-        if not pytorch_success:
-            log.error("- PyTorch installation failed")
-        if not pyaudio_success:
-            print("- PyAudio installation failed")
+        for error in errors:
+            log.error(f"- {error}")
+    
+    return success
 
 
 # Make the module directly runnable
 if __name__ == "__main__":
-    main()
+    success = main()
+    sys.exit(0 if success else 1)
