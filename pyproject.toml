@@ -7,7 +7,7 @@ name = "oarc"
 version = "0.1.0"
 description = "OARC Python Package"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10, <3.12"
 authors = [
     {name = "OARC Team"}
 ]
@@ -26,6 +26,8 @@ dependencies = [
     "soundfile>=0.12.0",
     "sounddevice>=0.5.1",
     "librosa>=0.11.0",
+    "numba>=0.56.0",  # Python 3.10 compatible version
+    "llvmlite>=0.39.0",  # Python 3.10 compatible version
     
     # Web & API
     "fastapi>=0.68.0",
