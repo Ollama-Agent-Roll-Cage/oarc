@@ -9,7 +9,7 @@ import os
 import logging
 
 from oarc.ollamaUtils.modelfileFactory.conversion_manager import ConversionManager
-from oarc.ollamaUtils import ModelWriter
+from oarc.ollamaUtils import ModelfileWriter
 from oarc.ollamaUtils.ollama_commands import OllamaCommands
 from oarc.utils.paths import Paths
 
@@ -122,7 +122,7 @@ class SpellLoader():
         """
         log.info("Spells initializing...")
         self.ollama_commands = OllamaCommands() # initialize ollama commands
-        self.model_write_class = ModelWriter(self.pathLibrary) # Write model files
+        self.model_write_class = ModelfileWriter(self.pathLibrary) # Write model files
         self.create_convert_manager = ConversionManager(self.pathLibrary)  # Create model manager
         self.tts_processor = None # TTS processor (initialize as None, will be created when needed)
             

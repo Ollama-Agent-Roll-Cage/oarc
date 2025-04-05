@@ -7,7 +7,7 @@ from .modelfileFactory.conversion_manager import ConversionManager
 from .ollama_commands import OllamaCommands
 
 __all__ = [
-    "ModelWriter",
+    "ModelfileWriter",
     "ConversionManager",
     "OllamaCommands"
 ]
