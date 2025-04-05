@@ -49,10 +49,10 @@ def main(force=False):
     if not tts_success:
         errors.append("TTS installation failed")
 
-    # log.info("Installing PyTorch...")
-    # pytorch_success = install_pytorch(venv_python, force=force)
-    # if not pytorch_success:
-    #     errors.append("PyTorch installation failed")
+    log.info("Installing PyTorch...")
+    pytorch_success = install_pytorch(venv_python, force=force)
+    if not pytorch_success:
+        errors.append("PyTorch installation failed")
 
     success = len(errors) == 0
     if success:
