@@ -368,6 +368,7 @@ dependencies = [
     "zc.lockfile>=3.0.post1",
     "zipp>=3.21.0",
     "zope.interface>=7.2",
+    "whisper>=1.1.10"
 ]
 
 [project.optional-dependencies]

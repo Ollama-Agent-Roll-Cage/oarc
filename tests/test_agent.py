@@ -7,7 +7,12 @@ import sys
 import gradio as gr
 import platform
 
-from oarc.api import API
+try:
+    from oarc.api import API
+except ImportError as e:
+    log.error(f"Failed to import API: {e}")
+    API = None
+
 from oarc.database import PandasDB
 from oarc.promptModel import MultiModalPrompting
 from oarc.speech import TextToSpeech, SpeechToText, SpeechManager
@@ -136,7 +141,11 @@ class TestAgent:
         
         # Core components
         log.info("Initializing API components")
-        self.api = API()
+        if API is not None:
+            self.api = API()
+        else:
+            self.api = None
+            log.warning("API was not imported. Some functionality may be limited.")
         log.info("Initializing database")
         self.db = PandasDB()
         log.info("Initializing language model")
