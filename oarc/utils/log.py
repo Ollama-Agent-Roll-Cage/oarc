@@ -166,18 +166,14 @@ class Logger:
         return new_logger
     
     @classmethod
-    def redirect_external_loggers(cls, *module_names: str) -> None:
+    def redirect_external_loggers(cls, *module_names: str, level=logging.WARNING) -> None:
         """
-        Redirect logs from external libraries to our central logging system.
-        
-        Args:
-            *module_names: Names of modules whose logs should be captured
+        Redirect logs from external libraries to our central logging system,
+        optionally setting them to a less verbose level.
         """
-        # Don't call initialize again if we're already in initialize
         if not cls._initialized:
             cls.initialize()
-            return
-        
+
         for module_name in module_names:
             if module_name not in cls._loggers:
                 ext_logger = logging.getLogger(module_name)
@@ -185,6 +181,7 @@ class Logger:
                 ext_logger.propagate = False
                 if cls._handler:
                     ext_logger.addHandler(cls._handler)
+                ext_logger.setLevel(level)
                 cls._loggers[module_name] = ext_logger
 
 
@@ -199,3 +196,6 @@ get_logger = Logger.get_logger
 
 # Export the redirect_external_loggers function for additional external loggers
 redirect_external_loggers = Logger.redirect_external_loggers
+
+# Initialize and lower verbosity for some noisy modules
+Logger.redirect_external_loggers("TTS", "httpx", "gradio", "uvicorn", "fastapi", level=logging.WARNING)

@@ -18,9 +18,9 @@ import sys
 # Set environment variable to hide pygame welcome message
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor, QTextCursor, QTextCharFormat, QTextDocument
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QColor, QTextCursor, QTextCharFormat, QTextDocument
+from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QFrame, QVBoxLayout, QHBoxLayout, 
     QLineEdit, QPushButton, QTextEdit, QWidget
 )
@@ -119,18 +119,18 @@ class TranscriptionApp(QMainWindow):
 
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:  # Updated enum
             self.dragging = True
-            self.offset = event.pos()
+            self.offset = event.position()  # Updated method
 
 
     def mouseMoveEvent(self, event):
         if self.dragging and self.offset:
-            self.move(self.pos() + event.pos() - self.offset)
+            self.move(self.pos() + event.position().toPoint() - self.offset.toPoint())  # Updated position handling
 
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:  # Updated enum
             self.dragging = False
 
 
@@ -259,7 +259,8 @@ class TranscriptionApp(QMainWindow):
         cursor.movePosition(QTextCursor.Start)
         self.text_box.setTextCursor(cursor)
         
-        while self.text_box.find(search_term, QTextDocument.FindCaseSensitively):
+        # Update find flags
+        while self.text_box.find(search_term, QTextDocument.FindFlag.FindCaseSensitively):
             cursor = self.text_box.textCursor()
             cursor.mergeCharFormat(highlight_format)
 

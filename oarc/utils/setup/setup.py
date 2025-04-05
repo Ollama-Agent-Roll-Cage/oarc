@@ -12,7 +12,7 @@ It can also be imported and used programmatically through the main() function.
 
 import sys
 from pathlib import Path
-from oarc.utils.setup.setup_utils import ensure_pip, install_package
+from oarc.utils.setup.setup_utils import ensure_pip
 from oarc.utils.setup.tts_utils import install_coqui
 from oarc.utils.setup.cuda_utils import install_pytorch
 from oarc.utils.setup.pyaudio_utils import install_pyaudio
