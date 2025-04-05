@@ -27,6 +27,9 @@ dependencies = [
     "llama-index-experimental>=0.5.4",
     "llama-index>=0.12.26",
     "transformers>=4.47.0",
+    "scikit-learn>=1.3.2",
+    "bokeh>=3.0.3",
+    "umap-learn>=0.5.1",
 
     # Additional YOLO core dependencies
     "py-cpuinfo",
@@ -35,6 +38,8 @@ dependencies = [
     "ultralytics-thop>=2.0.0",
     "torchvision>=0.9.0",
     "torch>=1.8.0",
+    "pycocotools>=2.0.7",
+    "albumentations>=1.4.6",
 
     # Vision processing
     "ultralytics>=8.3.98",
@@ -74,6 +79,7 @@ dependencies = [
     # Interactive tools
     "pygame>=2.6.1",
     "PyQt5>=5.15.11",
+    "ipython",
 
     # Utilities
     "typing_extensions>=4.10",
@@ -83,15 +89,30 @@ dependencies = [
     "matplotlib>=3.8.4",
     "keyboard>=0.13.5",
     "fsspec[http]>=2023.6.0",
+    "streamlit",
+    "tensorboard>=2.13.0",
 
     # Build tools
     "wheel",
     "setuptools>=45",
     "build",
-
-    # YOLO solutions dependencies
-    "shapely>=2.0.0",
-    "streamlit",
+    "onnx>=1.12.0",
+    "tensorflow>=2.0.0",
+    "tensorflowjs>=4.0.0",
+    
+    # YOLO export dependencies (moved from dev)
+    "openvino>=2024.0.0,!=2025.0.0",
+    "h5py!=3.11.0; platform_machine == 'aarch64'",
+    "flatbuffers>=23.5.26,<100; platform_machine == 'aarch64'",
+    "coremltools>=8.0; platform_system != 'Windows' and python_version <= '3.12'",
+    "tensorstore>=0.1.63; platform_machine == 'aarch64' and python_version >= '3.9'",
+    
+    # YOLO logging dependencies (moved from dev)
+    "comet",
+    "dvclive>=2.12.0",
+    
+    # YOLO extra dependencies (moved from dev)
+    "hub-sdk>=0.0.12",
 ]
 
 [project.optional-dependencies]
@@ -109,33 +130,6 @@ dev = [
     "sphinx==7.4.7",
     "furo>=2024.8.6",
     "sphinx_copybutton>=0.5.2",
-    
-    # Additional tools
-    "bokeh>=3.0.3",
-    "umap-learn>=0.5.1",
-    
-    # YOLO export dependencies
-    "keras",
-    "onnx>=1.12.0",
-    "tensorflow>=2.0.0",
-    "tensorflowjs>=4.0.0",
-    "openvino>=2024.0.0,!=2025.0.0",
-    "h5py!=3.11.0; platform_machine == 'aarch64'",
-    "flatbuffers>=23.5.26,<100; platform_machine == 'aarch64'",
-    "coremltools>=8.0; platform_system != 'Windows' and python_version <= '3.12'",
-    "tensorstore>=0.1.63; platform_machine == 'aarch64' and python_version >= '3.9'",
-    "scikit-learn>=1.3.2; platform_system != 'Windows' and python_version <= '3.12'",
-    
-    # YOLO logging dependencies
-    "comet",
-    "dvclive>=2.12.0",
-    "tensorboard>=2.13.0",
-    
-    # YOLO extra dependencies
-    "ipython",
-    "hub-sdk>=0.0.12",
-    "pycocotools>=2.0.7",
-    "albumentations>=1.4.6",
 ]
 
 [project.scripts]
