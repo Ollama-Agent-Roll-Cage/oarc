@@ -10,26 +10,19 @@
 
 # 👽🧙 OARC 🤬🤖
 
-OARC is a powerful multimodal toolkit and API for AI-driven workflows. It supports real-time audio, text, automation, fine-tuned LLMs, TTS, STT, vision models, and more. Features include DuckDuckGo search, chromadb, and seamless navigation. 🚀
-
 | **Feature**                | **Description**                                                                 |
 |----------------------------|-------------------------------------------------------------------------------|
-| **Real-time Multimodal AI** | Integrates audio, text, vision, and automation workflows.                     |
+| **Multimodal AI**           | Integrates audio, text, vision, and automation workflows.                     |
 | **Fine-tuned LLMs**         | Supports advanced language models for custom use cases.                       |
-| **Speech Processing**       | Includes TTS (Text-to-Speech) and STT (Speech-to-Text) capabilities.          |
-| **Vision Models**           | Enables object detection and screen capture with YOLO integration.           |
-| **Dataset Management**      | Tools for collection, generation, augmentation, and cleaning of datasets.     |
+| **Speech & Vision**         | Includes TTS, STT, and YOLO-based object detection.                           |
+| **Dataset Tools**           | Collection, generation, augmentation, and cleaning of datasets.               |
 | **Search Integration**      | DuckDuckGo, GitHub repo cloning, and web scraping APIs.                       |
-| **HuggingFace Integration** | Download, upload, and manage models and datasets.                             |
-| **Command Library**         | Centralized management of commands and agent states.                          |
-| **Extensible Architecture** | Modular design for seamless addition of new features.                         |
-| **Developer Tools**         | Editable installation, development mode, and build-from-source options.       |
-| **Automation**              | Chain-of-thought reasoning, deep research, and multimodal prompting.          |
-| **Cross-platform Support**  | Compatible with Windows, macOS, and Linux environments.                       |
-| **GPU Acceleration**        | Optimized for CUDA-enabled devices for faster processing.                     |
-| **API Services**            | RESTful APIs for integration with external systems.                           |
-| **Open Source**             | Licensed under Apache 2.0 for community-driven development.                   |
-| **Community Support**       | Active Discord server and GitHub issue tracking.                              |
+| **HuggingFace Support**     | Manage models and datasets seamlessly.                                        |
+| **Extensible Design**       | Modular architecture for adding new features.                                 |
+| **Developer Tools**         | Editable installation and build-from-source options.                          |
+| **GPU Acceleration**        | Optimized for CUDA-enabled devices.                                           |
+| **API Services**            | RESTful APIs for external integrations.                                       |
+| **Open Source**             | Apache 2.0 license with active community support.                             |
 
 ## Installation
 
@@ -42,8 +35,6 @@ cd OARC
 
 # Create & activate virtual environment with Python 3.10
 python -m venv .venv
-# OR with Python 3.11 
-# python3.11 -m venv .venv
 
 # Activate the virtual environment
 .venv\Scripts\activate
@@ -55,7 +46,7 @@ python -m pip install --upgrade pip setuptools wheel appdirs uv
 uv pip install -e .
 
 # Install additional dependencies and set up the environment
-uv run oarc upgrade
+oarc setup
 ```
 
 ## Running OARC
