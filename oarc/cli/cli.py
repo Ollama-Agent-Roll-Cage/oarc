@@ -1,12 +1,15 @@
 """Command-line interface for OARC."""
 import argparse
+
+from oarc.utils.log import log
+from oarc.commands.command_type import CommandType, get_command_type
 from oarc.commands import (
     build_command,
     run_command,
-    setup_command
+    setup_command,
+    upgrade_command,
 )
-from oarc.commands.command_type import CommandType, get_command_type
-from oarc.utils.log import log
+
 
 def cli(**kwargs):
     """Command line interface for OARC."""
@@ -21,6 +24,7 @@ def cli(**kwargs):
     subparsers = parser.add_subparsers(dest='command', help='Commands')
     
     subparsers.add_parser('setup', help='Setup dependencies')
+    subparsers.add_parser('upgrade', help='Upgrade dependencies')
     subparsers.add_parser('build', help='Build the OARC package wheel')
     
     args = parser.parse_args(kwargs.get('args', None))
@@ -44,6 +48,9 @@ def cli(**kwargs):
         case CommandType.SETUP:
             log.info("Running setup command")
             return setup_command.execute(**config)
+        case CommandType.UPGRADE:
+            log.info("Running upgrade command")
+            return upgrade_command.execute(**config)
         case CommandType.BUILD:
             log.info("Running build command") 
             return build_command.execute(**config)

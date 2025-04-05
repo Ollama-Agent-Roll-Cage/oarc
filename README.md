@@ -32,26 +32,45 @@ OARC is a powerful multimodal toolkit and API for AI-driven workflows. It suppor
 
 ## Installation
 
-Install OARC by following the steps below. Ensure Python 3.9+ is installed. For GPU acceleration, verify CUDA drivers are set up. Dependencies, including language models, vision, and audio systems, will be configured automatically.
+Install OARC by following the steps below. Ensure Python 3.10 or 3.11 is installed (Python 3.12+ is not yet supported due to TensorFlow compatibility). For GPU acceleration, verify CUDA drivers are set up. Dependencies, including language models, vision, and audio systems, will be configured automatically.
 
 ```bash
 # Clone the repository
 git clone https://github.com/Leoleojames1/OARC.git
 cd OARC
 
-# Create & activate virtual environment
+# Create & activate virtual environment with Python 3.10
 python -m venv .venv
+# OR with Python 3.11 
+# python3.11 -m venv .venv
+
+# Activate the virtual environment
 .venv\Scripts\activate
 
-# Install UV package manager
-pip install uv
+# Install environment packages
+python -m pip install --upgrade pip setuptools wheel appdirs uv
 
 # Install the package with pip (editable mode)
 uv pip install -e .
 
-# Install additional dependencies
-oarc setup
+# Install additional dependencies and set up the environment
+uv run oarc upgrade
 ```
+
+## Running OARC
+
+```bash
+# Activate environment where OARC is installed
+oarc <command>
+```
+
+## Commands
+
+- `oarc` - Run the main CLI tool
+- `oarc setup` - Install all dependencies
+- `oarc upgrade` - Install all dependencies and upgrade to the latest versions
+- `oarc develop` - Setup developer mode
+- `oarc build` - Build from source code
 
 ## Development
 
@@ -69,20 +88,6 @@ oarc develop
 # Build the oarc as a wheel from source
 oarc build
 ```
-
-## Running OARC
-
-```bash
-# Activate environment where OARC is installed
-oarc <command>
-```
-
-## Commands
-
-- `oarc` - Run the main CLI tool
-- `oarc setup` - Install all dependencies
-- `oarc develop` - Setup developer mode
-- `oarc build` = Build from source code
 
 ## Architecture
 

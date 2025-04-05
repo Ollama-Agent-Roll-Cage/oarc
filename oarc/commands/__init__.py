@@ -7,6 +7,7 @@ from oarc.commands import (
     build_command,
     run_command,
     setup_command,
+    upgrade_command,
     command_type
 )
 
@@ -14,5 +15,6 @@ __all__ = [
     'build_command',
     'run_command',
     'setup_command',
+    'upgrade_command',
     'command_type'
 ]
