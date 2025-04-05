@@ -40,9 +40,15 @@ Options:
 Description:
   The setup command installs and configures all required OARC dependencies including:
   - Package managers (pip, uv)
-  - ML/AI frameworks (PyTorch, TensorFlow)
+  - ML/AI frameworks:
+    * CUDA Toolkit (11.8 recommended)
+    * PyTorch (with CUDA support)
+    * TensorFlow
   - Speech components (Coqui TTS, PyAudio)
   - Vision components (YOLO, CUDA drivers)
+
+After manual setup, run:
+  oarc setup --force
 """
 
 BUILD_HELP = """
