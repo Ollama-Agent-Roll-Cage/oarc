@@ -22,6 +22,9 @@ from oarc.utils.const import (
     YOLO_DIR
 )
 
+# Define a constant for the ignored agents directory
+IGNORED_AGENTS_DIR = "IgnoredAgents"
+
 @singleton
 class Paths:
     """
@@ -256,3 +259,35 @@ class Paths:
     def get_yolo_default_model_path(self, model_name="yolov8n-obb.pt"):
         """Get path to a specific YOLO model file with default model name"""
         return os.path.join(self.get_yolo_models_dir(), model_name)
+    
+    def get_modelfile_ignored_agents_dir(self):
+        """Get and ensure the ignored agents directory for ModelfileWriter
+        
+        Returns:
+            str: Path to the ignored agents directory
+        """
+        # Create the path to the IgnoredAgents directory in the Ollama models directory
+        ignored_agents_dir = os.path.join(self.get_ollama_models_dir(), IGNORED_AGENTS_DIR)
+        os.makedirs(ignored_agents_dir, exist_ok=True)
+        return ignored_agents_dir
+    
+    def get_modelfile_paths_dict(self):
+        """Get dictionary of paths needed for ModelfileWriter and ConversionManager
+        
+        Returns:
+            dict: Dictionary containing all paths needed for ModelfileWriter
+        """
+        # Get the ignored pipeline directory path
+        ignored_pipeline_dir = os.path.join(self.get_ollama_models_dir(), 'agentFiles', 'ignoredPipeline')
+        os.makedirs(ignored_pipeline_dir, exist_ok=True)
+
+        return {
+            'model_git_dir': self.get_model_dir(),
+            'hf_cache_dir': self.get_hf_cache_dir(),
+            'ollama_models_dir': self.get_ollama_models_dir(),
+            'spells_path': self.get_spell_path(),
+            'ignored_agents_dir': self.get_modelfile_ignored_agents_dir(),
+            'current_dir': self._paths['base']['current_dir'],
+            'parent_dir': self._paths['base']['parent_dir'],
+            'ignored_pipeline_dir': ignored_pipeline_dir
+        }

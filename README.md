@@ -45,7 +45,7 @@ python -m pip install --upgrade pip setuptools wheel appdirs uv
 # Install the package with pip (editable mode)
 uv pip install -e .
 
-# Install additional dependencies and set up the environment
+# Install additional dependencies
 oarc setup
 ```
 

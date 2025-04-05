@@ -1,42 +1,51 @@
 """
-The model_write_class provides methods for writing custom ollama modelfile's through automation.
-This process allows for on the spot model creation with defined parameters for any given model or agent
-build/workflow. 
+ModelfileWriter is responsible for constructing Ollama modelfiles.
+It handles the generation of modelfiles with appropriate parameters and configurations.
 """
 
 import os
-from oarc.utils.log import log
+import json
 from oarc.utils.paths import Paths
+from oarc.utils.log import log
+from oarc.utils.decorators.singleton import singleton
 
+@singleton
 class ModelfileWriter:
-
+    """
+    ModelfileWriter handles the creation of Ollama modelfiles based on 
+    various templates and configurations.
+    """
+    
     def __init__(self, pathLibrary=None):
         """
-        Initialize the ModelfileWriter class.
+        Initialize ModelfileWriter with path configuration.
         
         Args:
-            pathLibrary (dict, optional): Legacy parameter for backward compatibility.
-                                         If provided, specific paths can be overridden.
+            pathLibrary (dict, optional): Dictionary of paths. If None, uses Paths singleton.
         """
-        # Get paths from the singleton
-        self.paths = Paths.get_instance()
+        # Use the constructor to get the singleton instance
+        self.paths = Paths()
         
-        # Set up paths using the singleton
-        self.current_dir = os.getcwd()
-        self.parent_dir = os.path.dirname(self.current_dir)
-        self.ignored_agents_dir = os.path.join(self.paths.get_model_dir(), "AgentFiles", "Ignored_Agents")
-        
-        # Override with provided paths if any (for backward compatibility)
+        # Set path from provided library or from Paths
         if pathLibrary:
-            log.info("Using provided pathLibrary for compatibility")
-            if 'current_dir' in pathLibrary:
-                self.current_dir = pathLibrary['current_dir']
-            if 'parent_dir' in pathLibrary:
-                self.parent_dir = pathLibrary['parent_dir']
-            if 'ignored_agents_dir' in pathLibrary:
-                self.ignored_agents_dir = pathLibrary['ignored_agents_dir']
+            self.spells_path = pathLibrary.get('spells_path')
+            self.model_path = pathLibrary.get('ollama_models_dir')
+            self.ignored_agents_dir = pathLibrary.get('ignored_agents_dir')
+            # Add model_git_dir for compatibility
+            self.model_git_dir = pathLibrary.get('model_git_dir')
+        else:
+            # Get all paths from the Paths singleton
+            self.spells_path = self.paths.get_spell_path()
+            self.model_path = self.paths.get_ollama_models_dir()
+            self.ignored_agents_dir = self.paths.get_modelfile_ignored_agents_dir()
+            self.model_git_dir = self.paths.get_model_dir()
         
-        # Ensure directories exist
+        log.info(f"ModelfileWriter initialized with spells path: {self.spells_path}")
+        log.info(f"ModelfileWriter using models path: {self.model_path}")
+        
+        # Create directories if they don't exist
+        os.makedirs(self.spells_path, exist_ok=True)
+        os.makedirs(self.model_path, exist_ok=True)
         os.makedirs(self.ignored_agents_dir, exist_ok=True)
         
         # Define ANSI color codes for terminal output
@@ -50,7 +59,7 @@ class ModelfileWriter:
         }
         
         log.info(f"ModelfileWriter initialized with ignored_agents_dir: {self.ignored_agents_dir}")
-
+        self.template = ""  # Initialize template property
     
     def write_model_file(self):
         """

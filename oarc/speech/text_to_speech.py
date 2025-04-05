@@ -33,44 +33,49 @@ class TextToSpeech:
     """
 
     def __init__(self, developer_tools_dict, voice_type, voice_name):
+        """
+        Initialize the TTS processor.
+        
+        Args:
+            developer_tools_dict: Dictionary containing path configurations
+            voice_type: Type of voice to use (e.g., "xtts_v2")
+            voice_name: Name of the voice to use (e.g., "c3po")
+        """
+        # Store initialization parameters
+        self.developer_tools_dict = developer_tools_dict
         self.voice_type = voice_type
         self.voice_name = voice_name
-        self.is_multi_speaker = None
-        self.speech_interrupted = False
-        self.paths = Paths
-        self.sample_rate = 22050
-        self.audio_buffer = np.array([], dtype=np.float32)
         
-        # Configure device
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        if self.device == "cpu":
-            log.info("CUDA not available. Using CPU for TTS.")
-            
-        self.setup_paths(developer_tools_dict)
+        # Initialize paths using the Paths singleton
+        self.paths = Paths()  # The singleton decorator will handle returning the instance
+        
+        # Get paths directly from the paths singleton instead of using setup_paths
+        tts_paths = self.paths.get_tts_paths_dict()
+        self.current_dir = tts_paths['current_dir']
+        self.parent_dir = tts_paths['parent_dir']
+        self.speech_dir = tts_paths['speech_dir']
+        self.recognize_speech_dir = tts_paths['recognize_speech_dir']
+        self.generate_speech_dir = tts_paths['generate_speech_dir']
+        self.tts_voice_ref_wav_pack_path = tts_paths['tts_voice_ref_wav_pack_path_dir']
+        
+        # Initialize other properties
+        self.tts_model = None
+        self.sample_rate = 24000  # Default sample rate for TTS
+        self.audio_data = None
+        self.is_generating = False
+        self.should_interrupt = False
+        
+        # Initialize the TTS model
         self.initialize_tts_model()
-        
-
-    def setup_paths(self, developer_tools_dict):
-        """Setup paths from developer tools dictionary"""
-        self.developer_tools_dict = developer_tools_dict
-        self.current_dir = developer_tools_dict['current_dir']
-        self.parent_dir = developer_tools_dict['parent_dir']
-        self.speech_dir = developer_tools_dict['speech_dir']
-        self.recognize_speech_dir = developer_tools_dict['recognize_speech_dir']
-        self.generate_speech_dir = developer_tools_dict['generate_speech_dir']
-        self.tts_voice_ref_wav_pack_path = developer_tools_dict['tts_voice_ref_wav_pack_path_dir']
-        
 
     def initialize_tts_model(self):
-        """Initialize the appropriate finetuned text to speech with Coqui TTS"""
+        """
+        Initialize the appropriate TTS model.
+        
+        Loads or creates the TTS model based on the specified voice type and name.
+        Handles fallbacks and error scenarios gracefully.
+        """
         try:
-            # Redirect TTS logs to our logging system before initializing
-            import logging
-            for logger_name in ['TTS.utils.manage', 'TTS.tts.models', 'TTS']:
-                external_logger = logging.getLogger(logger_name)
-                external_logger.handlers.clear()
-                external_logger.propagate = True  # Let it propagate to root logger
-
             log.info(f"=========== INITIALIZING TEXT-TO-SPEECH ===========")
             model_git_dir = self.paths.get_model_dir()
             log.info(f"Using model directory: {model_git_dir}")
@@ -80,6 +85,10 @@ class TextToSpeech:
             if not os.path.exists(coqui_dir):
                 os.makedirs(coqui_dir, exist_ok=True)
                 log.warning(f"Coqui directory not found, creating: {coqui_dir}")
+
+            # Use the voice reference directory from Paths instead of constructing it manually
+            voice_ref_dir = self.paths.get_voice_reference_dir()
+            log.info(f"Using voice reference directory: {voice_ref_dir}")
 
             # List available voices
             available_voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
@@ -115,34 +124,32 @@ class TextToSpeech:
                 self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
                 self.is_multi_speaker = True
                     
-                # Look for voice reference in voice_reference_pack
-                voice_ref_dir = os.path.join(coqui_dir, 'voice_reference_pack', self.voice_name)
-                os.makedirs(voice_ref_dir, exist_ok=True)
-                self.voice_reference_path = os.path.join(voice_ref_dir, "clone_speech.wav")
+                # Look for voice reference in voice_reference_pack - use the proper directory
+                voice_dir = os.path.join(voice_ref_dir, self.voice_name)
+                os.makedirs(voice_dir, exist_ok=True)
+                self.voice_reference_path = os.path.join(voice_dir, "clone_speech.wav")
+                log.info(f"Looking for voice reference at: {self.voice_reference_path}")
                     
                 if not os.path.exists(self.voice_reference_path):
-                    raise FileNotFoundError(
-f"Voice reference file not found at {self.voice_reference_path}\n"
-                        f"Please ensure voice reference exists at: {voice_ref_dir}\n"
-                        f"Available voices in reference pack: {os.listdir(os.path.join(coqui_dir, 'voice_reference_pack'))}"
-                    )
+                    # Try reference.wav before raising error
+                    alt_ref_path = os.path.join(voice_dir, "reference.wav")
+                    if os.path.exists(alt_ref_path):
+                        # Copy to clone_speech.wav
+                        shutil.copy2(alt_ref_path, self.voice_reference_path)
+                        log.info(f"Copied reference.wav to clone_speech.wav for compatibility")
+                    else:
+                        raise FileNotFoundError(
+                            f"Voice reference file not found at {self.voice_reference_path}\n"
+                            f"Please ensure voice reference exists at: {voice_dir}\n"
+                            f"Available voices in reference pack: {os.listdir(voice_ref_dir) if os.path.exists(voice_ref_dir) else 'None'}"
+                        )
                     
             log.info(f"TTS Model initialized successfully on {self.device}")
             log.info(f"=========== TEXT-TO-SPEECH INITIALIZED ===========")
             return True
                 
         except Exception as e:
-            log.error(f"Error initializing TTS model: {str(e)}", exc_info=True)
-            if self.device == "cuda":
-                log.info("Attempting to fall back to CPU...")
-                self.device = "cpu"
-                return self.initialize_tts_model()
-            else:
-                # TODO Create a placeholder TTS object that returns silence
-                log.warning("Creating fallback TTS that will generate silence")
-                self.is_multi_speaker = False
-                self.tts = None
-                return True
+            raise RuntimeError(f"Error initializing TTS model: {str(e)}")
     
 
     def process_tts_responses(self, response, voice_name):

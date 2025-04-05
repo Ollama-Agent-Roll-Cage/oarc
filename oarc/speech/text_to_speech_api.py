@@ -38,7 +38,7 @@ class TextToSpeechAPI(BaseToolAPI):
         
         # Initialize core attributes
         self.tts_instance = None
-        self.paths = Paths
+        self.paths = Paths()  # The singleton decorator handles returning the instance
         self.model_dir = self.paths.get_model_dir()
         
         # Get TTS paths and ensure they exist

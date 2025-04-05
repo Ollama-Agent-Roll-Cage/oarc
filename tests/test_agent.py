@@ -4,11 +4,15 @@ Provides a unified interface for processing and responding to various input type
 """
 
 import sys
+import os
 import pytest
 import platform
 
 # Add proper logging
 from oarc.utils.log import log
+
+# Add voice pack URL
+VOICE_PACK_URL = "https://huggingface.co/Borcherding/XTTS-v2_C3PO/tree/main"
 
 try:
     import gradio as gr
@@ -141,7 +145,9 @@ class TestAgent:
         log.info(f"Python: {platform.python_version()}")
         
         # Log all configured paths for transparency and debugging
-        Paths.get_instance().log_paths()
+        # FIX: Use the correct method to get the Paths singleton instance
+        paths = Paths()  # The singleton decorator will return the instance
+        paths.log_paths()
         
         # Core components
         log.info("Initializing API components")
@@ -163,25 +169,23 @@ class TestAgent:
         # Get TTS-related directories and verify voice reference file exists
         log.info("Setting up text-to-speech component")
         
-        # Check if voice reference file exists - will raise FileNotFoundError if it doesn't
         try:
-            SpeechUtils.ensure_voice_reference_file("c3po")
-            
-            # Get TTS paths dictionary from our singleton Paths class
-            tts_paths_dict = Paths.get_tts_paths_dict()
+            # Get TTS paths dictionary from our singleton Paths class - correctly access singleton
+            tts_paths_dict = paths.get_tts_paths_dict()
             
             # Log the voice configuration
             voice_type = "xtts_v2"
             voice_name = "c3po"
             log.info(f"Configuring TTS with voice type '{voice_type}', voice '{voice_name}'")
             
+            # SpeechManager will handle missing voices automatically
             self.tts = TextToSpeech(
                 developer_tools_dict=tts_paths_dict,
                 voice_type=voice_type,
                 voice_name=voice_name
             )
             log.info("Text-to-speech component initialized")
-        except FileNotFoundError as e:
+        except Exception as e:
             log.critical(f"Critical TTS initialization error: {str(e)}")
             log.critical("Cannot continue without proper TTS initialization. Exiting.")
             raise TTSInitializationError(str(e)) from e
@@ -392,7 +396,7 @@ def main():
     log.info("TestAgent script running...")
     
     try:
-        # Initialize speech manager - this must succeed before we proceed
+        # Initialize speech manager - this must succeed before we proceed 
         try:
             manager = SpeechManager()
         except (TTSInitializationError, FileNotFoundError) as e:
@@ -400,9 +404,10 @@ def main():
             # Exit immediately on any SpeechManager error
             return FAILURE
         
-        # At this point we have a valid SpeechManager
+        # Create agent normally with API enabled
         try:
             agent = TestAgent()
+            api = API()
         except Exception as e:
             log.critical(f"Failed to initialize TestAgent: {e}", exc_info=True)
             return FAILURE

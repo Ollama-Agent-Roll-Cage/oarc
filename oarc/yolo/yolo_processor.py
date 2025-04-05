@@ -1,12 +1,6 @@
 """
-YoloProcessor: A singleton class for YOLO-based object detection with Oriented Bounding Box (OBB) support.
-This class offers functionalities for:
-- Loading and managing YOLO models.
-- Processing frames to detect objects with confidence thresholds.
-- Tracking objects over time with debouncing mechanisms.
-- Drawing oriented bounding boxes on frames for visualization.
-- Capturing screen content for processing.
-- Streaming processed frames to a virtual webcam or via WebSocket.
+YoloProcessor module for handling object detection tasks with YOLO models.
+This module provides a singleton class for detecting objects in images and video.
 """
 
 import os
@@ -35,75 +29,62 @@ except ImportError:
 
 from oarc.yolo.detected_object import DetectedObject
 from oarc.utils.log import log
+from oarc.utils.paths import Paths
+from oarc.utils.decorators.singleton import singleton
 
-
+@singleton
 class YoloProcessor:
     """
-    A YOLO-based object detection processor designed to handle oriented bounding boxes (OBB).
-    This class provides functionalities for:
-    - Loading and managing a YOLO model.
-    - Detecting objects with confidence thresholds.
-    - Tracking objects over time with debouncing.
-    - Drawing oriented bounding boxes on frames.
-    - Capturing screen content for processing.
-    - Streaming processed frames to a virtual webcam.
+    YoloProcessor is responsible for handling object detection tasks using YOLO models.
+    
+    This class implements the Singleton pattern to ensure only one YOLO model is loaded
+    and used across the application, which helps with memory efficiency.
     """
     
-    # Singleton instance
-    _instance = None
-    
-    @classmethod
-    def get_instance(cls, *args, **kwargs):
-        """Get or create the singleton instance of YoloProcessor"""
-        if cls._instance is None:
-            cls._instance = cls(*args, **kwargs)
-        return cls._instance
-
-    def __init__(self, 
-                 model_path: Optional[str] = None, 
-                 conf_threshold: float = 0.5,
-                 debounce_ms: float = 200):
+    def __init__(self, model_name="yolov8n.pt"):
         """
-        Initialize YoloProcessor with configurable settings
+        Initialize the YOLO processor with the specified model.
         
         Args:
-            model_path: Path to YOLO model file (.pt)
-            conf_threshold: Confidence threshold for detections (0-1)
-            debounce_ms: Debounce time in milliseconds for object tracking
+            model_name (str): Name of the YOLO model to load
         """
-        # Only initialize once when used as singleton
-        if hasattr(self.__class__, '_initialized') and self.__class__._initialized:
-            return
-            
+        self.model_name = model_name
         self.model = None
-        self.conf_threshold = conf_threshold
-        self.model_path = model_path
-        self.debounce_time = debounce_ms / 1000.0
-        self.tracked_objects: List[DetectedObject] = []
         
-        # Color settings for visualization
+        # Fix: Use the constructor pattern for the Paths singleton
+        self.paths = Paths()
+        
+        # Get the YOLO models directory
+        self.models_dir = self.paths.get_yolo_models_dir()
+        
+        log.info(f"YoloProcessor initialized with models directory: {self.models_dir}")
+        log.info(f"Using model: {model_name}")
+        
+        # Initialize tracking-related attributes
+        self.tracked_objects = []
+        self.conf_threshold = 0.25
+        self.debounce_time = 0.5  # seconds
+        
+        # Color mapping for visualization
+        self.neon_colors = [
+            (0, 255, 127),   # Spring Green
+            (255, 0, 255),   # Magenta
+            (0, 255, 255),   # Cyan
+            (255, 255, 0),   # Yellow
+            (0, 127, 255),   # Deep Sky Blue
+            (255, 0, 127),   # Deep Pink
+            (127, 0, 255),   # Purple
+            (255, 127, 0),   # Orange
+        ]
         self.color_map = {}
         self.color_index = 0
-        self.neon_colors = [
-            (0, 255, 255),    # Neon Yellow
-            (255, 0, 255),    # Neon Pink
-            (0, 255, 0),      # Neon Green
-            (255, 128, 0),    # Neon Blue
-            (0, 128, 255),    # Neon Orange
-            (255, 0, 128),    # Neon Purple
-            (0, 255, 128),    # Neon Turquoise
-            (128, 255, 0),    # Neon Lime
-        ]
-
-        # Device selection
-        self.device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
-        log.info(f"Using device: {self.device}")
-
-        if model_path:
-            self.load_model(model_path)
-            
-        self.__class__._initialized = True
-        log.info("YoloProcessor singleton initialized")
+        
+        # Lazy loading - model will be loaded on first use
+        if os.path.exists(os.path.join(self.models_dir, model_name)):
+            self.load_model(os.path.join(self.models_dir, model_name))
+        else:
+            log.warning(f"Model file not found at {os.path.join(self.models_dir, model_name)}")
+            log.info("YoloProcessor initialized without a model. Use load_model() to load one.")
 
     def load_model(self, model_path: str) -> bool:
         """Load YOLO model from specified path"""
@@ -390,6 +371,27 @@ class YoloProcessor:
         except Exception as e:
             log.error(f"WebSocket error: {str(e)}", exc_info=True)
 
+    @classmethod
+    def get_instance(cls, model_path=None):
+        """
+        Get or create the YoloProcessor singleton instance.
+        This provides backwards compatibility with code that uses this method.
+        
+        Args:
+            model_path: Optional path to model file
+            
+        Returns:
+            YoloProcessor: Singleton instance
+        """
+        instance = cls()  # The @singleton decorator ensures this returns the existing instance
+        
+        # If model_path provided, load the model
+        if model_path and instance.model is None:
+            log.info(f"Loading model from {model_path}")
+            instance.load_model(model_path)
+            
+        return instance
+
 
 def initialize_yolo(model_path=None, port=8000):
     """Initialize the YOLO processor and API
@@ -406,8 +408,8 @@ def initialize_yolo(model_path=None, port=8000):
     # Initialize YoloProcessor with default model if available
     if not model_path:
         # Use Paths utility to get the proper model paths
-        from oarc.utils.paths import Paths
-        default_model_path = Paths.get_yolo_default_model_path()
+        paths = Paths()  # Use constructor instead of class method
+        default_model_path = paths.get_yolo_default_model_path()
             
         if os.path.exists(default_model_path):
             model_path = default_model_path
@@ -416,11 +418,13 @@ def initialize_yolo(model_path=None, port=8000):
             log.warning(f"Default model not found at {default_model_path}, initializing without model")
             
     # Get or create the YoloProcessor singleton instance
-    yolo_processor = YoloProcessor.get_instance(model_path=model_path)
+    yolo_processor = YoloProcessor()
+    if model_path:
+        yolo_processor.load_model(model_path)
     
     # Get or create the YoloAPI singleton instance
     from oarc.yolo.yolo_server_api import YoloServerAPI
-    yolo_api = YoloServerAPI.get_instance()
+    yolo_api = YoloServerAPI()
     
     log.info("YOLO initialization complete")
     return yolo_processor, yolo_api
