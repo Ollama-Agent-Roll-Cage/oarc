@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD033 MD041 MD045 -->
 <p align="center">
   <img src="assets/OARC_LOGO_RMBG.png" alt="OARC LOGO" width="250"/>
 </p>
