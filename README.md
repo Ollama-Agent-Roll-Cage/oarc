@@ -60,7 +60,6 @@ oarc <command>
 
 - `oarc` - Run the main CLI tool
 - `oarc setup` - Install all dependencies
-- `oarc upgrade` - Install all dependencies and upgrade to the latest versions
 - `oarc develop` - Setup developer mode
 - `oarc build` - Build from source code
 

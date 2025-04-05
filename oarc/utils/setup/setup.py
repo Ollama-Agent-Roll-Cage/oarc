@@ -12,7 +12,7 @@ It can also be imported and used programmatically through the main() function.
 
 import sys
 from pathlib import Path
-from oarc.utils.setup.setup_utils import ensure_pip
+from oarc.utils.setup.setup_utils import ensure_pip, install_package
 from oarc.utils.setup.tts_utils import install_coqui
 from oarc.utils.setup.cuda_utils import install_pytorch
 from oarc.utils.setup.pyaudio_utils import install_pyaudio
@@ -24,14 +24,14 @@ def main():
     venv_python = Path(sys.executable)
     log.info(f"Using Python executable: {venv_python}")
     
-    # Setup pip first
-    log.info("Setting up pip...")
-    pip_success = ensure_pip(venv_python)
+    # Setup package managers first (pip and uv)
+    log.info("Setting up package managers...")
+    pkg_mgr_success = ensure_pip(venv_python)
     
     # Track errors
     errors = []
-    if not pip_success:
-        errors.append("Pip setup failed")
+    if not pkg_mgr_success:
+        errors.append("Package manager setup had issues")
     
     # Run installation steps with proper error handling
     log.info("Installing Coqui TTS...")

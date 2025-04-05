@@ -7,7 +7,6 @@ from oarc.commands import (
     build_command,
     run_command,
     setup_command,
-    upgrade_command,
 )
 
 
@@ -24,7 +23,6 @@ def cli(**kwargs):
     subparsers = parser.add_subparsers(dest='command', help='Commands')
     
     subparsers.add_parser('setup', help='Setup dependencies')
-    subparsers.add_parser('upgrade', help='Upgrade dependencies')
     subparsers.add_parser('build', help='Build the OARC package wheel')
     
     args = parser.parse_args(kwargs.get('args', None))
@@ -48,9 +46,6 @@ def cli(**kwargs):
         case CommandType.SETUP:
             log.info("Running setup command")
             return setup_command.execute(**config)
-        case CommandType.UPGRADE:
-            log.info("Running upgrade command")
-            return upgrade_command.execute(**config)
         case CommandType.BUILD:
             log.info("Running build command") 
             return build_command.execute(**config)

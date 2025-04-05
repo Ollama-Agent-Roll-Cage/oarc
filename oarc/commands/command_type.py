@@ -14,7 +14,6 @@ class CommandType(Enum):
     """
     
     SETUP = "setup"
-    UPGRADE = "upgrade"
     BUILD = "build"
     RUN = "run"  # Default command when none is specified
 

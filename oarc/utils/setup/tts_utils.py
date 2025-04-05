@@ -5,17 +5,14 @@ TTS installation utilities for OARC setup process.
 
 import os
 import shutil
-import stat
 import subprocess
 import sys
-import tempfile
-import urllib.request
-import zipfile
 from pathlib import Path
 
 from oarc.utils.log import log
 
-TTS_REPO_URL = "https://github.com/idiap/coqui-ai-TTS/archive/refs/heads/dev.zip"
+# Updated to use the idiap repository for Coqui TTS
+TTS_REPO_URL = "https://github.com/idiap/coqui-ai-TTS.git"
 TTS_REPO_NAME = "coqui-ai-TTS"
 
 
@@ -50,95 +47,50 @@ def remove_git_dir(repo_dir):
 
 
 def install_coqui(venv_python):
-    """Install TTS directly from the GitHub repository.
+    """Install Coqui TTS directly from the GitHub repository.
     
     Args:
         venv_python: Path to Python executable in virtual environment
     
     Returns:
         bool: True if installation was successful
-    
-    Raises:
-        SystemExit: If required parameters are not provided
     """
     # Fix: Use the project root directory instead of the package directory
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     repo_dir = project_root / TTS_REPO_NAME
     
-    # Validate required parameters
-    if TTS_REPO_URL is None:
-        log.error("Error: repo_url is required")
-        sys.exit(1)
-
-    if repo_dir.exists():
-        log.info(f"TTS repository already exists at {repo_dir}. Skipping installation.")
-        return True
-    
     log.info(f"Installing TTS from GitHub repository to {repo_dir}...")
     
     # Convert to Path object if string is provided
-    if isinstance(repo_dir, str):
-        repo_dir = Path(repo_dir)
+    if isinstance(venv_python, str):
+        venv_python = Path(venv_python)
     
-    # Check if coqui directory already exists
+    # Check if coqui directory exists - remove it to ensure clean installation
     if repo_dir.exists():
-        log.info(f"Found existing TTS repository at {repo_dir}")
+        log.info(f"Found existing TTS repository at {repo_dir}, removing for fresh install")
         try:
-            # Try to remove .git directory first separately if it exists
-            remove_git_dir(repo_dir)
-            # Then remove the whole directory
             shutil.rmtree(repo_dir)
             log.info("Removed existing installation successfully.")
         except Exception as e:
             log.error(f"Error removing existing installation: {e}")
-            return False
-
-    # Create directory for the repository
-    repo_dir.parent.mkdir(exist_ok=True, parents=True)
+            # Continue even if deletion fails, git clone will handle it
     
-    # Download and extract repository
+    # Clone the repository using Git
     try:
-        log.info(f"Downloading TTS repository from {TTS_REPO_URL}...")
-        
-        # Create a temporary file to store the zip
-        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as temp_file:
-            temp_path = temp_file.name
-            
-        # Download the zip file
-        urllib.request.urlretrieve(TTS_REPO_URL, temp_path)
-        log.info("Download complete.")
-        
-        # Extract the zip file
-        log.info(f"Extracting to {repo_dir}...")
-        with zipfile.ZipFile(temp_path, 'r') as zip_ref:
-            # The GitHub zip contains a top-level directory; extract to a temporary directory first
-            temp_extract_dir = tempfile.mkdtemp()
-            zip_ref.extractall(temp_extract_dir)
-            
-            # Find the directory inside the zip (should be only one)
-            extracted_dirs = os.listdir(temp_extract_dir)
-            if not extracted_dirs:
-                raise Exception("Zip file extraction failed - no directories found")
-                
-            # Move the contents to the final destination
-            extracted_dir_path = os.path.join(temp_extract_dir, extracted_dirs[0])
-            if not os.path.exists(repo_dir.parent):
-                os.makedirs(repo_dir.parent)
-                
-            shutil.move(extracted_dir_path, repo_dir)
-            
-            # Clean up temp directory
-            shutil.rmtree(temp_extract_dir)
-        
-        # Clean up temp file
-        os.unlink(temp_path)
-        log.info("Extraction complete.")
-        
-        # Remove .git directory if present (sometimes can be in the zip)
-        remove_git_dir(repo_dir)
-        
+        log.info(f"Cloning TTS repository from {TTS_REPO_URL}...")
+        subprocess.run(
+            ["git", "clone", TTS_REPO_URL, str(repo_dir)],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        log.info("Repository cloned successfully.")
+    except subprocess.CalledProcessError as e:
+        log.error(f"Failed to clone repository: {e}")
+        log.error(f"Stderr: {e.stderr.decode() if e.stderr else 'No error output'}")
+        return False
     except Exception as e:
-        log.error(f"Error downloading or extracting TTS repository: {e}")
+        log.error(f"Error during repository cloning: {e}")
         return False
     
     # Install in development mode
@@ -150,7 +102,7 @@ def install_coqui(venv_python):
             check=True,
             timeout=300  # 5-minute timeout
         )
-        log.info("TTS installed successfully from GitHub!")
+        log.info("TTS installed successfully in editable mode!")
         return True
     except subprocess.CalledProcessError as e:
         log.error(f"Error installing TTS: {e}. TTS installation failed.")
