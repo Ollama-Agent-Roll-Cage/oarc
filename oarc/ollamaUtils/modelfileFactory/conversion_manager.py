@@ -3,10 +3,11 @@ Module used to use commands to convert between various data structurs
 """
 
 import os
-import subprocess
-# from Public_Chatbot_Base_Wand.ollama_add_on_library import ollama_commands
 import shutil
 import json
+from oarc.utils.log import log
+from oarc.ollamaUtils.modelfileFactory.create_ollama_model import create_ollama_model
+from oarc.ollamaUtils.modelfileFactory.safetensors_to_gguf import convert_safetensors_to_gguf
 
  
 class ConversionManager:
@@ -32,39 +33,35 @@ class ConversionManager:
             safe_tensor_input_name (str): The name of the input safetensors model to convert.
 
         Returns:
-            None
+            bool: True if conversion was successful, False otherwise
         """
-        # Construct the full path
-        full_path = os.path.join(self.current_dir, 'safetensors_to_GGUF.cmd')
-
-        # Define the command to be executed
-        cmd = f'call {full_path} {self.model_git} {safe_tensor_input_name}'
-
-        # Call the command
-        subprocess.run(cmd, shell=True)
-        print(f"CONVERTED: {safe_tensor_input_name}")
-        print(f"<<< USER >>> ")
-        return
+        log.info(f"Converting {safe_tensor_input_name} from safetensors to GGUF")
+        success, output_path = convert_safetensors_to_gguf(self.model_git, safe_tensor_input_name)
+        
+        if success:
+            log.info(f"CONVERTED: {safe_tensor_input_name}")
+            log.info(f"<<< USER >>> ")
+            return True
+        return False
 
 
     def create_agent_cmd(self, user_create_agent_name, cmd_file_name):
-        """Execute the create_agent_automation.cmd to create an agent.
+        """Execute the agent creation process to create an agent.
 
         Args:
             user_create_agent_name (str): The name to assign to the new agent.
-            cmd_file_name (str): The CMD file name used to trigger agent creation.
+            cmd_file_name (str): Deprecated parameter, kept for backward compatibility
         
         Returns:
-            None
+            bool: True if agent creation was successful, False otherwise
         """
         try:
-            # Construct the path to the create_agent_automation.cmd file
-            batch_file_path = os.path.join(self.current_dir, cmd_file_name)
-
-            # Call the batch file
-            subprocess.run(f"call {batch_file_path} {user_create_agent_name}", shell=True)
+            log.info(f"Creating agent: {user_create_agent_name}")
+            # Use the new Python function instead of the batch file
+            return create_ollama_model(user_create_agent_name)
         except Exception as e:
-            print(f"Error executing create_agent_cmd: {str(e)}")
+            log.error(f"Error executing create_agent_cmd: {str(e)}")
+            return False
 
 
     def copy_gguf_to_ignored_agents(self):
@@ -72,9 +69,10 @@ class ConversionManager:
         Prepares the GGUF file for conversion to Ollama format by ensuring the file is correctly positioned and contains all necessary metadata.
         """
         self.create_ollama_model_dir = os.path.join(self.ignored_agents, self.user_create_agent_name)
-        print(self.create_ollama_model_dir)
-        print(self.gguf_path)
-        print(self.create_ollama_model_dir)
+        log.info(f"Copying GGUF file to: {self.create_ollama_model_dir}")
+        log.debug(f"Source path: {self.gguf_path}")
+        log.debug(f"Destination directory: {self.create_ollama_model_dir}")
+        
         # Copy the file from self.gguf_path to create_ollama_model_dir
         shutil.copy(self.gguf_path, self.create_ollama_model_dir)
         return
