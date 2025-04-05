@@ -22,7 +22,10 @@ def cli(**kwargs):
     # Create subparsers for specific commands
     subparsers = parser.add_subparsers(dest='command', help='Commands')
     
-    subparsers.add_parser('setup', help='Setup dependencies')
+    # Add setup parser with force option
+    setup_parser = subparsers.add_parser('setup', help='Setup dependencies')
+    setup_parser.add_argument('--force', action='store_true', help='Force reinstallation of dependencies')
+    
     subparsers.add_parser('build', help='Build the OARC package wheel')
     
     args = parser.parse_args(kwargs.get('args', None))

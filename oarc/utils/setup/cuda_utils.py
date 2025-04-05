@@ -238,40 +238,44 @@ def get_pytorch_cuda_command(cuda_version=None, skip_cuda=False):
     return pip_command, packages, index_url
 
 
-def install_pytorch(venv_python):
+def is_pytorch_installed():
+    """Check if PyTorch is already installed.
+    
+    Returns:
+        bool: True if PyTorch is installed, False otherwise
+    """
+    try:
+        import importlib.util
+        return importlib.util.find_spec("torch") is not None
+    except ImportError:
+        return False
+
+
+def install_pytorch(venv_python, force=False):
     """Install PyTorch with CUDA support if available.
     
     Args:
         venv_python: Path to Python executable in virtual environment
+        force: Force reinstallation even if already installed with CUDA
     
     Returns:
-        bool: True if installation was successful, False otherwise
+        bool: True if installation was successful
     """
     log.info("Checking CUDA capabilities for PyTorch installation")
     
-    # Check if CUDA is available
     is_cuda_available, cuda_version = check_cuda_capable()
     
-    # First check if PyTorch is already installed
-    try:
-        subprocess.run(
-            [str(venv_python), "-c", "import torch"],
-            check=True, capture_output=True
-        )
-        log.info("PyTorch is already installed. Checking if it has CUDA support...")
-        
-        # Check if the installed PyTorch has CUDA support
-        if verify_pytorch_cuda():
-            log.info("Existing PyTorch installation already has CUDA support. No need to reinstall.")
-            return True
-        elif is_cuda_available:
-            log.warning("PyTorch is installed but doesn't have CUDA support. Reinstalling with CUDA...")
+    if is_pytorch_installed():
+        if force:
+            log.info("Force flag set. Reinstalling PyTorch even if already installed with CUDA.")
         else:
-            log.info("PyTorch is installed but without CUDA support, which is expected since no CUDA was detected.")
-            return True
-    except subprocess.CalledProcessError:
-        log.info("PyTorch is not installed. Installing now...")
-    
+            has_cuda = verify_pytorch_cuda()
+            if has_cuda:
+                log.info("Existing PyTorch installation already has CUDA support. No need to reinstall.")
+                return True
+            else:
+                log.warning("PyTorch is installed but doesn't have CUDA support. Reinstalling with CUDA...")
+
     # Get installation command
     pip_command, packages, index_url = get_pytorch_cuda_command(
         cuda_version=cuda_version, 

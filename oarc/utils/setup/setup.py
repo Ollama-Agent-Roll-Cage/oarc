@@ -12,14 +12,18 @@ It can also be imported and used programmatically through the main() function.
 
 import sys
 from pathlib import Path
-from oarc.utils.setup.setup_utils import ensure_pip, install_package
+from oarc.utils.setup.setup_utils import ensure_pip, install_package, upgrade_faiss_to_gpu
 from oarc.utils.setup.tts_utils import install_coqui
 from oarc.utils.setup.cuda_utils import install_pytorch
 from oarc.utils.setup.pyaudio_utils import install_pyaudio
 from oarc.utils.log import log
 
-def main():
-    """Run all dependency installation steps."""
+def main(force=False):
+    """Run all dependency installation steps.
+    
+    Args:
+        force (bool): Force reinstallation of dependencies even if already installed
+    """
     # Get the current Python executable path
     venv_python = Path(sys.executable)
     log.info(f"Using Python executable: {venv_python}")
@@ -35,7 +39,7 @@ def main():
     
     # Run installation steps with proper error handling
     log.info("Installing Coqui TTS...")
-    tts_success = install_coqui(venv_python)
+    tts_success = install_coqui(venv_python, force=force)
     if not tts_success:
         errors.append("TTS installation failed")
     
@@ -45,9 +49,14 @@ def main():
         errors.append("PyAudio installation failed")
     
     log.info("Installing PyTorch...")
-    pytorch_success = install_pytorch(venv_python)
+    pytorch_success = install_pytorch(venv_python, force=force)
     if not pytorch_success:
         errors.append("PyTorch installation failed")
+    
+    log.info("Upgrading FAISS if needed...")
+    faiss_success = upgrade_faiss_to_gpu(venv_python)
+    if not faiss_success:
+        log.warning("FAISS GPU upgrade had issues, but continuing")
     
     success = len(errors) == 0
     if success:
@@ -62,5 +71,10 @@ def main():
 
 # Make the module directly runnable
 if __name__ == "__main__":
-    success = main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Setup OARC dependencies")
+    parser.add_argument('--force', action='store_true', help='Force reinstallation of dependencies')
+    args = parser.parse_args()
+    
+    success = main(force=args.force)
     sys.exit(0 if success else 1)

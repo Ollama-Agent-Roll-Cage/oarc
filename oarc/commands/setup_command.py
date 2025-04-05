@@ -9,11 +9,26 @@ from oarc.utils.log import log
 from oarc.utils.setup.setup import main as setup_main
 
 def execute(**kwargs):
-    """Execute the setup command."""
+    """Execute the setup command.
+    
+    Args:
+        **kwargs: Command arguments
+        
+    Returns:
+        int: Command exit code
+    """
     log.info("Setting up OARC dependencies")
     
-    # Call the setup main function
-    setup_main()
+    # Pass force parameter from kwargs if present
+    force = kwargs.get('force', False)
+    if force:
+        log.info("Force flag enabled - will reinstall dependencies even if already present")
+        
+    success = setup_main(force=force)
     
-    log.info("Setup completed successfully")
-    return 0
+    if success:
+        log.info("Setup completed successfully")
+        return 0
+    else:
+        log.error("Setup failed")
+        return 1

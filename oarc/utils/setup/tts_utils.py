@@ -4,6 +4,7 @@ TTS installation utilities for OARC setup process.
 """
 
 import os
+import stat  # Added missing import
 import shutil
 import subprocess
 import sys
@@ -46,11 +47,12 @@ def remove_git_dir(repo_dir):
             return False
 
 
-def install_coqui(venv_python):
+def install_coqui(venv_python, force=False):
     """Install Coqui TTS directly from the GitHub repository.
     
     Args:
         venv_python: Path to Python executable in virtual environment
+        force: Force reinstallation even if already installed
     
     Returns:
         bool: True if installation was successful
@@ -59,15 +61,20 @@ def install_coqui(venv_python):
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     repo_dir = project_root / TTS_REPO_NAME
     
-    log.info(f"Installing TTS from GitHub repository to {repo_dir}...")
-    
     # Convert to Path object if string is provided
     if isinstance(venv_python, str):
         venv_python = Path(venv_python)
     
-    # Check if coqui directory exists - remove it to ensure clean installation
+    # Check if coqui directory exists
+    if repo_dir.exists() and not force:
+        log.info(f"TTS repository already exists at {repo_dir}. Use --force to reinstall.")
+        return True
+    
+    log.info(f"{'Reinstalling' if force else 'Installing'} TTS from GitHub repository to {repo_dir}...")
+    
+    # Check if coqui directory exists - remove it if needed
     if repo_dir.exists():
-        log.info(f"Found existing TTS repository at {repo_dir}, removing for fresh install")
+        log.info(f"Removing existing TTS repository at {repo_dir} for fresh install")
         try:
             shutil.rmtree(repo_dir)
             log.info("Removed existing installation successfully.")
