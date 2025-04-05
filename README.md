@@ -9,9 +9,30 @@
 
 # 👽🧙 OARC 🤬🤖
 
-A Python package for OARC functionality.
+OARC is a powerful multimodal toolkit and API for AI-driven workflows. It supports real-time audio, text, automation, fine-tuned LLMs, TTS, STT, vision models, and more. Features include DuckDuckGo search, chromadb, and seamless navigation. 🚀
+
+| **Feature**                | **Description**                                                                 |
+|----------------------------|-------------------------------------------------------------------------------|
+| **Real-time Multimodal AI** | Integrates audio, text, vision, and automation workflows.                     |
+| **Fine-tuned LLMs**         | Supports advanced language models for custom use cases.                       |
+| **Speech Processing**       | Includes TTS (Text-to-Speech) and STT (Speech-to-Text) capabilities.          |
+| **Vision Models**           | Enables object detection and screen capture with YOLO integration.           |
+| **Dataset Management**      | Tools for collection, generation, augmentation, and cleaning of datasets.     |
+| **Search Integration**      | DuckDuckGo, GitHub repo cloning, and web scraping APIs.                       |
+| **HuggingFace Integration** | Download, upload, and manage models and datasets.                             |
+| **Command Library**         | Centralized management of commands and agent states.                          |
+| **Extensible Architecture** | Modular design for seamless addition of new features.                         |
+| **Developer Tools**         | Editable installation, development mode, and build-from-source options.       |
+| **Automation**              | Chain-of-thought reasoning, deep research, and multimodal prompting.          |
+| **Cross-platform Support**  | Compatible with Windows, macOS, and Linux environments.                       |
+| **GPU Acceleration**        | Optimized for CUDA-enabled devices for faster processing.                     |
+| **API Services**            | RESTful APIs for integration with external systems.                           |
+| **Open Source**             | Licensed under Apache 2.0 for community-driven development.                   |
+| **Community Support**       | Active Discord server and GitHub issue tracking.                              |
 
 ## Installation
+
+Install OARC by following the steps below. Ensure Python 3.9+ is installed. For GPU acceleration, verify CUDA drivers are set up. Dependencies, including language models, vision, and audio systems, will be configured automatically.
 
 ```bash
 # Clone the repository
@@ -22,8 +43,10 @@ cd OARC
 python -m venv .venv
 .venv\Scripts\activate
 
+# Install UV package manager
+
 # Install the package with pip (editable mode)
-pip install -e .
+uv pip install -e .
 
 # Install additional dependencies
 oarc setup
@@ -33,10 +56,13 @@ oarc setup
 
 ```bash
 # Install development dependencies
+uv pip install -e .[dev]
+
+# Setup OARC development environment
 oarc develop
 ```
 
-## Building from source
+### Building from source
 
 ```bash
 # Build the oarc as a wheel from source
@@ -47,7 +73,7 @@ oarc build
 
 ```bash
 # Activate environment where OARC is installed
-oarc
+oarc <command>
 ```
 
 ## Commands
@@ -58,6 +84,9 @@ oarc
 - `oarc build` = Build from source code
 
 ## Architecture
+
+OARC's modular architecture ensures extensibility and high performance. Core components like APIs, agent management, speech, vision, and dataset pipelines interact seamlessly. The dataset pipeline handles collection, generation, augmentation, and cleaning of AI training data, supporting both synchronous and asynchronous workflows with clear separation of concerns.
+
 ```mermaid
 classDiagram
     %% Core System Components
@@ -235,3 +264,29 @@ classDiagram
     
     MultiModalPrompting -- PandasDB
 ```
+
+## License
+
+This project is licensed under the [Apache 2.0 License](LICENSE)
+
+## Citations
+
+Please use the following BibTeX entry to cite this project:
+
+```bibtex
+@software{osyllabi,
+  author = {Leo Borch, Kara Rawson},
+  title = {OARC: Ollama Agent Roll Cage is a powerful multimodal toolkit for AI interactions, automation, and workflows.},
+  year = {2025},
+  howpublished = {\url{https://github.com/Leoleojames1/OARC}},
+  note = {Accessed: 2026-01-26}
+}
+```
+
+## Contact
+
+For questions or support, please contact us at:
+
+- **Email**: <backrqqms@gmail.com>
+- **Discord**: [Join our Discord](https://discord.gg/qfpwCB8nXs)
+- **Issues**: [GitHub Issues](https://github.com/Leoleojames1/OARC/issues)
