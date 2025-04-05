@@ -178,12 +178,9 @@ class TestAgent:
             voice_name = "c3po"
             log.info(f"Configuring TTS with voice type '{voice_type}', voice '{voice_name}'")
             
-            # SpeechManager will handle missing voices automatically
-            self.tts = TextToSpeech(
-                developer_tools_dict=tts_paths_dict,
-                voice_type=voice_type,
-                voice_name=voice_name
-            )
+            # Use the SpeechManager singleton
+            from oarc.speech.speech_manager import SpeechManager
+            self.tts = SpeechManager()
             log.info("Text-to-speech component initialized")
         except Exception as e:
             log.critical(f"Critical TTS initialization error: {str(e)}")

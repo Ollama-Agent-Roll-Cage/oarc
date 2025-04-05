@@ -578,3 +578,34 @@ class SpeechManager:
         
         # Reset the singleton instance for proper cleanup
         self._reset_singleton()
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+    
+    parser = argparse.ArgumentParser(description="OARC Speech Manager")
+    parser.add_argument("--list-voices", action="store_true", help="List all available voice packs")
+    args = parser.parse_args()
+    
+    # Initialize the speech manager
+    speech_manager = SpeechManager()
+    
+    if args.list_voices:
+        print("\n=== Available Voice Packs ===")
+        voices = speech_manager.list_available_voices()
+        if voices:
+            for voice in voices:
+                print(f"- {voice}")
+        else:
+            print("No voice packs found")
+        
+        # Display voice reference path to help with troubleshooting
+        from oarc.utils.paths import Paths
+        paths = Paths()
+        print(f"\nVoice reference directory: {paths.get_voice_reference_dir()}")
+        print(f"Expected path structure: {paths.get_voice_reference_dir()}/[voice_name]/clone_speech.wav\n")
+    
+    else:
+        parser.print_help()
+        
+    sys.exit(0)
