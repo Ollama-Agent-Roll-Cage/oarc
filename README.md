@@ -44,6 +44,7 @@ python -m venv .venv
 .venv\Scripts\activate
 
 # Install UV package manager
+pip install uv
 
 # Install the package with pip (editable mode)
 uv pip install -e .
