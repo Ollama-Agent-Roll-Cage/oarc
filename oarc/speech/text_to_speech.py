@@ -111,9 +111,9 @@ class TextToSpeech:
                 self.tts = TTS(
                     model_path=fine_tuned_model_path,
                     config_path=config_path,
-                    progress_bar=False,
-                    gpu=True
-                ).to(self.device)
+                    progress_bar=False
+                )
+                self.tts.to(self.device)
                 self.is_multi_speaker = False
                 self.voice_reference_path = os.path.join(fine_tuned_model_path, "reference.wav")
                 log.info(f"Loaded fine-tuned model for voice: {self.voice_name}")

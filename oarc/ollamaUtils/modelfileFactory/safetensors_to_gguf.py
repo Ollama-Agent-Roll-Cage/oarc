@@ -1,5 +1,5 @@
 """
-Python script to convert Hugging Face safetensors to GGUF format.
+Python script to convert Hugging Face safetensors to GGUF format using llamacpp.
 Replaces the original llamacpp_safetensors_to_GGUF.cmd batch file.
 """
 
