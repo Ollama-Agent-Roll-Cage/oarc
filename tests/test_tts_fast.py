@@ -41,11 +41,12 @@ def test_basic_tts():
         if not voice_ref_file:
             log.error(f"No voice reference file found for {voice_name}. Using default model instead.")
             # Fall back to a simple model
-            log.info("Initializing default TTS model")
+            log.info("Initializing default TTS model (base model)")
             tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC")
         else:
             # Use XTTS v2 with the C3PO voice reference
             log.info(f"Using XTTS v2 with voice reference: {voice_ref_file}")
+            log.info("Initializing fine-tuned TTS model with C3PO voice")
             
             # Check if GPU is available
             device = "cuda" if torch.cuda.is_available() else "cpu"
