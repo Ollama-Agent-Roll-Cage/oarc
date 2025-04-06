@@ -15,7 +15,8 @@ from oarc.utils.const import (
     HUGGINGFACE_DIR,
     OLLAMA_MODELS_DIR, 
     SPELLS_DIR,
-    COQUI_DIR, 
+    COQUI_DIR,
+    CUSTOM_COQUI_DIR, 
     WHISPER_DIR, 
     GENERATED_DIR, 
     VOICE_REFERENCE_DIR,
@@ -107,6 +108,10 @@ class Paths:
             os.makedirs(coqui_dir, exist_ok=True)
             self._paths['tts']['coqui'] = coqui_dir
             
+            custom_coqui_dir = os.path.join(self._paths['base']['model_dir'], CUSTOM_COQUI_DIR)
+            os.makedirs(custom_coqui_dir, exist_ok=True)
+            self._paths['tts']['custom_coqui'] = custom_coqui_dir
+            
             whisper_dir = os.path.join(self._paths['base']['model_dir'], WHISPER_DIR)
             os.makedirs(whisper_dir, exist_ok=True)
             self._paths['tts']['whisper'] = whisper_dir
@@ -172,7 +177,8 @@ class Paths:
             'speech_dir': self._paths['tts']['coqui'],
             'recognize_speech_dir': self._paths['tts']['whisper'],
             'generate_speech_dir': self._paths['tts']['generated'],
-            'tts_voice_ref_wav_pack_path_dir': self._paths['tts']['voice_reference']
+            'tts_voice_ref_wav_pack_path_dir': self._paths['tts']['voice_reference'],
+            'custom_coqui': self._paths['tts']['custom_coqui']
         }
     
     def ensure_paths(self, path_dict):
