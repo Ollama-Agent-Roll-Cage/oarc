@@ -10,6 +10,8 @@ OARC utilizes a gambit of speech to speech algorthms to wrap our stt and tts mod
 allowing for the STS to keep up with the most recent sentence chunk.
 
 # High Level
+
+The following is a high level breakdown of how oarc creates seemless speech to speech algorithms with out speech to text --> LLM/LLAVA/LCM/SUB-AGENT --> text to speech architecture:
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#242438', 'primaryTextColor': '#f0f0f0', 'primaryBorderColor': '#555', 'lineColor': '#555', 'secondaryColor': '#323248', 'tertiaryColor': '#242438'}}}%%
 
@@ -60,6 +62,9 @@ flowchart LR
 ```
 
 # Main Architechture
+
+The following is a more in depth architechural flow for the speech_to_text.py and text_to_speech.py modules involvement with oarc agents:
+
 ```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#242438', 'primaryTextColor': '#f0f0f0', 'primaryBorderColor': '#555', 'lineColor': '#555', 'secondaryColor': '#323248', 'tertiaryColor': '#242438'}}}%%
 
