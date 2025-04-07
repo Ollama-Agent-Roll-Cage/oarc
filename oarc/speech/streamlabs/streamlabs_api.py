@@ -253,7 +253,7 @@ class StreamLabsAPI:
             log.info(f"Sending TTS to StreamLabs: '{text[:50]}{'...' if len(text) > 50 else ''}'")
             
             # Use SpeechManager to generate speech
-            speech_manager = SpeechManager(voice_name=voice_name if voice_name else "c3po")
+            speech_manager = SpeechManager(voice_name=voice_name if voice_name else "C3PO")
             
             audio_data = await asyncio.to_thread(
                 speech_manager.generate_speech,
