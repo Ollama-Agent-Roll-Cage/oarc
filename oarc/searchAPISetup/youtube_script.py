@@ -6,8 +6,6 @@ Find more information at https://pytube.io/en/latest/
 AUTHOR: @Borcherdingl
 DATE: 4/4/2024
 """
-import os
-
 from pytube import YouTube
 
 

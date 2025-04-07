@@ -17,7 +17,7 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel
 from pprint import pformat
 
-from oarc.wizards.ollamaChatbotWizard_OLD import ollamaAgentRollCage
+from oarc.wizards.__ollama_chatbot_wizard_OLD import ollamaAgentRollCage
 
 # Ensure this is only called once in the main entry point of your app
 logging.basicConfig(level=logging.INFO)

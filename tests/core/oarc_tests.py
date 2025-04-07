@@ -37,7 +37,7 @@ from oarc.database.pandas_db import PandasDB
 # Prompting and command components
 from oarc.prompt.multi_modal_prompting import MultiModalPrompting
 from oarc.wizards.flag_manger import FlagManager
-from oarc.wizards.commandLibrary import commandLibrary
+from oarc.wizards.cmd_library import commandLibrary
 
 # Vision components
 from oarc.yolo.processor import YoloProcessor

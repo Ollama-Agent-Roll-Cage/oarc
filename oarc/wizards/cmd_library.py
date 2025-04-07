@@ -2,6 +2,8 @@
 
 This file contains the command library for the wizard. It is a dictionary of commands that the wizard can execute.
 """
+
+from fastapi import APIRouter, Request
 #TODO UPGRADE TO STORE COMMANDS IN PANDAS DATAFRAME
 #TODO IMPORT MODULES FOR EACH COMMAND
 
