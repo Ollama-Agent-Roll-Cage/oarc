@@ -19,3 +19,7 @@
 # - dataset cleaning agents should be able to clean the data, search for errors, either automatically or with user feedback
 # - the agent should be able to generate new data based on the feedback
 # - deep search for garbage data, for all garbage datapoints, regenerate with ollama until the are no longer garbage
+
+# TODO we need a high level AgentChef provider class which interlocks with the python API
+# TODO we need to create some basic DTO classes for the agent chef to use
+# TODO we should provide the server wrappers for the agent chef to live in
