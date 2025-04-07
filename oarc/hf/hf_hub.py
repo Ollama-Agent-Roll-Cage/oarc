@@ -1,4 +1,4 @@
-"""huggingFaceHub.py
+"""hf_hub.py
 """
 
 from huggingface_hub import (
@@ -10,13 +10,13 @@ from huggingface_hub import (
     HfApi
 )
 import os
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, List
 import logging
 import asyncio
 
 logger = logging.getLogger(__name__)
 
-class HuggingFaceHub:
+class HfHub:
     """Manages interactions with Hugging Face Hub for model and dataset management"""
     
     #TODO add dataset download and upload methods and inetgrate with agentChef - uses conversation 
