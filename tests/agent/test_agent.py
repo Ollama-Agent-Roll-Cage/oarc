@@ -210,7 +210,7 @@ class TestAgent:
         
         try:
             log.info(f"Storing agent configuration for {self.agent_config['agent_id']}")
-            self.db.storeAgent(self.agent_config)
+            self.db.store_agent(self.agent_config)
             log.info("Agent configuration stored successfully")
         except Exception as e:
             log.error(f"Failed to store agent configuration: {e}", exc_info=True)
@@ -299,7 +299,7 @@ class TestAgent:
             try:
                 llm_response = await self.llm.send_prompt(
                     self.agent_config,
-                    self.db.conversation_handler,
+                    self.db.handler,
                     {
                         "text": text_input,
                         "vision": response_data["vision"]

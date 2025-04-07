@@ -162,7 +162,7 @@ class rollCage:
         """Get command library"""
         try:
             if agent_id and agent_id in self.agentCage:
-                chatbot = self.agentCage['agentCore'][agent_id]
+                chatbot = self.agentCage['agent_core'][agent_id]
                 return await chatbot.get_command_library()
             else:
                 # Get commands from default agent

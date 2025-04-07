@@ -53,7 +53,7 @@ class LLMPromptAPI(BaseToolAPI):
                 prompt_handler = MultiModalPrompting()
                 if agent_id:
                     # Load agent configuration
-                    prompt_handler.loaded_agent = await prompt_handler.load_agent(agent_id)
+                    prompt_handler.agent = await prompt_handler.load_agent(agent_id)
                 response = await prompt_handler.send_prompt(prompt)
                 return {"response": response}
             except Exception as e:

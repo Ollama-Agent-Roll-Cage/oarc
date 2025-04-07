@@ -9,10 +9,12 @@ import sys
 import os
 
 # Add the project root to the path to make imports work when running directly
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Adjusted to account for being in a subdirectory
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
+# Updated import to reflect the module path from project root
 from tests.async_harness import AsyncTestHarness
 
 class OARCFastTests(AsyncTestHarness):

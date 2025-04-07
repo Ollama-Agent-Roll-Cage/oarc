@@ -1,12 +1,17 @@
 """
-Core messaging functionality for OARC chatbot.
+Core messaging functionality for the OARC chatbot.
+
+This module provides the foundational messaging and interaction capabilities
+for the OARC chatbot, enabling multimodal communication, model management,
+and advanced prompt handling.
 """
+
+# TODO this should implement some sort of factor method which can spawn instances
 
 import base64
 import json
 import multiprocessing
 import time
-import logging
 from datetime import datetime
 from pprint import pformat
 from typing import Optional
@@ -14,11 +19,8 @@ from typing import Optional
 import ollama
 
 from oarc.database import PandasDB
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+from oarc.utils.log import log
+from oarc.utils.paths import Paths
 
 
 class MultiModalPrompting:
@@ -27,19 +29,20 @@ class MultiModalPrompting:
     def __init__(self):
         self.AGENT_FLAG = True
         self.SYSTEM_SELECT_FLAG = False
-        self.loaded_agent = None
-        self.chat_history = None
-        self.conversation_handler = None
-        self.pandas_db = PandasDB()
+        self.agent = None
+        self.history = None
+        self.handler = None
+        self.database = PandasDB()
+        self.paths = Paths() # Get singleton instance
         
 
     def set_model(self, model_name: str) -> bool:
         """Set the model for the agent."""
         try:
-            if "agentCore" not in self.loaded_agent:
+            if "core" not in self.agent:
                 raise ValueError("Agent core not found in loaded agent configuration")
             
-            self.loaded_agent["agentCore"]["models"]["largeLanguageModel"]["names"] = [model_name]
+            self.agent["agent_core"]["models"]["largeLanguageModel"]["names"] = [model_name]
             log.info(f"Model set to {model_name} for agent {self.agent_id}")
             return True
         except Exception as e:
@@ -50,7 +53,7 @@ class MultiModalPrompting:
     def swap(self, model_name):
         try:
             log.info(f"Swapping model to: {model_name}")
-            self.large_language_model = model_name
+            self.llm = model_name
             log.info(f"Model swapped to {model_name}, inheriting the previous chat history")
         except Exception as e:
             log.error(f"Error swapping model: {e}")
@@ -59,8 +62,8 @@ class MultiModalPrompting:
     def swapClear(self, swap_model_selection):
         try:
             log.info(f"Swapping model to: {swap_model_selection} and clearing chat history")
-            self.large_language_model = swap_model_selection
-            self.chat_history = []  # Clear chat history
+            self.llm = swap_model_selection
+            self.history = []  # Clear chat history
             log.info(f"Model swapped to {swap_model_selection}, with new chat history")
             return True
         except Exception as e:
@@ -72,11 +75,11 @@ class MultiModalPrompting:
         """ a method to initilize the chatbot agent conversation
         """
         # initialize chat history
-        self.pandas_db.chat_history = []
-        self.pandas_db.llava_history = []
+        self.database.history = []
+        self.database.llava_history = []
         
         # loaded agent
-        self.loaded_agent = {}
+        self.agent = {}
         
         # # TODO -> Direct ollama api access, currently unused 
         # self.url = "http://localhost:11434/api/chat"
@@ -94,34 +97,34 @@ class MultiModalPrompting:
             if user_input_prompt.startswith("/") or user_input_prompt.startswith("activate "):
                 for command, command_details in self.command_library.items():
                     if user_input_prompt.startswith(command):
-                        argsList = user_input_prompt[len(command):].strip().split()
+                        args = user_input_prompt[len(command):].strip().split()
                         command_payload = {
                             "command": command,
                             "method": command_details["method"],
                             "is_async": command_details.get("is_async", False),
-                            "argsList": argsList
+                            "argsList": args
                         }
                         break
             else:
                 # Not a command, send to multi modal prompting
-                log.info(f"⌛Loading Agent {self.agent_id} in progress⌛:\n%s", pformat(self.loaded_agent, indent=2, width=80))
+                log.info(f"⌛Loading Agent {self.agent_id} in progress⌛:\n%s", pformat(self.agent, indent=2, width=80))
                 response = await self.multi_modal_prompting.send_prompt(
-                    self.loaded_agent,
-                    self.conversation_handler,
-                    self.chat_history
+                    self.agent,
+                    self.handler,
+                    self.history
                 )
                 return {"status": "success", "response": response}
 
             if command_payload:
                 command = command_payload["command"]
                 method = command_payload["method"]
-                argsList = command_payload["argsList"]
+                args = command_payload["argsList"]
                 is_async = command_payload["is_async"]
 
                 if is_async:
-                    await method(*argsList)
+                    await method(*args)
                 else:
-                    method(*argsList)
+                    method(*args)
 
                 return {"status": "success", "command": command}
 
@@ -139,23 +142,23 @@ class MultiModalPrompting:
         """
         # TODO add booster prompt, vision system prompt, and vision booster prompt selection.
         if sys_prompt_select in self.prompts:
-            self.chat_history.append({"role": "system", "content": self.prompts[sys_prompt_select]})
+            self.history.append({"role": "system", "content": self.prompts[sys_prompt_select]})
         else:
-            print("Invalid choice. Please select a valid prompt.")
+            log.info("Invalid choice. Please select a valid prompt.")
         return sys_prompt_select
     
 
     def get_system_prompt(self):
         """Extract system prompt from loaded agent configuration."""
         try:
-            if not self.loaded_agent:
+            if not self.agent:
                 return None
 
             # Navigate through the agent configuration structure
-            if "agentCore" in self.loaded_agent:
-                if "prompts" in self.loaded_agent["agentCore"]:
-                    if "agent" in self.loaded_agent["agentCore"]["prompts"]:
-                        system_prompt = self.loaded_agent["agentCore"]["prompts"]["agent"].get("llmSystem")
+            if "agent_core" in self.agent:
+                if "prompts" in self.agent["agent_core"]:
+                    if "agent" in self.agent["agent_core"]["prompts"]:
+                        system_prompt = self.agent["agent_core"]["prompts"]["agent"].get("llmSystem")
                         if system_prompt:
                             return system_prompt
 
@@ -168,18 +171,21 @@ class MultiModalPrompting:
 
     async def send_prompt(self, loaded_agent, conversation_handler, chat_history):
         """Send prompt with multimodal data handling"""
+        # TODO split up into more modular functions, and add more error handling
         try:
-            self.loaded_agent = loaded_agent
-            self.chat_history = chat_history
+            self.agent = loaded_agent
+            self.history = chat_history
 
-            user_prompt = self.loaded_agent["agentCore"]["prompts"]["userInput"]
-            model = self.loaded_agent["agentCore"]["models"]["largeLanguageModel"]["names"][0]
-            conversationName = self.loaded_agent["agentCore"]["conversation"]["load_name"]
+            user_prompt = self.agent["agent_core"]["prompts"]["userInput"]
+            model = self.agent["agent_core"]["models"]["largeLanguageModel"]["names"][0]
+            conversation_name = self.agent["agent_core"]["conversation"]["load_name"]
 
-            EMBEDDING_FLAG = self.loaded_agent["agentCore"]["modalityFlags"]["EMBEDDING_FLAG"]
-            MEMORY_CLEAR_FLAG = self.loaded_agent["agentCore"]["modalityFlags"]["MEMORY_CLEAR_FLAG"]
+            log.info(f"Loading agent {conversation_name[:50]} with model {model[:50]} and prompt {user_prompt[:50]}")
 
-            self.conversation_handler = conversation_handler
+            EMBEDDING_FLAG = self.agent["agent_core"]["modalityFlags"]["EMBEDDING_FLAG"]
+            MEMORY_CLEAR_FLAG = self.agent["agent_core"]["modalityFlags"]["MEMORY_CLEAR_FLAG"]
+
+            self.handler = conversation_handler
 
             if MEMORY_CLEAR_FLAG is True:
                 chat_history.clear()
@@ -192,23 +198,23 @@ class MultiModalPrompting:
                 system_prompt = "You are a helpful assistant. Please help the user with their task."
 
             # Ensure llmSystem key is present in loaded_agent
-            if "llmSystem" not in self.loaded_agent["agentCore"]["prompts"]:
+            if "llmSystem" not in self.agent["agent_core"]["prompts"]:
                 log.error("llmSystem key is missing in loaded_agent")
                 raise KeyError("llmSystem key is missing in loaded_agent")
 
             # set system prompt
-            if self.AGENT_FLAG or self.SYSTEM_SELECT_FLAG and self.loaded_agent["agentCore"]["agent_id"] != "default":
-                self.chat_history.append({"role": "system", "content": self.loaded_agent["agentCore"]["prompts"]["llmSystem"]})
-                log.info(f"System prompt set: {self.loaded_agent['agentCore']['prompts']['llmSystem']}")
+            if self.AGENT_FLAG or self.SYSTEM_SELECT_FLAG and self.agent["agent_core"]["agent_id"] != "default":
+                self.history.append({"role": "system", "content": self.agent["agent_core"]["prompts"]["llmSystem"]})
+                log.info(f"System prompt set: {self.agent['agent_core']['prompts']['llmSystem']}")
 
             if not self.LLAVA_FLAG and not self.LLM_BOOSTER_PROMPT_FLAG:
-                self.chat_history.append({"role": "user", "content": user_prompt})
+                self.history.append({"role": "user", "content": user_prompt})
                 log.info(f"User prompt added: {user_prompt}")
 
             if self.LLM_BOOSTER_PROMPT_FLAG and not self.LLAVA_FLAG:
-                self.fusedPrompt = self.loaded_agent["agentCore"]["prompts"]["llmBooster"] + f"{user_prompt}"
-                self.chat_history.append({"role": "user", "content": self.fusedPrompt})
-                log.info(f"Fused prompt added: {self.fusedPrompt}")
+                self.fused_prompt = self.agent["agent_core"]["prompts"]["llmBooster"] + f"{user_prompt}"
+                self.history.append({"role": "user", "content": self.fused_prompt})
+                log.info(f"Fused prompt added: {self.fused_prompt}")
 
             if self.LLAVA_FLAG:
                 with open(f'{self.screenshot_path}', 'rb') as f:
@@ -217,17 +223,17 @@ class MultiModalPrompting:
                 self.llava_response = await self.llava_prompt(user_prompt, user_screenshot_raw2, user_prompt, self.language_and_vision_model)
 
                 if self.LLM_BOOSTER_PROMPT_FLAG:
-                    self.chat_history.append({"role": "assistant", "content": f"VISION_DATA: {self.llava_response}"})
-                    self.fusedPrompt = self.loaded_agent["agentCore"]["prompts"]["llmBooster"] + f"{user_prompt}"
-                    self.chat_history.append({"role": "user", "content": self.fusedPrompt})
-                    log.info(f"LLAVA response and fused prompt added: {self.llava_response}, {self.fusedPrompt}")
+                    self.history.append({"role": "assistant", "content": f"VISION_DATA: {self.llava_response}"})
+                    self.fused_prompt = self.agent["agent_core"]["prompts"]["llmBooster"] + f"{user_prompt}"
+                    self.history.append({"role": "user", "content": self.fused_prompt})
+                    log.info(f"LLAVA response and fused prompt added: {self.llava_response}, {self.fused_prompt}")
 
             if EMBEDDING_FLAG is True:
                 response = await self.embedding_ollama_prompt(self.agent_id, user_prompt)
             else:
                 response = await ollama.chat(
                     model = model, 
-                    messages=self.chat_history,
+                    messages=self.history,
                     stream=True
                 )
 
@@ -242,9 +248,9 @@ class MultiModalPrompting:
                         chunk_content = str(chunk_content)
 
                     model_response += chunk_content
-                    print(chunk_content, end='', flush=True)
+                    log.info(chunk_content, end='', flush=True)
 
-            self.chat_history.append({"role": "assistant", "content": model_response})
+            self.history.append({"role": "assistant", "content": model_response})
 
             if self.TTS_FLAG:
                 await self.tts_processor_instance.process_tts_responses(model_response, self.voice_name)
@@ -253,12 +259,12 @@ class MultiModalPrompting:
                     self.speech_interrupted = False
 
             # Store the conversation in the conversation handler
-            await self.conversation_handler.store_message({"role": "assistant", "content": model_response})
+            await self.handler.store_message({"role": "assistant", "content": model_response})
 
             # Store the conversation with metadata
             metadata = {
                 "model_info": {
-                    "name": self.large_language_model,
+                    "name": self.llm,
                     "type": "llm"
                 }
             }
@@ -279,19 +285,19 @@ class MultiModalPrompting:
                 }
 
             # Store in PandasDB with metadata
-            await self.pandas_db.store_message(
+            await self.database.store_message(
                 role="user",
                 content=user_prompt,
                 metadata=metadata
             )
 
             # Store assistant response
-            await self.pandas_db.store_message(
+            await self.database.store_message(
                 role="assistant", 
                 content=model_response,
                 metadata={
                     "model_info": {
-                        "name": self.large_language_model,
+                        "name": self.llm,
                         "type": "llm"
                     }
                 }
@@ -307,19 +313,19 @@ class MultiModalPrompting:
             return f"Error: {e}"
         
 
-    def ollamaConcurrentPrompts(self, model, promptList):
+    def ollama_concurrent_prompts(self, model, prompt_list):
         """ a method for sending prompts in multiprocessing to the model, this will be recorded 
         to the conversation.
             args: model, promptList
         """
-        for prompt in promptList:
+        for prompt in prompt_list:
             with multiprocessing.Pool(processes=1) as pool:
                 #TODO TEST AND IMPLEMENT
                 pool.apply_async(self.send_prompt, args=(model,))
         pass
     
 
-    def ollamaConcurrentModels(self, modelList, prompList, multiprocessEachModel):
+    def ollama_concurrent_models(self, modelList, prompList, multiprocessEachModel):
         """ a method for sending prompts in multiprocessing to multiple model, this will be recorded
         to the conversation. This can be used to prompt multiple models with one prompt, multiple
         prompts, or can be used to prompt multiple modelse each with multiple prompts in multiprocessing.
@@ -347,18 +353,18 @@ class MultiModalPrompting:
         # if agent selected, set up system prompts for vision model
 
         if self.VISION_SYSTEM_PROMPT is True:
-            self.vision_system_constructor = f"{self.loaded_agent['agentCore']['prompts']['visionSystem']} " + f"{user_input_prompt}"
+            self.vision_system_constructor = f"{self.agent['agent_core']['prompts']['visionSystem']} " + f"{user_input_prompt}"
             self.llava_history.append({"role": "system", "content": f"{self.vision_system_constructor}"})
         else:
             self.navigator_default()
-            self.vision_system_constructor = f"{self.general_navigator_agent['agentCore']['prompts']['visionSystem']} " + f"{user_input_prompt}"
+            self.vision_system_constructor = f"{self.general_navigator_agent['agent_core']['prompts']['visionSystem']} " + f"{user_input_prompt}"
             self.llava_history.append({"role": "system", "content": f"{self.vision_system_constructor}"})
 
         if self.AGENT_FLAG == True:
-            self.vision_booster_constructor = f"{self.loaded_agent['agentCore']['prompts']['visionBooster']}" + f"{user_input_prompt}"
+            self.vision_booster_constructor = f"{self.agent['agent_core']['prompts']['visionBooster']}" + f"{user_input_prompt}"
             message = {"role": "user", "content": f"{self.vision_booster_constructor}"}
         else:
-            self.vision_booster_constructor = f"{self.general_navigator_agent['agentCore']['prompts']['visionBooster']}" + f"{user_input_prompt}"
+            self.vision_booster_constructor = f"{self.general_navigator_agent['agent_core']['prompts']['visionBooster']}" + f"{user_input_prompt}"
             message = {"role": "user", "content": f"{self.vision_booster_constructor}"}
 
         #TODO ADD LLM PROMPT REFINEMENT (example: stable diffusion llm to prompt diffusion model) 
@@ -384,7 +390,7 @@ class MultiModalPrompting:
                 if 'message' in chunk and 'content' in chunk['message']:
                     content = chunk['message']['content']
                     model_response += content
-                    print(content, end='', flush=True)
+                    log.info(content, end='', flush=True)
             
             # Append the full response to llava_history
             self.llava_history.append({"role": "assistant", "content": model_response})
@@ -394,7 +400,7 @@ class MultiModalPrompting:
             self.llava_history = self.llava_history[-2:]
 
             # Store the conversation in the conversation handler
-            await self.conversation_handler.store_message({"role": "assistant", "content": model_response})
+            await self.handler.store_message({"role": "assistant", "content": model_response})
             
             return model_response
         except Exception as e:
@@ -409,16 +415,16 @@ class MultiModalPrompting:
             return f"Agent '{agent_id}' not found"
                 
         # Get model configurations
-        llm_model = agent["agentCore"]["models"]["largeLanguageModel"]["names"][0]
+        llm_model = agent["agent_core"]["models"]["largeLanguageModel"]["names"][0]
         if not llm_model:
             return "No language model configured for this agent"
         
-        embedding_model = agent["agentCore"]["models"]["embedding"][0]
+        embedding_model = agent["agent_core"]["models"]["embedding"][0]
         
         try:
             # Get collections
             collection_name = f"conversations_{agent_id}"
-            conv_collection = self.pandas_db[collection_name]
+            conv_collection = self.database[collection_name]
             
             # Ensure vector search index exists
             try:
@@ -427,16 +433,16 @@ class MultiModalPrompting:
                     "similarity": "cosine"
                 })
             except Exception as e:
-                print(f"Note: Vector index may already exist: {e}")
+                log.info(f"Note: Vector index may already exist: {e}")
             
             # Create session ID
             session_id = f"{agent_id}_{int(time.time())}"
             
             # Build system prompt
             system_prompt = (
-                f"{agent['agentCore']['prompts']['userInput']} "
-                f"{agent['agentCore']['prompts']['agent']['llmSystem']} "
-                f"{agent['agentCore']['prompts']['agent']['llmBooster']}"
+                f"{agent['agent_core']['prompts']['userInput']} "
+                f"{agent['agent_core']['prompts']['agent']['llmSystem']} "
+                f"{agent['agent_core']['prompts']['agent']['llmBooster']}"
             )
             
             # Get message embedding
@@ -484,7 +490,7 @@ class MultiModalPrompting:
             
             if stream:
                 # Stream response
-                print("\nAssistant: ", end="", flush=True)
+                log.info("\nAssistant: ", end="", flush=True)
                 stream = ollama.chat(
                     model=llm_model,
                     messages=messages,
@@ -539,7 +545,7 @@ class MultiModalPrompting:
                 model_response - model response data
         """
         if modelSelect == "none":
-            modelSelect = self.large_language_model
+            modelSelect = self.llm
         
         # Clear chat history
         self.shot_history = []
@@ -578,7 +584,7 @@ class MultiModalPrompting:
                 model_response - model response data
         """
         if modelSelect == "none":
-            modelSelect = self.large_language_model
+            modelSelect = self.llm
         
         if appendHistory == "new":
             # Clear chat history
@@ -606,10 +612,10 @@ class MultiModalPrompting:
                 return f"Error: {e}"
         else:
             # Append user prompt
-            self.chat_history.append({"role": "user", "content": prompt})
+            self.history.append({"role": "user", "content": prompt})
 
             try:
-                response = ollama.chat(model=self.large_language_model, messages=self.chat_history, stream=True)
+                response = ollama.chat(model=self.llm, messages=self.history, stream=True)
                 
                 model_response = ''
                 for chunk in response:
@@ -621,7 +627,7 @@ class MultiModalPrompting:
                 print('\n')
                 
                 # Append the full response to shot_history
-                self.chat_history.append({"role": "assistant", "content": model_response})
+                self.history.append({"role": "assistant", "content": model_response})
                 
                 return model_response
             except Exception as e:
@@ -652,7 +658,7 @@ class MultiModalPrompting:
                 model_response - model response data
         """
         if modelSelect == "none":
-            modelSelect = self.large_language_model
+            modelSelect = self.llm
         
         #TODO if contextArg is not "new", and is instead;
         #       agentCoreConversation; spin up shot prompt selected conversation
@@ -687,7 +693,7 @@ class MultiModalPrompting:
             return f"Error: {e}"
 
 
-    def chainOfThought(self, prompt, reasoningModules):
+    def chain_of_thought(self, prompt, reasoningModules):
         """ a method to chain together a series of prompts, and responses to create a chain of thought
             for the agent to follow, this can be used to create a more human like conversation flow
             and can be used to create a more human like conversation flow and can be used to create
@@ -720,13 +726,13 @@ class MultiModalPrompting:
         # reasoning module, or combination of reasoning modules, to solve to problem.
         pass
     
-    def selectReasoningModule(self):
+    def select_reasoning_module(self):
         """ a method to select the reasoning algorithm for the chainOfThought method"""
         #TODO SELECT MODE
         # codingReasoningModule, searchReasoningModule, deepResearch
         pass
     
-    def codingReasoningModule(self):
+    def coding_reasoning_module(self):
         """ a method defining the coding reasoning module for the chainOfThought method"""
         #TODO SELECT MODE
         # LOCAL MODES:
@@ -735,7 +741,7 @@ class MultiModalPrompting:
         # WEB EXAMPLE, GITHUB, STACKOVERFLOW, ARXIV, WIKIPEDIA, DUCKDUCKGO
         pass
     
-    def searchReasoningModule(self):
+    def search_reasoning_module(self):
         """ a method defining the search reasoning module for the chainOfThought method"""
         #TODO DUCKDUCKGO
         #TODO ARXIV
@@ -746,7 +752,7 @@ class MultiModalPrompting:
         #TODO !!NEW!! Web crawlers for the most part will be moved to agent chef modules
         pass
     
-    def deepResearch(self, prompt):
+    def deep_research(self, prompt):
         """ a method to allow the agent to perform deep reseach on the specified topic using the
         provided search apis and the chainOfThought method. Providing deep thinking loops, for
         long term memory storage and retrieval, and the ability to perform deep research on a
@@ -756,7 +762,7 @@ class MultiModalPrompting:
         """
         pass
     
-    def swarmPrompt(self, multimodalStream):
+    def swarm_prompt(self, multimodalStream):
         """ a method to allow the agent to perform a swarm prompt on 
-        the specified topic using multiple models in swarm configuration with the agentCore metadata from the pandaDB"""
+        the specified topic using multiple models in swarm configuration with the agent_core metadata from the pandaDB"""
         pass

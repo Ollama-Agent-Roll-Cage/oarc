@@ -5,7 +5,6 @@ This module defines the PandasDB class, which serves as a database interface usi
 import os
 import re
 import json
-import logging
 import asyncio
 from datetime import datetime
 from typing import Optional, Dict
@@ -15,15 +14,13 @@ from fastapi import HTTPException
 from pprint import pformat
 from llama_index.experimental.query_engine import PandasQueryEngine
 
+from oarc.utils.log import log
 from oarc.database.agent_storage import AgentStorage
 from oarc.database.prompt_template import PromptTemplate
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+from oarc.utils.decorators.singleton import singleton
 
 
+@singleton
 class PandasDB:
     def __init__(self):
         """
@@ -48,13 +45,13 @@ class PandasDB:
             'metadata'
         ])
         self.setup_conversation_storage()
-        self.query_engine = None
-        self.conversation_handler = None
+        self.engine = None
+        self.handler = None # TODO we need initialization logic for this, not init??
         self.agent_cores = None
         self.current_date = datetime.now().strftime("%Y%m%d")
         
-        # Set up path library
-        self.pathLibrary = {
+        # Set up path dictionary for conversation storage
+        self.path_dict = {
             'conversation_library_dir': 'conversations',
             'default_conversation_path': None
         }
@@ -77,7 +74,7 @@ class PandasDB:
         """Set up the Pandas Query Engine"""
         try:
             self.df = df
-            self.query_engine = PandasQueryEngine(
+            self.engine = PandasQueryEngine(
                 df=self.df,
                 verbose=verbose,
                 synthesize_response=synthesize_response
@@ -99,7 +96,7 @@ class PandasDB:
         and provides instructions on how the query should be formulated.
         """
         try:
-            new_prompt = PromptTemplate(
+            prompt = PromptTemplate(
                 """
                 You are working with a pandas dataframe in Python.
                 The name of the dataframe is `df`.
@@ -112,7 +109,7 @@ class PandasDB:
 
                 Expression: """
             )
-            self.query_engine.update_prompts({"pandas_prompt": new_prompt})
+            self.engine.update_prompts({"pandas_prompt": prompt})
             log.info("Query engine prompts updated")
         except Exception as e:
             log.error(f"Error updating query engine prompts: {e}")
@@ -129,10 +126,10 @@ class PandasDB:
             ValueError: If the query engine is not initialized (i.e., setup_query_engine has not been called).
         """
         try:
-            if not self.query_engine:
+            if not self.engine:
                 raise ValueError("Query engine not initialized. Call setup_query_engine first.")
                 
-            response = self.query_engine.query(query_str)
+            response = self.engine.query(query_str)
             log.info(f"Query executed: {query_str}")
             return str(response)
         except Exception as e:
@@ -140,7 +137,7 @@ class PandasDB:
             return f"Error: {str(e)}"
     
 
-    def chatbotPandasDB(self, query_str: str):
+    def chatbot_pandas_db(self, query_str: str):
         """Handle a natural language query for the chatbot by processing the input, executing it via the query engine, storing both the query and the generated response in the conversation history if enabled, and returning the result."""
         try:
             # Ensure we have a dataframe loaded
@@ -151,7 +148,7 @@ class PandasDB:
             response = asyncio.run(self.query_data(query_str))
             
             # Add to conversation history if needed
-            if self.conversation_handler:
+            if self.handler:
                 asyncio.run(self.store_message("user", query_str))
                 asyncio.run(self.store_message("assistant", str(response)))
             
@@ -161,7 +158,7 @@ class PandasDB:
             return f"Error processing query: {str(e)}"
     
 
-    def storeAgent(self):
+    def store_agent(self):
         """
         Store the current agent configuration in the pandas database.
 
@@ -170,7 +167,7 @@ class PandasDB:
         to persist and subsequently retrieve the agent's settings.
         """
         try:
-            agent_entry = {
+            entry = {
                 'timestamp': datetime.now(),
                 'role': 'system',
                 'content': 'agent_configuration',
@@ -178,19 +175,19 @@ class PandasDB:
                     'agent_id': self.agent_id,
                     'models': {
                         'largeLanguageModel': {
-                            'name': self.large_language_model,
+                            'name': self.llm,
                             'type': 'llm'
                         },
                         'largeLanguageAndVisionAssistant': {
-                            'name': self.language_and_vision_model,
+                            'name': self.lvm,
                             'type': 'vision'
                         },
                         'yoloVision': {
-                            'name': self.yolo_model,
+                            'name': self.vision,
                             'type': 'detection'
                         },
                         'speechRecognitionSTT': {
-                            'name': self.whisper_model,
+                            'name': self.sst,
                             'type': 'stt'
                         },
                         'voiceGenerationTTS': {
@@ -209,16 +206,16 @@ class PandasDB:
                     },
                     'prompts': {
                         'userInput': self.user_input_prompt,
-                        'llmSystem': self.llmSystemPrompt,
-                        'llmBooster': self.llmBoosterPrompt,
-                        'visionSystem': self.visionSystemPrompt,
-                        'visionBooster': self.visionBoosterPrompt
+                        'llmSystem': self.llm_system_prompt,
+                        'llmBooster': self.llm_booster_prompt,
+                        'visionSystem': self.vision_system_prompt,
+                        'visionBooster': self.vision_booster_prompt
                     }
                 })
             }
 
             # Add to DataFrame
-            self.df = pd.concat([self.df, pd.DataFrame([agent_entry])], ignore_index=True)
+            self.df = pd.concat([self.df, pd.DataFrame([entry])], ignore_index=True)
             
             # Save to agent cores if available
             if self.agent_cores:
@@ -236,28 +233,28 @@ class PandasDB:
         """Load conversation history from a JSON file and update internal state accordingly."""
         # Update load name and model
         self.load_name = load_name if load_name else f"conversation_{self.agent_id}_{self.current_date}"
-        self.large_language_model = large_language_model
+        self.llm = large_language_model
         
         # Update paths with new load name
         temp_save_name = self.save_name
         self.save_name = self.load_name
-        self.updateConversationPaths()
+        self.update_conversation_paths()
         
         # Load conversation
         try:
-            with open(self.pathLibrary['default_conversation_path'], 'r') as json_file:
-                self.chat_history = json.load(json_file)
-            print(f"Conversation loaded from: {self.pathLibrary['default_conversation_path']}")
+            with open(self.path_dict['default_conversation_path'], 'r') as json_file:
+                self.history = json.load(json_file)
+            print(f"Conversation loaded from: {self.path_dict['default_conversation_path']}")
             
             # Load from PandasDB
-            self.chat_history = asyncio.run(self.conversation_handler.load_conversation(self.save_name))
+            self.history = asyncio.run(self.handler.load_conversation(self.save_name))
             
         except Exception as e:
             print(f"Error loading conversation: {e}")
         finally:
             # Restore original save name
             self.save_name = temp_save_name
-            self.updateConversationPaths()
+            self.update_conversation_paths()
 
 
     def save_to_json(self, save_name, large_language_model):
@@ -279,22 +276,23 @@ class PandasDB:
         """
         # Update save name and model
         self.save_name = save_name if save_name else f"conversation_{self.agent_id}_{self.current_date}"
-        self.large_language_model = large_language_model
+        self.llm = large_language_model
         
         # Update paths with new save name
-        self.updateConversationPaths()
+        self.update_conversation_paths()
         
         # Save conversation
         try:
-            with open(self.pathLibrary['default_conversation_path'], 'w') as json_file:
-                json.dump(self.chat_history, json_file)
-            print(f"Conversation saved to: {self.pathLibrary['default_conversation_path']}")
+            with open(self.path_dict['default_conversation_path'], 'w') as json_file:
+                json.dump(self.history, json_file)
+            print(f"Conversation saved to: {self.path_dict['default_conversation_path']}")
             
             # Save to PandasDB
-            asyncio.run(self.conversation_handler.save_conversation(self.save_name, self.agent_id))
+            asyncio.run(self.handler.save_conversation(self.save_name, self.agent_id))
             
         except Exception as e:
-            print(f"Error saving conversation: {e}")
+            log.error(f"Error saving conversation: {e}")
+            raise RuntimeError(f"Error saving conversation: {e}")
         
 
     def file_name_conversation_history_filter(self, input):
@@ -316,11 +314,9 @@ class PandasDB:
         # Replace spaces with underscores and convert the input to lowercase using a regex substitution.
         output = re.sub(' ', '_', input).lower()
         return output
-        output = re.sub(' ', '_', input).lower()
-        return output
     
 
-    def setAgent(self, agent_id):
+    def set_agent(self, agent_id):
         """
         Load and apply the configuration for the specified agent.
 
@@ -337,20 +333,20 @@ class PandasDB:
         try:
             log.info("Loading agent configuration for agent_id: %s", agent_id)
             # From agent cores, load the agent configuration for the selected agent_id
-            agent_config = self.agent_cores.loadAgentCore(agent_id)
+            config = self.agent_cores.load_agent_core(agent_id)
             # set id in config
-            agent_config["agentCore"]["agent_id"] = agent_id 
+            config["agent_core"]["agent_id"] = agent_id 
             
             # Remove the redundant agent_id key if it exists
-            if 'agent_id' in agent_config:
-                del agent_config['agent_id']
+            if 'agent_id' in config:
+                del config['agent_id']
             
-            if not agent_config:
+            if not config:
                 raise ValueError(f"Agent {agent_id} not found")
 
             # Ensure models key is present
-            if "models" not in agent_config:
-                agent_config["agentCore"]["models"] = {
+            if "models" not in config:
+                config["agent_core"]["models"] = {
                     "largeLanguageModel": {"names": [], "instances": [], "model_config_template": {}},
                     "embedding": {"names": [], "instances": [], "model_config_template": {}},
                     "largeLanguageAndVisionAssistant": {"names": [], "instances": [], "model_config_template": {}},
@@ -361,8 +357,8 @@ class PandasDB:
                 log.info("Added missing 'models' key to agent_config")
 
             # Ensure prompts key is present
-            if "prompts" not in agent_config:
-                agent_config["agentCore"]["prompts"] = {
+            if "prompts" not in config:
+                config["agent_core"]["prompts"] = {
                     "userInput": "",
                     "llmSystem": "",
                     "llmBooster": "",
@@ -373,8 +369,8 @@ class PandasDB:
                 log.info("Added missing 'prompts' key to agent_config")
 
             # Ensure modalityFlags key is present
-            if "modalityFlags" not in agent_config:
-                agent_config["agentCore"]["modalityFlags"] = {
+            if "modalityFlags" not in config:
+                config["agent_core"]["modalityFlags"] = {
                     "TTS_FLAG": False,
                     "STT_FLAG": False,
                     "CHUNK_AUDIO_FLAG": False,
@@ -394,51 +390,55 @@ class PandasDB:
                 log.info("Added missing 'modalityFlags' key to agent_config")
 
             # Ensure conversation key is present
-            if "conversation" not in agent_config:
-                agent_config["agentCore"]["conversation"] = {
+            if "conversation" not in config:
+                config["agent_core"]["conversation"] = {
                     "save_name": "",
                     "load_name": ""
                 }
                 log.info("Added missing 'conversation' key to agent_config")
 
             # Update agent state from configuration
-            self.agent_id = agent_config["agentCore"]["agent_id"]
+            self.agent_id = config["agent_core"]["agent_id"]
+            
             # models
-            self.large_language_model = agent_config["agentCore"]["models"]["largeLanguageModel"]["names"][0] if agent_config["agentCore"]["models"]["largeLanguageModel"]["names"] else None
-            self.embedding_model = agent_config["agentCore"]["models"]["embedding"]["names"][0] if agent_config["agentCore"]["models"]["embedding"]["names"] else None
-            self.language_and_vision_model = agent_config["agentCore"]["models"]["largeLanguageAndVisionAssistant"]["names"][0] if agent_config["agentCore"]["models"]["largeLanguageAndVisionAssistant"]["names"] else None
-            self.yolo_model = agent_config["agentCore"]["models"]["yoloVision"]["names"][0] if agent_config["agentCore"]["models"]["yoloVision"]["names"] else None
-            self.whisper_model = agent_config["agentCore"]["models"]["speechRecognitionSTT"]["names"][0] if agent_config["agentCore"]["models"]["speechRecognitionSTT"]["names"] else None
-            self.voice_name = agent_config["agentCore"]["models"]["voiceGenerationTTS"]["names"][0] if agent_config["agentCore"]["models"]["voiceGenerationTTS"]["names"] else None
-            self.voice_type = agent_config["agentCore"]["models"]["voiceGenerationTTS"]["model_config_template"].get("voice_type", None)
+            self.llm = config["agent_core"]["models"]["largeLanguageModel"]["names"][0] if config["agent_core"]["models"]["largeLanguageModel"]["names"] else None
+            self.embedding_model = config["agent_core"]["models"]["embedding"]["names"][0] if config["agent_core"]["models"]["embedding"]["names"] else None
+            self.lvm = config["agent_core"]["models"]["largeLanguageAndVisionAssistant"]["names"][0] if config["agent_core"]["models"]["largeLanguageAndVisionAssistant"]["names"] else None
+            self.vision = config["agent_core"]["models"]["yoloVision"]["names"][0] if config["agent_core"]["models"]["yoloVision"]["names"] else None
+            self.sst = config["agent_core"]["models"]["speechRecognitionSTT"]["names"][0] if config["agent_core"]["models"]["speechRecognitionSTT"]["names"] else None
+            self.voice_name = config["agent_core"]["models"]["voiceGenerationTTS"]["names"][0] if config["agent_core"]["models"]["voiceGenerationTTS"]["names"] else None
+            self.voice_type = config["agent_core"]["models"]["voiceGenerationTTS"]["model_config_template"].get("voice_type", None)
+            
             # prompts
-            self.user_input_prompt = agent_config["agentCore"]["prompts"]["userInput"]
-            self.llmSystemPrompt = agent_config["agentCore"]["prompts"]["llmSystem"]
-            self.llmBoosterPrompt = agent_config["agentCore"]["prompts"]["llmBooster"]
-            self.visionSystemPrompt = agent_config["agentCore"]["prompts"]["visionSystem"]
-            self.visionBoosterPrompt = agent_config["agentCore"]["prompts"]["visionBooster"]
+            self.user_input_prompt = config["agent_core"]["prompts"]["userInput"]
+            self.llm_system_prompt = config["agent_core"]["prompts"]["llmSystem"]
+            self.llm_booster_prompt = config["agent_core"]["prompts"]["llmBooster"]
+            self.vision_system_prompt = config["agent_core"]["prompts"]["visionSystem"]
+            self.vision_booster_prompt = config["agent_core"]["prompts"]["visionBooster"]
+            
             # flags
-            self.LLM_SYSTEM_PROMPT_FLAG = agent_config["agentCore"]["modalityFlags"]["LLM_SYSTEM_PROMPT_FLAG"]
-            self.LLM_BOOSTER_PROMPT_FLAG = agent_config["agentCore"]["modalityFlags"]["LLM_BOOSTER_PROMPT_FLAG"]
-            self.VISION_SYSTEM_PROMPT_FLAG = agent_config["agentCore"]["modalityFlags"]["VISION_SYSTEM_PROMPT_FLAG"]
-            self.VISION_BOOSTER_PROMPT_FLAG = agent_config["agentCore"]["modalityFlags"]["VISION_BOOSTER_PROMPT_FLAG"]
-            self.TTS_FLAG = agent_config["agentCore"]["modalityFlags"]["TTS_FLAG"]
-            self.STT_FLAG = agent_config["agentCore"]["modalityFlags"]["STT_FLAG"]
-            self.CHUNK_FLAG = agent_config["agentCore"]["modalityFlags"]["CHUNK_AUDIO_FLAG"]
-            self.AUTO_SPEECH_FLAG = agent_config["agentCore"]["modalityFlags"]["AUTO_SPEECH_FLAG"]
-            self.LLAVA_FLAG = agent_config["agentCore"]["modalityFlags"]["LLAVA_FLAG"]
-            self.SCREEN_SHOT_FLAG = agent_config["agentCore"]["modalityFlags"]["SCREEN_SHOT_FLAG"]
-            self.SPLICE_FLAG = agent_config["agentCore"]["modalityFlags"]["SPLICE_VIDEO_FLAG"]
-            self.AGENT_FLAG = agent_config["agentCore"]["modalityFlags"]["ACTIVE_AGENT_FLAG"]
-            self.MEMORY_CLEAR_FLAG = agent_config["agentCore"]["modalityFlags"]["CLEAR_MEMORY_FLAG"]
-            self.EMBEDDING_FLAG = agent_config["agentCore"]["modalityFlags"]["EMBEDDING_FLAG"]
+            self.LLM_SYSTEM_PROMPT_FLAG = config["agent_core"]["modalityFlags"]["LLM_SYSTEM_PROMPT_FLAG"]
+            self.LLM_BOOSTER_PROMPT_FLAG = config["agent_core"]["modalityFlags"]["LLM_BOOSTER_PROMPT_FLAG"]
+            self.VISION_SYSTEM_PROMPT_FLAG = config["agent_core"]["modalityFlags"]["VISION_SYSTEM_PROMPT_FLAG"]
+            self.VISION_BOOSTER_PROMPT_FLAG = config["agent_core"]["modalityFlags"]["VISION_BOOSTER_PROMPT_FLAG"]
+            self.TTS_FLAG = config["agent_core"]["modalityFlags"]["TTS_FLAG"]
+            self.STT_FLAG = config["agent_core"]["modalityFlags"]["STT_FLAG"]
+            self.CHUNK_FLAG = config["agent_core"]["modalityFlags"]["CHUNK_AUDIO_FLAG"]
+            self.AUTO_SPEECH_FLAG = config["agent_core"]["modalityFlags"]["AUTO_SPEECH_FLAG"]
+            self.LLAVA_FLAG = config["agent_core"]["modalityFlags"]["LLAVA_FLAG"]
+            self.SCREEN_SHOT_FLAG = config["agent_core"]["modalityFlags"]["SCREEN_SHOT_FLAG"]
+            self.SPLICE_FLAG = config["agent_core"]["modalityFlags"]["SPLICE_VIDEO_FLAG"]
+            self.AGENT_FLAG = config["agent_core"]["modalityFlags"]["ACTIVE_AGENT_FLAG"]
+            self.MEMORY_CLEAR_FLAG = config["agent_core"]["modalityFlags"]["CLEAR_MEMORY_FLAG"]
+            self.EMBEDDING_FLAG = config["agent_core"]["modalityFlags"]["EMBEDDING_FLAG"]
+            
             # conversation metadata
-            self.save_name = agent_config["agentCore"]["conversation"]["save_name"]
-            self.load_name = agent_config["agentCore"]["conversation"]["load_name"]
+            self.save_name = config["agent_core"]["conversation"]["save_name"]
+            self.load_name = config["agent_core"]["conversation"]["load_name"]
 
             # Update paths
-            self.updateConversationPaths()
-            log.info(f"Agent {agent_id} loaded successfully:\n%s", pformat(agent_config, indent=2, width=80))
+            self.update_conversation_paths()
+            log.info(f"Agent {agent_id} loaded successfully:\n%s", pformat(config, indent=2, width=80))
 
         except Exception as e:
             log.error(f"Error loading agent {agent_id}: {e}")
@@ -483,7 +483,7 @@ class PandasDB:
             return formatted_agents
         except Exception as e:
             log.error(f"Error listing agents: {e}")
-            return []
+            raise RuntimeError(f"Error listing agents: {e}")
 
 
     def create_agent_from_template(self, template_name: str, agent_id: str, custom_config: Optional[Dict] = None):
@@ -509,7 +509,7 @@ class PandasDB:
             self.agent_cores.create_agent_from_template(template_name, agent_id)
             
             # Initialize the new agent
-            self.setAgent(agent_id)
+            self.set_agent(agent_id)
             log.info(f"Agent {agent_id} created successfully from template {template_name}")
         except Exception as e:
             log.error(f"Error creating agent from template: {e}")
@@ -531,16 +531,16 @@ class PandasDB:
             Logs success or failure messages, including any encountered exceptions.
         """
         try:
-            # Create current state configuration matching agentCore structure
+            # Create current state configuration matching agent_core structure
             current_state = {
-                "agentCore": {
+                "agent_core": {
                     "identifyers": {
                         "agent_id": self.agent_id,
                         "creationDate": self.current_date
                     },
                     "models": {
                         "largeLanguageModel": {
-                            "names": [self.large_language_model] if self.large_language_model else [],
+                            "names": [self.llm] if self.llm else [],
                             "instances": []
                         },
                         "embedding": {
@@ -548,15 +548,15 @@ class PandasDB:
                             "instances": []
                         },
                         "largeLanguageAndVisionAssistant": {
-                            "names": [self.language_and_vision_model] if self.language_and_vision_model else [],
+                            "names": [self.lvm] if self.lvm else [],
                             "instances": []
                         },
                         "yoloVision": {
-                            "names": [self.yolo_model] if self.yolo_model else [],
+                            "names": [self.vision] if self.vision else [],
                             "instances": []
                         },
                         "speechRecognitionSTT": {
-                            "names": [self.whisper_model] if self.whisper_model else [],
+                            "names": [self.sst] if self.sst else [],
                             "instances": []
                         },
                         "voiceGenerationTTS": {
@@ -569,10 +569,10 @@ class PandasDB:
                     "prompts": {
                         "userInput": self.user_input_prompt,
                         "agent": {
-                            "llmSystem": self.llmSystemPrompt,
-                            "llmBooster": self.llmBoosterPrompt,
-                            "visionSystem": self.visionSystemPrompt,
-                            "visionBooster": self.visionBoosterPrompt
+                            "llmSystem": self.llm_system_prompt,
+                            "llmBooster": self.llm_booster_prompt,
+                            "visionSystem": self.vision_system_prompt,
+                            "visionBooster": self.vision_booster_prompt
                         }
                     },
                     "modalityFlags": {
@@ -603,7 +603,7 @@ class PandasDB:
             return False
         
 
-    def coreAgent(self):
+    def core_agent(self):
         """
         Constructs the core agent structure, which includes configurations for models, prompts, 
         databases, and modality flags. This structure serves as the foundational setup for the agent's 
@@ -633,13 +633,13 @@ class PandasDB:
            - Combines all the above configurations into a single dictionary structure.
            - Includes agent identifiers such as `agent_id` and a placeholder for `uid`.
         Returns:
-            None: The method initializes the `self.agentCore` attribute with the complete agent core 
+            None: The method initializes the `self.agent_core` attribute with the complete agent core 
             structure.
         """
         # Define model configurations
         models_config = {
             "largeLanguageModel": {
-                "names": [self.large_language_model] if self.large_language_model else [],
+                "names": [self.llm] if self.llm else [],
                 "instances": [],
                 "model_config_template": {}
             },
@@ -649,17 +649,17 @@ class PandasDB:
                 "model_config_template": {}
             },
             "largeLanguageAndVisionAssistant": {
-                "names": [self.language_and_vision_model] if self.language_and_vision_model else [],
+                "names": [self.lvm] if self.lvm else [],
                 "instances": [],
                 "model_config_template": {}
             },
             "yoloVision": {
-                "names": [self.yolo_model] if self.yolo_model else [],
+                "names": [self.vision] if self.vision else [],
                 "instances": [],
                 "model_config_template": {}
             },
             "speechRecognitionSTT": {
-                "names": [self.whisper_model] if self.whisper_model else [],
+                "names": [self.sst] if self.sst else [],
                 "instances": [],
                 "model_config_template": {}
             },
@@ -685,7 +685,7 @@ class PandasDB:
         # Define database configurations
         # TODO FIX HOME AGENT MATRIX NAME
         #TODO CONVERT TO PANDAS DB WITH JSON DATA FOR AGENTS
-        database_config = {
+        db_config = {
             "agents": {
                 "conversation": f"conversation_{self.agent_id}.db",
                 "knowledge": f"knowledge_{self.agent_id}.db",
@@ -717,22 +717,22 @@ class PandasDB:
             "VISION_BOOSTER_PROMPT_FLAG": False
         }
 
-        # Create the complete agent core structure
-        self.agentCore = {
-            "agentCore": {
+        # Create single complete agent core structure
+        self.agent_core = {
+            "agent_core": {
                 "identifyers": {
                     "agent_id": self.agent_id,
                     "uid": None,
                 },
                 "models": models_config,
                 "prompts": prompts_config,
-                "databases": database_config,
+                "databases": db_config,
                 "modalityFlags": modality_flags
             }
         }
         
 
-    def initializeConversation(self):
+    def init_conversation(self):
         """
         Initializes a conversation with default values and file paths.
         This method sets up the conversation by generating a default save name 
@@ -748,14 +748,14 @@ class PandasDB:
             self.load_name = self.save_name
             
             # Update conversation paths after initializing defaults
-            self.updateConversationPaths()
+            self.update_conversation_paths()
             log.info("Conversation initialized successfully.")
         except Exception as e:
             log.error(f"Error initializing conversation: {e}")
             raise
         
 
-    def updateConversationPaths(self):
+    def update_conversation_paths(self):
         """
         Updates the file paths specific to the current conversation by creating 
         a directory for the agent's conversations if it does not already exist.
@@ -768,7 +768,7 @@ class PandasDB:
             Exception: If there is an error while creating the conversation directory.
         """
         try:
-            agent_conversation_dir = os.path.join(self.pathLibrary['conversation_library_dir'], self.agent_id)
+            agent_conversation_dir = os.path.join(self.path_dict['conversation_library_dir'], self.agent_id)
             os.makedirs(agent_conversation_dir, exist_ok=True)
             log.info("Conversation paths updated successfully.")
         except Exception as e:
@@ -794,7 +794,7 @@ class PandasDB:
                 - `voice`: Voice model details or identifier.
             - `flags`: A dictionary for storing additional custom flags or states.
         """
-        self.conversation_schema = {
+        self.schema = {
             'messages': [],
             'metadata': {
                 'agent_id': None,
@@ -838,7 +838,7 @@ class PandasDB:
             self.df = pd.concat([self.df, pd.DataFrame([entry])], ignore_index=True)
             
             # Add to conversation history
-            self.conversation_schema['messages'].append({
+            self.schema['messages'].append({
                 'role': role,
                 'content': content,
                 **(metadata or {})
@@ -886,7 +886,7 @@ class PandasDB:
             
             return json.dumps({
                 "messages": messages,
-                "metadata": self.conversation_schema["metadata"]
+                "metadata": self.schema["metadata"]
             }, indent=2)
         except Exception as e:
             log.error(f"Error exporting conversation: {e}")
@@ -909,7 +909,7 @@ class PandasDB:
             Exception: If an error occurs while retrieving the conversation history, it logs the error and re-raises the exception.
         """
         try:
-            history = await self.conversation_handler.get_conversation_history(session_id, limit)
+            history = await self.handler.get_conversation_history(session_id, limit)
             log.info(f"Retrieved conversation history: {history}")
             return history
         except Exception as e:
@@ -933,7 +933,7 @@ class PandasDB:
             - Logs an error message if the save operation fails.
         """
         try:
-            await self.conversation_handler.save_conversation(save_name, session_id)
+            await self.handler.save_conversation(save_name, session_id)
             log.info(f"Saved conversation with name: {save_name}")
         except Exception as e:
             log.error(f"Error saving conversation: {e}")
@@ -958,7 +958,7 @@ class PandasDB:
             - Error: Logs any errors encountered during the loading process.
         """
         try:
-            conversation = await self.conversation_handler.load_conversation(save_name)
+            conversation = await self.handler.load_conversation(save_name)
             log.info(f"Loaded conversation with name: {save_name}")
             return conversation
         except Exception as e:
@@ -982,13 +982,17 @@ class PandasDB:
             - Error: Logs an error message if an exception is raised.
         """
         try:
-            await self.conversation_handler.clear_history(session_id)
+            await self.handler.clear_history(session_id)
             log.info(f"Cleared conversation history for session_id: {session_id}")
         except Exception as e:
             log.error(f"Error clearing conversation history: {e}")
             raise
 
 
+    # TODO the following API code should be moved into its own pandas db api script
+    # -----------------------------------------------------
+    # API routes for managing agents and their configurations
+    # -----------------------------------------------------//
     def setup_routes(self):
         """
         Set up API routes for managing agents and their configurations.
@@ -1282,3 +1286,5 @@ class PandasDB:
                 return {"status": "success", "message": f"Agent {agent_id} models updated"}
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
+            
+        # --------------------------------------            

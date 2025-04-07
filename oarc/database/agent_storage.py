@@ -245,7 +245,7 @@ class AgentStorage:
 
             # Create or update each agent
             for agent_config in agents_to_create:
-                agent_id = agent_config['agentCore']['agent_id']
+                agent_id = agent_config['agent_core']['agent_id']
                 if not self.pandas_db.loadAgentCore(agent_id):
                     self.pandas_db.mintAgent(agent_id, agent_config)
                     log.info(f"Created default agent: {agent_id}")
@@ -384,7 +384,7 @@ class AgentStorage:
                 self.setAgent(self.agent_id)
             else:
                 self.coreAgent()
-                self.pandas_db.mintAgent(self.agent_id, self.agentCore)
+                self.pandas_db.mintAgent(self.agent_id, self.agent_core)
 
             # Initialize conversation details after agent setup
             self.save_name = f"conversation_{self.agent_id}_{self.current_date}"
@@ -510,9 +510,9 @@ class AgentStorage:
             
             for agent in agents:
                 # Load full config to get additional details
-                config = self.pandas_db.loadAgentCore(agent['agentCore']["agent_id"])
+                config = self.pandas_db.loadAgentCore(agent['agent_core']["agent_id"])
                 if config:
-                    models = config["agentCore"]["models"]
+                    models = config["agent_core"]["models"]
                     formatted_agents.append({
                         "agent_id": agent["agent_id"],
                         "largeLanguageModel": models.get("largeLanguageModel", {}).get("names", [None])[0],
@@ -601,8 +601,8 @@ class AgentStorage:
         if not agent_config:
             raise ValueError(f"Agent configuration for {agent_id} not found")
 
-        if "agentCore" not in agent_config:
-            agent_config["agentCore"] = {
+        if "agent_core" not in agent_config:
+            agent_config["agent_core"] = {
                 "prompts": {
                     "userInput": "",
                     "llmSystem": "",

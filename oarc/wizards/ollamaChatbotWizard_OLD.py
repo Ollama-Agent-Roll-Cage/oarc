@@ -207,7 +207,7 @@ class ollamaAgentRollCage:
                 self.setAgent(self.agent_id)
             else:
                 self.coreAgent()
-                self.agent_cores.mintAgent(self.agent_id, self.agentCore)
+                self.agent_cores.mintAgent(self.agent_id, self.agent_core)
 
             # Initialize conversation details after agent setup
             self.save_name = f"conversation_{self.agent_id}_{self.current_date}"
@@ -290,9 +290,9 @@ class ollamaAgentRollCage:
             
             for agent in agents:
                 # Load full config to get additional details
-                config = self.agent_cores.loadAgentCore(agent['agentCore']["agent_id"])
+                config = self.agent_cores.loadAgentCore(agent['agent_core']["agent_id"])
                 if config:
-                    models = config["agentCore"]["models"]
+                    models = config["agent_core"]["models"]
                     formatted_agents.append({
                         "agent_id": agent["agent_id"],
                         "largeLanguageModel": models.get("largeLanguageModel", {}).get("names", [None])[0],
@@ -603,8 +603,8 @@ class ollamaAgentRollCage:
         }
 
         # Create the complete agent core structure
-        self.agentCore = {
-            "agentCore": {
+        self.agent_core = {
+            "agent_core": {
                 "identifyers": {
                     "agent_id": self.agent_id,
                     "uid": None,
@@ -641,7 +641,7 @@ class ollamaAgentRollCage:
             # From agent cores, load the agent configuration for the selected agent_id
             agent_config = self.agent_cores.loadAgentCore(agent_id)
             # set id in config
-            agent_config["agentCore"]["agent_id"] = agent_id 
+            agent_config["agent_core"]["agent_id"] = agent_id 
             
             # Remove the redundant agent_id key if it exists
             if 'agent_id' in agent_config:
@@ -652,7 +652,7 @@ class ollamaAgentRollCage:
 
             # Ensure models key is present
             if "models" not in agent_config:
-                agent_config["agentCore"]["models"] = {
+                agent_config["agent_core"]["models"] = {
                     "largeLanguageModel": {"names": [], "instances": [], "model_config_template": {}},
                     "embedding": {"names": [], "instances": [], "model_config_template": {}},
                     "largeLanguageAndVisionAssistant": {"names": [], "instances": [], "model_config_template": {}},
@@ -664,7 +664,7 @@ class ollamaAgentRollCage:
 
             # Ensure prompts key is present
             if "prompts" not in agent_config:
-                agent_config["agentCore"]["prompts"] = {
+                agent_config["agent_core"]["prompts"] = {
                     "userInput": "",
                     "llmSystem": "",
                     "llmBooster": "",
@@ -676,7 +676,7 @@ class ollamaAgentRollCage:
 
             # Ensure modalityFlags key is present
             if "modalityFlags" not in agent_config:
-                agent_config["agentCore"]["modalityFlags"] = {
+                agent_config["agent_core"]["modalityFlags"] = {
                     "TTS_FLAG": False,
                     "STT_FLAG": False,
                     "CHUNK_AUDIO_FLAG": False,
@@ -697,46 +697,46 @@ class ollamaAgentRollCage:
 
             # Ensure conversation key is present
             if "conversation" not in agent_config:
-                agent_config["agentCore"]["conversation"] = {
+                agent_config["agent_core"]["conversation"] = {
                     "save_name": "",
                     "load_name": ""
                 }
                 logger.info("Added missing 'conversation' key to agent_config")
 
             # Update agent state from configuration
-            self.agent_id = agent_config["agentCore"]["agent_id"]
+            self.agent_id = agent_config["agent_core"]["agent_id"]
             # models
-            self.large_language_model = agent_config["agentCore"]["models"]["largeLanguageModel"]["names"][0] if agent_config["agentCore"]["models"]["largeLanguageModel"]["names"] else None
-            self.embedding_model = agent_config["agentCore"]["models"]["embedding"]["names"][0] if agent_config["agentCore"]["models"]["embedding"]["names"] else None
-            self.language_and_vision_model = agent_config["agentCore"]["models"]["largeLanguageAndVisionAssistant"]["names"][0] if agent_config["agentCore"]["models"]["largeLanguageAndVisionAssistant"]["names"] else None
-            self.yolo_model = agent_config["agentCore"]["models"]["yoloVision"]["names"][0] if agent_config["agentCore"]["models"]["yoloVision"]["names"] else None
-            self.whisper_model = agent_config["agentCore"]["models"]["speechRecognitionSTT"]["names"][0] if agent_config["agentCore"]["models"]["speechRecognitionSTT"]["names"] else None
-            self.voice_name = agent_config["agentCore"]["models"]["voiceGenerationTTS"]["names"][0] if agent_config["agentCore"]["models"]["voiceGenerationTTS"]["names"] else None
-            self.voice_type = agent_config["agentCore"]["models"]["voiceGenerationTTS"]["model_config_template"].get("voice_type", None)
+            self.large_language_model = agent_config["agent_core"]["models"]["largeLanguageModel"]["names"][0] if agent_config["agent_core"]["models"]["largeLanguageModel"]["names"] else None
+            self.embedding_model = agent_config["agent_core"]["models"]["embedding"]["names"][0] if agent_config["agent_core"]["models"]["embedding"]["names"] else None
+            self.language_and_vision_model = agent_config["agent_core"]["models"]["largeLanguageAndVisionAssistant"]["names"][0] if agent_config["agent_core"]["models"]["largeLanguageAndVisionAssistant"]["names"] else None
+            self.yolo_model = agent_config["agent_core"]["models"]["yoloVision"]["names"][0] if agent_config["agent_core"]["models"]["yoloVision"]["names"] else None
+            self.whisper_model = agent_config["agent_core"]["models"]["speechRecognitionSTT"]["names"][0] if agent_config["agent_core"]["models"]["speechRecognitionSTT"]["names"] else None
+            self.voice_name = agent_config["agent_core"]["models"]["voiceGenerationTTS"]["names"][0] if agent_config["agent_core"]["models"]["voiceGenerationTTS"]["names"] else None
+            self.voice_type = agent_config["agent_core"]["models"]["voiceGenerationTTS"]["model_config_template"].get("voice_type", None)
             # prompts
-            self.user_input_prompt = agent_config["agentCore"]["prompts"]["userInput"]
-            self.llmSystemPrompt = agent_config["agentCore"]["prompts"]["llmSystem"]
-            self.llmBoosterPrompt = agent_config["agentCore"]["prompts"]["llmBooster"]
-            self.visionSystemPrompt = agent_config["agentCore"]["prompts"]["visionSystem"]
-            self.visionBoosterPrompt = agent_config["agentCore"]["prompts"]["visionBooster"]
+            self.user_input_prompt = agent_config["agent_core"]["prompts"]["userInput"]
+            self.llmSystemPrompt = agent_config["agent_core"]["prompts"]["llmSystem"]
+            self.llmBoosterPrompt = agent_config["agent_core"]["prompts"]["llmBooster"]
+            self.visionSystemPrompt = agent_config["agent_core"]["prompts"]["visionSystem"]
+            self.visionBoosterPrompt = agent_config["agent_core"]["prompts"]["visionBooster"]
             # flags
-            self.LLM_SYSTEM_PROMPT_FLAG = agent_config["agentCore"]["modalityFlags"]["LLM_SYSTEM_PROMPT_FLAG"]
-            self.LLM_BOOSTER_PROMPT_FLAG = agent_config["agentCore"]["modalityFlags"]["LLM_BOOSTER_PROMPT_FLAG"]
-            self.VISION_SYSTEM_PROMPT_FLAG = agent_config["agentCore"]["modalityFlags"]["VISION_SYSTEM_PROMPT_FLAG"]
-            self.VISION_BOOSTER_PROMPT_FLAG = agent_config["agentCore"]["modalityFlags"]["VISION_BOOSTER_PROMPT_FLAG"]
-            self.TTS_FLAG = agent_config["agentCore"]["modalityFlags"]["TTS_FLAG"]
-            self.STT_FLAG = agent_config["agentCore"]["modalityFlags"]["STT_FLAG"]
-            self.CHUNK_FLAG = agent_config["agentCore"]["modalityFlags"]["CHUNK_AUDIO_FLAG"]
-            self.AUTO_SPEECH_FLAG = agent_config["agentCore"]["modalityFlags"]["AUTO_SPEECH_FLAG"]
-            self.LLAVA_FLAG = agent_config["agentCore"]["modalityFlags"]["LLAVA_FLAG"]
-            self.SCREEN_SHOT_FLAG = agent_config["agentCore"]["modalityFlags"]["SCREEN_SHOT_FLAG"]
-            self.SPLICE_FLAG = agent_config["agentCore"]["modalityFlags"]["SPLICE_VIDEO_FLAG"]
-            self.AGENT_FLAG = agent_config["agentCore"]["modalityFlags"]["ACTIVE_AGENT_FLAG"]
-            self.MEMORY_CLEAR_FLAG = agent_config["agentCore"]["modalityFlags"]["CLEAR_MEMORY_FLAG"]
-            self.EMBEDDING_FLAG = agent_config["agentCore"]["modalityFlags"]["EMBEDDING_FLAG"]
+            self.LLM_SYSTEM_PROMPT_FLAG = agent_config["agent_core"]["modalityFlags"]["LLM_SYSTEM_PROMPT_FLAG"]
+            self.LLM_BOOSTER_PROMPT_FLAG = agent_config["agent_core"]["modalityFlags"]["LLM_BOOSTER_PROMPT_FLAG"]
+            self.VISION_SYSTEM_PROMPT_FLAG = agent_config["agent_core"]["modalityFlags"]["VISION_SYSTEM_PROMPT_FLAG"]
+            self.VISION_BOOSTER_PROMPT_FLAG = agent_config["agent_core"]["modalityFlags"]["VISION_BOOSTER_PROMPT_FLAG"]
+            self.TTS_FLAG = agent_config["agent_core"]["modalityFlags"]["TTS_FLAG"]
+            self.STT_FLAG = agent_config["agent_core"]["modalityFlags"]["STT_FLAG"]
+            self.CHUNK_FLAG = agent_config["agent_core"]["modalityFlags"]["CHUNK_AUDIO_FLAG"]
+            self.AUTO_SPEECH_FLAG = agent_config["agent_core"]["modalityFlags"]["AUTO_SPEECH_FLAG"]
+            self.LLAVA_FLAG = agent_config["agent_core"]["modalityFlags"]["LLAVA_FLAG"]
+            self.SCREEN_SHOT_FLAG = agent_config["agent_core"]["modalityFlags"]["SCREEN_SHOT_FLAG"]
+            self.SPLICE_FLAG = agent_config["agent_core"]["modalityFlags"]["SPLICE_VIDEO_FLAG"]
+            self.AGENT_FLAG = agent_config["agent_core"]["modalityFlags"]["ACTIVE_AGENT_FLAG"]
+            self.MEMORY_CLEAR_FLAG = agent_config["agent_core"]["modalityFlags"]["CLEAR_MEMORY_FLAG"]
+            self.EMBEDDING_FLAG = agent_config["agent_core"]["modalityFlags"]["EMBEDDING_FLAG"]
             # conversation metadata
-            self.save_name = agent_config["agentCore"]["conversation"]["save_name"]
-            self.load_name = agent_config["agentCore"]["conversation"]["load_name"]
+            self.save_name = agent_config["agent_core"]["conversation"]["save_name"]
+            self.load_name = agent_config["agent_core"]["conversation"]["load_name"]
 
             # Update paths
             self.updateConversationPaths()
@@ -790,9 +790,9 @@ class ollamaAgentRollCage:
 
     def save_agent_state(self):
         try:
-            # Create current state configuration matching agentCore structure
+            # Create current state configuration matching agent_core structure
             current_state = {
-                "agentCore": {
+                "agent_core": {
                     "identifyers": {
                         "agent_id": self.agent_id,
                         "creationDate": self.current_date
@@ -1931,7 +1931,7 @@ class ollamaAgentRollCage:
 
             # Create or update each agent
             for agent_config in agents_to_create:
-                agent_id = agent_config['agentCore']['agent_id']
+                agent_id = agent_config['agent_core']['agent_id']
                 if not self.agent_cores.loadAgentCore(agent_id):
                     self.agent_cores.mintAgent(agent_id, agent_config)
                     logger.info(f"Created default agent: {agent_id}")

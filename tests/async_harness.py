@@ -102,19 +102,20 @@ class AsyncTestHarness(ABC):
             harness_class: The test harness class to instantiate and run
         """
         if not issubclass(harness_class, AsyncTestHarness):
-            raise TypeError("Harness class must inherit from BaseAsyncTestHarness")
+            raise TypeError("Harness class must inherit from AsyncTestHarness")
             
         harness = harness_class()
-        sys.exit(run_harness(harness))
+        sys.exit(cls._run_harness(harness))
 
-def run_harness(harness: AsyncTestHarness) -> int:
-    """Helper function to run a test harness from __main__.
-    
-    Args:
-        harness: Test harness instance to run
+    @staticmethod
+    def _run_harness(harness: "AsyncTestHarness") -> int:
+        """Helper method to run a test harness.
         
-    Returns:
-        int: System exit code (SUCCESS/FAILURE)
-    """
-    result = asyncio.run(harness.execute())
-    return SUCCESS if result else FAILURE
+        Args:
+            harness: Test harness instance to run
+            
+        Returns:
+            int: System exit code (SUCCESS/FAILURE)
+        """
+        result = asyncio.run(harness.execute())
+        return SUCCESS if result else FAILURE

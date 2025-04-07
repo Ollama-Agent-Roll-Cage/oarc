@@ -4,7 +4,7 @@ This script initializes a TestAgent, launches its Gradio interface, and maintain
 
 import asyncio
 
-from tests.test_agent import TestAgent
+from tests.agent.test_agent import TestAgent
 
 async def main():
     # Initialize and run test agent

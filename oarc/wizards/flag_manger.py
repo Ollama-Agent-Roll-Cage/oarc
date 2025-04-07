@@ -5,11 +5,24 @@ that are used to control state machine for the oarc agents in the oarc wizard.
 """
 
 #TODO ENSURE INTERACTION BETWEEN PANDAS DB AND OARC API IS FLUID
+
+import os
+import json
+import asyncio
+from typing import Dict, Any
+import websockets
+
+from oarc.utils.log import log
+from oarc.utils.paths import Paths # TODO this should be implemented
+from oarc.utils.decorators.singleton import singleton
+from oarc.speech.text_to_speech import TextToSpeech
+from oarc.promptModel import MultiModalPrompting
+
+
+@singleton
 class FlagManager:
     def __init__(self, agent_id, command_library, new_state, tts_processor_instance, 
-                 speech_recognizer_instance, yolo_processor_instance, large_language_model, 
-                 current_dir, parent_dir, speech_dir, recognize_speech_dir, generate_speech_dir, 
-                 tts_voice_ref_wav_pack_path):
+                 speech_recognizer_instance, yolo_processor_instance, large_language_model):
         
         self.agent_id = agent_id
         self.command_library = command_library
@@ -18,12 +31,15 @@ class FlagManager:
         self.speech_recognizer_instance = speech_recognizer_instance
         self.yolo_processor_instance = yolo_processor_instance
         self.large_language_model = large_language_model
-        self.current_dir = current_dir
-        self.parent_dir = parent_dir
-        self.speech_dir = speech_dir
-        self.recognize_speech_dir = recognize_speech_dir
-        self.generate_speech_dir = generate_speech_dir
-        self.tts_voice_ref_wav_pack_path = tts_voice_ref_wav_pack_path
+        
+        self.paths = Paths()
+        tts_paths = self.paths.get_tts_paths_dict()
+        self.current_dir = tts_paths["current_path"]
+        self.parent_dir = tts_paths["parent_path"]
+        self.speech_dir = tts_paths["speech_dir"]
+        self.recognize_speech_dir = tts_paths["recognize_speech_dir"]
+        self.generate_speech_dir = tts_paths["generate_speech_dir"]
+        self.tts_voice_ref_wav_pack_path = tts_paths["tts_voice_ref_wav_pack_path_dir"]
         
         self.TTS_FLAG = False
         self.STT_FLAG = False
@@ -69,12 +85,12 @@ class FlagManager:
         self.TTS_FLAG = flag
 
         if self.TTS_FLAG:
-            print("- text to speech activated -")
-            print("🎙️ You can press shift+alt to interrupt speech generation. 🎙️")
+            log.info("- text to speech activated -")
+            log.info("🎙️ You can press shift+alt to interrupt speech generation. 🎙️")
             
             # Initialize TTS processor if not already initialized
             if not self.tts_processor_instance:
-                self.tts_processor_instance = textToSpeech(
+                self.tts_processor_instance = TextToSpeech(
                     developer_tools_dict={
                         'current_dir': self.current_dir,
                         'parent_dir': self.parent_dir,
@@ -87,14 +103,14 @@ class FlagManager:
                     voice_name=self.voice_name
                 )
         else:
-            print("- text to speech deactivated -")
+            log.info("- text to speech deactivated -")
 
-        print(f"TTS_FLAG FLAG STATE: {self.TTS_FLAG}")
+        log.info(f"TTS_FLAG FLAG STATE: {self.TTS_FLAG}")
         return
     
     def speech(self, flag1, flag2):
         if flag1 and flag2 == True:
-            print("🎙️ Press ctrl+shift to open mic, press ctrl+alt to close mic and recognize speech, then press shift+alt to interrupt speech generation. 🎙️")
+            log.info("🎙️ Press ctrl+shift to open mic, press ctrl+alt to close mic and recognize speech, then press shift+alt to interrupt speech generation. 🎙️")
             self.get_voice_selection()
             self.tts_processor_instance = self.instance_tts_processor(self.voice_type, self.voice_name)
             
@@ -102,39 +118,39 @@ class FlagManager:
        
     def llava_flow(self, flag):
         self.LLAVA_FLAG = flag
-        print(f"LLAVA_FLAG FLAG STATE: {self.LLAVA_FLAG}")
+        log.info(f"LLAVA_FLAG FLAG STATE: {self.LLAVA_FLAG}")
         return
     
     def voice_swap(self, voice_name_selection):
         # Search for the name after 'forward slash voice swap'
-        print(f"Agent voice swapped to {voice_name_selection}")
-        print(f"<<< USER >>> ")
+        log.info(f"Agent voice swapped to {voice_name_selection}")
+        log.info(f"<<< USER >>> ")
         
         return
         
     def listen(self):
         if not self.STT_FLAG:
             self.STT_FLAG = True
-            print("- speech to text activated -")
-            print("🎙️ Press ctrl+shift to open mic, press ctrl+alt to close mic and recognize speech, then press shift+alt to interrupt speech generation. 🎙️")
+            log.info("- speech to text activated -")
+            log.info("🎙️ Press ctrl+shift to open mic, press ctrl+alt to close mic and recognize speech, then press shift+alt to interrupt speech generation. 🎙️")
         else:
-            print("- speech to text deactivated -")
+            log.info("- speech to text deactivated -")
 
         return
 
     def auto_commands(self, flag):
         self.auto_commands_flag = flag
-        print(f"auto_commands FLAG STATE: {self.auto_commands_flag}")
+        log.info(f"auto_commands FLAG STATE: {self.auto_commands_flag}")
         return
     
     def wake_commands(self, flag):
         self.speech_recognizer_instance.use_wake_commands = flag
-        print(f"use_wake_commands FLAG STATE: {self.speech_recognizer_instance.use_wake_commands}")
+        log.info(f"use_wake_commands FLAG STATE: {self.speech_recognizer_instance.use_wake_commands}")
         return
 
     def yolo_state(self, flag):
         self.yolo_flag = flag
-        print(f"use_wake_commands FLAG STATE: {self.yolo_flag}")
+        log.info(f"use_wake_commands FLAG STATE: {self.yolo_flag}")
         return
     
     def get_available_voices(self):
@@ -149,11 +165,11 @@ class FlagManager:
         return fine_tuned_voices, reference_voices
     
     def get_voice_selection(self):
-        print(f"<<< Available voices >>>")
+        log.info(f"<<< Available voices >>>")
         fine_tuned_voices, reference_voices = self.get_available_voices()
         all_voices = fine_tuned_voices + reference_voices
         for i, voice in enumerate(all_voices):
-            print(f"{i + 1}. {voice}")
+            log.info(f"{i + 1}. {voice}")
         
         while True:
             selection = input("Select a voice (enter the number): ")
@@ -169,9 +185,9 @@ class FlagManager:
                         self.voice_type = "reference"
                     return
                 else:
-                    print("Invalid selection. Please try again.")
+                    log.info("Invalid selection. Please try again.")
             except ValueError:
-                print("Please enter a valid number.")
+                log.info("Please enter a valid number.")
              
     async def get_available_voices(self):
         fine_tuned_dir = f"{self.parent_dir}/AgentFiles/Ignored_TTS/"
@@ -235,15 +251,15 @@ class FlagManager:
     def instance_tts_processor(self, voice_type, voice_name):
         try:
             if not hasattr(self, 'tts_processor_instance') or self.tts_processor_instance is None:
-                self.tts_processor_instance = textToSpeech(self.pathLibrary, voice_type, voice_name)
+                self.tts_processor_instance = TextToSpeech(self.pathLibrary, voice_type, voice_name)
             return self.tts_processor_instance
         except Exception as e:
-            logger.error(f"Error instantiating TTS processor: {e}")
+            log.error(f"Error instantiating TTS processor: {e}")
             return None
         
     def _initialize_conversation_handler_and_prompting(self):
-        self.multi_modal_prompting = multiModalPrompting()
-        logger.info("Multi-modal prompting initialized successfully.")
+        self.multi_modal_prompting = MultiModalPrompting()
+        log.info("Multi-modal prompting initialized successfully.")
         
 
     def set_voice(self, voice_type: str, voice_name: str):
@@ -263,7 +279,7 @@ class FlagManager:
             self.TTS_FLAG = True  # Enable TTS when voice is set
             return True
         except Exception as e:
-            logger.error(f"Error setting voice: {e}")
+            log.error(f"Error setting voice: {e}")
             return False
         
     def cleanup(self):
@@ -276,7 +292,7 @@ class FlagManager:
             self.chat_history = []
             self.llava_history = []
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            log.error(f"Error during cleanup: {e}")
 
     def get_chat_state(self):
         return {
@@ -299,13 +315,3 @@ class FlagManager:
                 "yolo_json_payload": getattr(self, 'yolo_json_payload', None)
             },
         }
-
-class FlagManagerAPI:
-    def __init__(self):
-        self.router = APIRouter()
-        self.setup_routes()
-    
-    def setup_routes(self):
-        @self.router.post("/api/flag-manager")
-        async def get_agent_state():
-            pass
