@@ -7,7 +7,7 @@ from fastapi import HTTPException, UploadFile, WebSocket
 
 from oarc.server.server_api import ServerAPI
 from oarc.utils.log import log
-from oarc.yolo.yolo_processor import YoloProcessor
+from oarc.yolo.processor import YoloProcessor
 
 class YoloServerAPI(ServerAPI):
     """

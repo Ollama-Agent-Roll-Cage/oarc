@@ -14,15 +14,15 @@ demonstrates voice interaction, image analysis, and command execution.
 
 import asyncio
 import logging
-import os
-import time
+import sys
 from pathlib import Path
-
-import torch
-import numpy as np
 
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
+from oarc.utils.const import (
+    SUCCESS, 
+    FAILURE
+)
 
 # Speech components
 from oarc.speech.text_to_speech import TextToSpeech
@@ -39,8 +39,13 @@ from oarc.wizards.flagManger import FlagManager
 from oarc.wizards.commandLibrary import commandLibrary
 
 # Vision components
-from oarc.yolo.yolo_processor import YoloProcessor
+from oarc.yolo.processor import YoloProcessor
 
+# Test constants
+TEST_AGENT_ID = "test_assistant"
+TEST_VOICE_NAME = "c3po"  # Derived from HF_VOICE_REF_PACK_C3PO
+TEST_VOICE_TYPE = "xtts_v2"
+TEST_MODEL_NAME = "llava:8b-v1.6-mistral-7b-q5_K_M"
 
 class OARCIntegrationTest:
     """Test class for comprehensive OARC component integration."""
@@ -54,13 +59,13 @@ class OARCIntegrationTest:
         self.paths.log_paths()
         
         # Set up test parameters
-        self.agent_id = "test_assistant"
-        self.voice_name = "c3po"
-        self.voice_type = "xtts_v2"
-        self.model_name = "llava:8b-v1.6-mistral-7b-q5_K_M"
+        self.agent_id = TEST_AGENT_ID
+        self.voice_name = TEST_VOICE_NAME
+        self.voice_type = TEST_VOICE_TYPE
+        self.model_name = TEST_MODEL_NAME
         
         # Set up test directories
-        self.output_dir = Path("test_output")
+        self.output_dir = Path(self.paths.get_output_subdir("test_oarc"))
         self.output_dir.mkdir(exist_ok=True)
         self.test_image = self.find_test_image()
         
@@ -137,8 +142,8 @@ class OARCIntegrationTest:
             speech_recognizer_instance=self.stt,
             yolo_processor_instance=self.yolo,
             large_language_model=self.model_name,
-            current_dir=tts_paths['current_dir'],
-            parent_dir=tts_paths['parent_dir'],
+            current_dir=tts_paths['current_path'],
+            parent_dir=tts_paths['parent_path'],
             speech_dir=tts_paths['speech_dir'],
             recognize_speech_dir=tts_paths['recognize_speech_dir'],
             generate_speech_dir=tts_paths['generate_speech_dir'],
@@ -350,9 +355,9 @@ async def main():
     result = await test.run_tests()
     
     # Return exit code based on test result
-    return 0 if result else 1
+    return SUCCESS if result else FAILURE
 
 
 if __name__ == "__main__":
     exit_code = asyncio.run(main())
-    exit(exit_code)
+    sys.exit(exit_code)

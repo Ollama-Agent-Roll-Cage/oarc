@@ -120,7 +120,8 @@ class HfUtils:
                 log.info(f"Downloading base XTTS model from {repo_id} to {voice_path}")
             elif target_type.lower() == "model":
                 # For fine-tuned models (full model files)
-                target_dir = os.path.join(paths.get_model_dir(), "custom_xtts_v2")
+                # Get the correct path for custom_xtts_v2 (now inside coqui directory)
+                target_dir = os.path.join(paths.get_coqui_path(), "custom_xtts_v2")
                 log.info(f"Downloading fine-tuned model from {repo_id} as {voice_name}")
                 # Create model directory
                 voice_path = os.path.join(target_dir, voice_name)

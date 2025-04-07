@@ -11,7 +11,6 @@ from fastapi import WebSocket
 
 import cv2
 import numpy as np
-import torch
 from ultralytics import YOLO
 import win32gui
 import win32con
@@ -423,7 +422,7 @@ def initialize_yolo(model_path=None, port=8000):
         yolo_processor.load_model(model_path)
     
     # Get or create the YoloAPI singleton instance
-    from oarc.yolo.yolo_server_api import YoloServerAPI
+    from oarc.yolo.server_api import YoloServerAPI
     yolo_api = YoloServerAPI()
     
     log.info("YOLO initialization complete")

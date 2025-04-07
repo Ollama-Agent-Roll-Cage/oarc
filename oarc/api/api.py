@@ -8,32 +8,24 @@ video processing, and agent interactions.
 """
 
 import json
-import logging
 
+from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import ( 
-    FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
-)
 
-from oarc.api.llm_prompt_api import LLMPromptAPI
 from oarc.api.agent_api import AgentAPI
-from oarc.api.spell_loader import SpellLoader
 from oarc.api.agent_access import AgentAccess
+from oarc.api.llm_prompt_api import LLMPromptAPI
+from oarc.api.spell_loader import SpellLoader
 from oarc.database.agent_storage import AgentStorage
 from oarc.database.pandas_db import PandasDB
 from oarc.promptModel import MultiModalPrompting
-from oarc.yolo.yolo_server_api import YoloServerAPI  # Updated import
-from oarc.yolo.yolo_processor import YoloProcessor  # Added to use in endpoints
-from oarc.speech import (
-    SpeechToText, TextToSpeech, TextToSpeechAPI, SpeechToTextAPI
-)
+from oarc.speech import SpeechToText, SpeechToTextAPI, TextToSpeech, TextToSpeechAPI
+from oarc.utils.decorators.singleton import singleton
+from oarc.utils.log import log
+from oarc.yolo.processor import YoloProcessor
+from oarc.yolo.server_api import YoloServerAPI
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-
-
+@singleton
 class API():
     """
     Main API class for the OARC system.

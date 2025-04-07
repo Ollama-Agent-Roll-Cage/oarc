@@ -13,20 +13,17 @@ Functions:
         Tests the YoloServer component by starting the server and API
 """
 
-import logging
 import os
+import sys
 import cv2
 import numpy as np
 
-from oarc.yolo import YoloProcessor, YoloServer, YoloServerAPI
+from oarc.utils.log import log
 from oarc.utils.paths import Paths
+from oarc.utils.const import SUCCESS, FAILURE
+from oarc.yolo import YoloProcessor, YoloServer, YoloServerAPI
 
-log = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+YOLO_OUTPUT_FILE_NAME = "yolo_processed_image.jpg"
 
 def test_yolo_processor():
     """Test YoloProcessor functionality.
@@ -36,8 +33,11 @@ def test_yolo_processor():
     """
     log.info("Starting YoloProcessor test")
     
-    # Get model path using Paths utility
-    model_path = Paths.get_yolo_default_model_path()
+    # Get paths using the OARC utility singleton
+    paths = Paths()
+    
+    # Get model path using Paths utility (fixed to use instance method)
+    model_path = paths.get_yolo_default_model_path()
     
     if not os.path.exists(model_path):
         log.warning(f"Default YOLO model not found at {model_path}")
@@ -56,6 +56,12 @@ def test_yolo_processor():
     log.info("Processing test image")
     processed_img, detections = processor.process_frame(sample_img, return_detections=True)
     
+    # Save the processed image to the test output directory
+    output_dir = paths.get_test_output_dir()
+    output_file = os.path.join(output_dir, YOLO_OUTPUT_FILE_NAME)
+    cv2.imwrite(output_file, processed_img)
+    log.info(f"Saved processed image to {output_file}")
+    
     log.info(f"Image processed with {len(detections) if detections else 0} detections")
     log.info("YoloProcessor test completed")
     
@@ -70,8 +76,9 @@ def test_yolo_server():
     
     # Get the processor singleton
     processor = YoloProcessor.get_instance()
-    
+
     # Initialize server components
+    # TODO process should be passed into YoloServer constructor
     server = YoloServer.get_instance()
     api = YoloServerAPI.get_instance()
     
@@ -91,7 +98,10 @@ if __name__ == "__main__":
     try:
         processor = test_yolo_processor()
         server, api = test_yolo_server()
+        sys.exit(SUCCESS)
     except KeyboardInterrupt:
         log.info("Tests interrupted by user")
+        sys.exit(FAILURE)
     except Exception as e:
         log.error(f"Error in tests: {str(e)}", exc_info=True)
+        sys.exit(FAILURE)

@@ -15,11 +15,17 @@ Functions:
 """
 
 import os
+import sys
 
-# Use the centralized logging instead of creating our own logger
 from oarc.utils.log import log
 from oarc.speech import TextToSpeech, SpeechToText, SpeechManager
 from oarc.utils.paths import Paths
+from oarc.utils.const import SUCCESS, FAILURE
+
+# Constants
+TEST_VOICE_NAME = "C3PO"  # Derived from HF_VOICE_REF_PACK_C3PO
+TEST_VOICE_TYPE = "xtts_v2"
+OUTPUT_FILE_NAME = "speech_manager_output.wav"
 
 def test_tts():
     """Test TextToSpeech functionality.
@@ -29,8 +35,9 @@ def test_tts():
     """
     log.info("Starting TextToSpeech test")
     
-    # Initialize Paths utility - correctly uses singleton pattern
-    paths = Paths()
+    # Initialize Paths utility
+    paths = Paths() # singleton instance
+    paths.log_paths()  # Log paths for debugging
     
     # Get TTS paths dictionary
     developer_tools_dict = paths.get_tts_paths_dict()
@@ -38,24 +45,23 @@ def test_tts():
     # Ensure all required directories exist
     paths.ensure_paths(developer_tools_dict)
     
-    # Initialize SpeechManager - explicitly specify voice name
-    voice_name = "C3PO"
-    voice_type = "xtts_v2"
+    # Initialize SpeechManager
+    voice_name = TEST_VOICE_NAME
+    voice_type = TEST_VOICE_TYPE
     speech_manager = SpeechManager(voice_name=voice_name, voice_type=voice_type)
     
     # Test speech generation with SpeechManager
-    test_text = "Hello! I am C-3PO, human-cyborg relations!"
-    log.info(f"Processing text with SpeechManager: '{test_text}'")
+    message = "Hello! I am C-3PO, human-cyborg relations!"
+    log.info(f"Processing text with SpeechManager: '{message}'")
     
     try:
-        audio = speech_manager.generate_speech(test_text)
+        audio = speech_manager.generate_speech(message)
         if audio is not None:
             log.info(f"Successfully generated audio with SpeechManager")
             
-            # For output file creation
-            output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
-            os.makedirs(output_dir, exist_ok=True)
-            output_file = os.path.join(output_dir, "speech_manager_output.wav")
+            # Use the test output directory API
+            output_path = paths.get_test_output_dir()
+            output_file = os.path.join(output_path, OUTPUT_FILE_NAME)
             
             # Save the audio file
             import soundfile as sf
@@ -65,16 +71,16 @@ def test_tts():
         log.error(f"SpeechManager test failed: {e}", exc_info=True)
     
     # Also test using the TextToSpeech class directly (which now uses SpeechManager internally)
-    log.info("Initializing TextToSpeech with C-3PO voice")
+    log.info(f"Initializing TextToSpeech with {voice_name} voice")
     tts = TextToSpeech(
         developer_tools_dict=developer_tools_dict,
-        voice_type="xtts_v2",
+        voice_type=voice_type,
         voice_name=voice_name
     )
     
     # Test speech generation with a sample text
-    log.info(f"Processing text with TextToSpeech: '{test_text}'")
-    audio = tts.process_tts_responses(test_text, voice_name)
+    log.info(f"Processing text with TextToSpeech: '{message}'")
+    audio = tts.process_tts_responses(message, voice_name)
     
     if audio is not None:
         log.info(f"Successfully generated audio of length: {len(audio)} samples")
@@ -111,3 +117,5 @@ if __name__ == "__main__":
         log.info("Tests interrupted by user")
     except Exception as e:
         log.error(f"Error in tests: {str(e)}", exc_info=True)
+        sys.exit(FAILURE)
+    sys.exit(SUCCESS)

@@ -5,8 +5,8 @@ Provides a server for running YOLO object detection services.
 
 from oarc.server.server import Server
 from oarc.utils.log import log
-from oarc.yolo.yolo_server_api import YoloServerAPI
-from oarc.yolo.yolo_processor import YoloProcessor
+from oarc.yolo.server_api import YoloServerAPI
+from oarc.yolo.processor import YoloProcessor
 
 class YoloServer(Server):
     """

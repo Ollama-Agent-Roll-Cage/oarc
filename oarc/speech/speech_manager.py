@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import json
 from TTS.api import TTS
-from huggingface_hub import snapshot_download
 
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
@@ -93,9 +92,9 @@ class SpeechManager:
         # Get path dictionary from the Paths singleton instance
         self.developer_tools_dict = self.paths.get_tts_paths_dict()
         
-        # Extract individual paths for easier access
-        self.current_dir = self.developer_tools_dict['current_dir']
-        self.parent_dir = self.developer_tools_dict['parent_dir']
+        # Extract individual paths for easier access - updated names
+        self.current_path = self.developer_tools_dict['current_path']
+        self.parent_path = self.developer_tools_dict['parent_path']
         self.speech_dir = self.developer_tools_dict['speech_dir']
         self.recognize_speech_dir = self.developer_tools_dict['recognize_speech_dir']
         self.generate_speech_dir = self.developer_tools_dict['generate_speech_dir']
@@ -751,6 +750,10 @@ class SpeechManager:
                 os.path.join(custom_coqui_dir, voice_name),
                 os.path.join(custom_coqui_dir, f"{voice_name}_xtts_v2"),
                 
+                # Check potential old locations for backward compatibility
+                os.path.join(os.path.dirname(coqui_dir), "custom_xtts_v2", f"XTTS-v2_{voice_name}"),
+                os.path.join(os.path.dirname(coqui_dir), "custom_xtts_v2", voice_name),
+                
                 # Add paths matching actual directory structures seen in the wild
                 os.path.join(os.path.dirname(custom_coqui_dir), "Borcherding", f"XTTS-v2_{voice_name}"),
                 os.path.join(os.path.dirname(custom_coqui_dir), "Borcherding-XTTS-v2_C3PO"),
@@ -759,7 +762,7 @@ class SpeechManager:
                 os.path.join(os.path.dirname(custom_coqui_dir), f"XTTS-v2_{voice_name}"),
                 
                 # Try HuggingFace cache
-                os.path.join(os.path.dirname(custom_coqui_dir), "huggingface", "hub", f"models--Borcherding--XTTS-v2_{voice_name}")
+                os.path.join(os.path.dirname(coqui_dir), "huggingface", "hub", f"models--Borcherding--XTTS-v2_{voice_name}")
             ]
             
             # Log all paths we're checking

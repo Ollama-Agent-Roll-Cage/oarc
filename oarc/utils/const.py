@@ -12,6 +12,7 @@ WHISPER_DIR = "whisper"
 GENERATED_DIR = "generated"
 VOICE_REFERENCE_DIR = "voice_ref_pack"
 YOLO_DIR = "yolo"
+OUTPUT_DIR = "output"
 
 # Model download locations
 TTS_MODEL_SUBDIR = "tts_home"

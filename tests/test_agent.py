@@ -2,37 +2,33 @@
 TestAgent: Multimodal AI agent that integrates text, speech, and vision capabilities.
 Provides a unified interface for processing and responding to various input types.
 """
-
-import sys
 import os
-import pytest
 import platform
+import sys
 
-# Add proper logging
-from oarc.utils.log import log
-
-try:
-    import gradio as gr
-    from oarc.api import API
-except ImportError as e:
-    log.error(f"Failed to import API: {e}")
-    # Provide a more graceful fallback
-    pytest.skip(f"Skipping tests due to import error: {e}", allow_module_level=True)
+import gradio as gr
+from fastapi import Request
 
 from oarc.database import PandasDB
 from oarc.promptModel import MultiModalPrompting
-from oarc.speech import TextToSpeech, SpeechToText, SpeechManager
-from oarc.yolo import YoloProcessor
-from oarc.utils.paths import Paths
-from oarc.speech.speech_errors import TTSInitializationError
-from oarc.speech.speech_utils import SpeechUtils
-
 from oarc.server.gradio import GradioServer, GradioServerAPI
-from fastapi import Request
+from oarc.speech import SpeechManager, SpeechToText
+from oarc.speech.speech_errors import TTSInitializationError
+from oarc.utils.const import FAILURE, SUCCESS
+from oarc.utils.log import log
+from oarc.utils.paths import Paths
+from oarc.yolo.processor import YoloProcessor
 
-from oarc.utils.const import (
-    SUCCESS, FAILURE
-)
+# Test agent constants
+TEST_AGENT_ID = "test_agent"
+TEST_VOICE_NAME = "C3PO"  # Derived from HF_VOICE_REF_PACK_C3PO
+TEST_VOICE_TYPE = "xtts_v2"
+TEST_DEFAULT_MODEL = "llama2"
+
+# Global instances that will be shared across the application
+api_instance = None
+speech_manager_instance = None
+agent_instance = None
 
 class TestAgentGradioServer(GradioServer):
     """
@@ -134,24 +130,31 @@ class TestAgent:
     Provides a unified interface for processing and responding to various input types.
     """
 
-    def __init__(self):
+    def __init__(self, api_instance=None):
         log.info("Initializing TestAgent components")
         
         # Log system info to help with debugging
         log.info(f"System: {platform.system()} {platform.release()} ({platform.platform()})")
         log.info(f"Python: {platform.python_version()}")
         
-        # Log all configured paths for transparency and debugging
-        paths = Paths()
-        paths.log_paths()
+        # Get paths and configure output directory
+        paths = Paths() # Get singleton instance
+        paths.log_paths() # Log all paths for debugging
+
+        # Set up output directory for test results
+        output_dir = paths.get_output_dir()
+        log.info(f"Using global output directory: {output_dir}")
+        
+        # Create test-specific output directory
+        test_output_dir = os.path.join(output_dir, "test_agent")
+        os.makedirs(test_output_dir, exist_ok=True)
         
         # Core components
         log.info("Initializing API components")
-        if API is not None:
-            self.api = API()
-        else:
-            self.api = None
-            log.warning("API was not imported. Some functionality may be limited.")
+        self.api = api_instance  # Use the globally initialized API instance
+        if self.api is None:
+            log.warning("API instance not provided. Some functionality may be limited.")
+            
         log.info("Initializing database")
         self.db = PandasDB()
         log.info("Initializing language model")
@@ -162,26 +165,21 @@ class TestAgent:
         self.stt = SpeechToText()
         log.info("Speech-to-text component initialized")
 
-        # Get TTS-related directories and verify voice reference file exists
+        # Use the global speech manager instance for TTS
         log.info("Setting up text-to-speech component")
-        
-        try:
-            # Get TTS paths dictionary from our singleton Paths class - correctly access singleton
-            tts_paths_dict = paths.get_tts_paths_dict()
-            
-            # Log the voice configuration
-            voice_type = "xtts_v2"
-            voice_name = "C3PO"
+        global speech_manager_instance
+        if speech_manager_instance is None:
+            # Create a new instance if not provided
+            voice_type = TEST_VOICE_TYPE
+            voice_name = TEST_VOICE_NAME
             log.info(f"Configuring TTS with voice type '{voice_type}', voice '{voice_name}'")
-            
-            # Use the SpeechManager singleton with explicit voice parameters
-            from oarc.speech.speech_manager import SpeechManager
             self.tts = SpeechManager(voice_name=voice_name, voice_type=voice_type)
-            log.info("Text-to-speech component initialized")
-        except Exception as e:
-            log.critical(f"Critical TTS initialization error: {str(e)}")
-            log.critical("Cannot continue without proper TTS initialization. Exiting.")
-            raise TTSInitializationError(str(e)) from e
+            # Update global instance
+            speech_manager_instance = self.tts
+        else:
+            # Use the existing global instance
+            self.tts = speech_manager_instance
+        log.info("Text-to-speech component initialized")
         
         # Vision component initialization
         log.info("Setting up vision component")
@@ -191,9 +189,9 @@ class TestAgent:
         # Agent configuration
         log.info("Setting up agent configuration")
         self.agent_config = {
-            "agent_id": "test_agent",
+            "agent_id": TEST_AGENT_ID,
             "models": {
-                "largeLanguageModel": "llama2",
+                "largeLanguageModel": TEST_DEFAULT_MODEL,
                 "largeLanguageAndVisionAssistant": "llava",
                 "yoloVision": "yolov8n"
             },
@@ -242,9 +240,8 @@ class TestAgent:
         
         response_data = {"text": None, "audio": None, "vision": None}
         
-        # Speech-to-text processing
         try:
-            
+            # Speech-to-text processing    
             if audio_input is not None:
                 log.info("Processing speech input")
                 try:
@@ -368,18 +365,15 @@ class TestAgent:
         log.info("Cleaning up TestAgent resources")
         
         # Stop servers if running
-        if self.api_server and self.api_server.is_running:
+        if hasattr(self, 'api_server') and self.api_server and self.api_server.is_running:
             self.api_server.stop()
             
-        if self.gradio_server and self.gradio_server.is_running:
+        if hasattr(self, 'gradio_server') and self.gradio_server and self.gradio_server.is_running:
             self.gradio_server.stop()
             
         # Clean up component resources
         if hasattr(self, 'stt'):
             self.stt.cleanup()
-            
-        if hasattr(self, 'tts'):
-            self.tts.cleanup()
             
         log.info("TestAgent cleanup complete")
 
@@ -388,42 +382,52 @@ def main():
     """Run the TestAgent application"""
     log.info("TestAgent script running...")
     
+    # Declare globals we'll use
+    global api_instance, speech_manager_instance, agent_instance
+    
     try:
-        # Initialize speech manager - this must succeed before we proceed 
-        # SpeechManager will handle voice pack verification and download as needed
-        try:
-            voice_name = "c3po"
-            manager = SpeechManager(voice_name=voice_name)
-            # No need for explicit voice pack download - SpeechManager handles this
-        except (TTSInitializationError, FileNotFoundError) as e:
-            log.critical(f"Failed to initialize SpeechManager: {e}")
-            # Exit immediately on any SpeechManager error
-            return FAILURE
+        # Step 1: Initialize the API
+        from oarc.api import API  # Defer import to avoid circular dependency issues
+        api_instance = API()
+        log.info("API initialized successfully")
         
-        # Create agent normally with API enabled
-        try:
-            agent = TestAgent()
-            api = API()
-        except Exception as e:
-            log.critical(f"Failed to initialize TestAgent: {e}", exc_info=True)
-            return FAILURE
-            
-        agent.launch_gradio()
+        # Step 2: Initialize speech manager - this must succeed before we proceed 
+        # SpeechManager will handle voice pack verification and download as needed
+        voice_name = TEST_VOICE_NAME
+        speech_manager_instance = SpeechManager(voice_name=voice_name)
+        log.info(f"SpeechManager initialized with voice: {voice_name}")
+        
+        # Step 3: Initialize the TestAgent with API
+        agent_instance = TestAgent(api_instance=api_instance)
+        log.info("TestAgent initialized successfully")
+        
+        # Step 4: Launch the Gradio interface
+        agent_instance.launch_gradio()
+        log.info("Gradio interface launched")
+        
         return SUCCESS
         
+    except ImportError as e:
+        log.critical(f"Failed to import required module: {e}", exc_info=True)
+        return FAILURE
+    except TTSInitializationError as e:
+        log.critical(f"Failed to initialize SpeechManager: {e}")
+        return FAILURE
     except Exception as e:
         log.critical(f"Fatal error: {e}", exc_info=True)
         return FAILURE
-        
     finally:
-        # Only cleanup if we have fully initialized objects
-        if 'agent' in locals() and agent is not None and hasattr(agent, 'cleanup'):
+        # Clean up resources in reverse order
+        if agent_instance is not None and hasattr(agent_instance, 'cleanup'):
             log.info("Cleaning up agent resources...")
-            agent.cleanup()
-            
-        if 'manager' in locals() and manager is not None and hasattr(manager, 'cleanup'):
-            log.info("Cleaning up speech manager resources...")
-            manager.cleanup()
+            agent_instance.cleanup()
+        
+        # Only clean up SpeechManager if it wasn't passed to TestAgent
+        # (TestAgent will clean up its own copy)
+        if speech_manager_instance is not None and hasattr(speech_manager_instance, 'cleanup'):
+            if agent_instance is None or agent_instance.tts != speech_manager_instance:
+                log.info("Cleaning up speech manager resources...")
+                speech_manager_instance.cleanup()
 
 if __name__ == "__main__":
     sys.exit(main())
