@@ -3,6 +3,8 @@
 This file contains the command library for the wizard. It is a dictionary of commands that the wizard can execute.
 """
 #TODO UPGRADE TO STORE COMMANDS IN PANDAS DATAFRAME
+#TODO IMPORT MODULES FOR EACH COMMAND
+
 class commandLibrary:
     def __init__(self):
         self.command_library = {}
