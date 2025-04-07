@@ -364,3 +364,12 @@ class Paths:
             str: Full path to the custom XTTS v2 models directory
         """
         return self._paths['tts']['custom_coqui']
+
+    def get_project_root(self):
+        """
+        Get the OARC project root directory path.
+        
+        Returns:
+            str: Full path to the project root directory
+        """
+        return self._paths['base']['project_root']
