@@ -148,6 +148,11 @@ class HfUtils:
                         shutil.copy2(source_file, target_file)
                 log.info(f"Copied files from {downloaded_path} to {voice_path}")
             
+            # If this was a model download, also copy reference file to voice_ref_pack
+            if target_type.lower() == "model":
+                # Use VoiceUtils to copy reference file from model to voice reference directory
+                VoiceUtils.copy_reference_from_model(voice_path, voice_name, paths)
+            
             # Verify the downloaded content using the appropriate method in VoiceUtils
             if target_type.lower() == "reference":
                 # Verify voice reference pack

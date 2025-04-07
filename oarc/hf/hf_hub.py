@@ -1,6 +1,10 @@
 """hf_hub.py
 """
 
+import os
+import asyncio
+from typing import Optional, Dict, List
+
 from huggingface_hub import (
     create_repo, 
     upload_file, 
@@ -9,12 +13,11 @@ from huggingface_hub import (
     snapshot_download,
     HfApi
 )
-import os
-from typing import Optional, Dict, List
-import logging
-import asyncio
 
-logger = logging.getLogger(__name__)
+from oarc.utils.log import log
+
+
+# TODO this class should be refactored to use log.py and paths.py API's
 
 class HfHub:
     """Manages interactions with Hugging Face Hub for model and dataset management"""
@@ -40,7 +43,7 @@ class HfHub:
                 self.api.set_access_token(self.token)
             return True
         except Exception as e:
-            logger.error(f"Failed to login: {e}")
+            log.error(f"Failed to login: {e}")
             return False
 
     def download_model(self, repo_id: str, filename: Optional[str] = None) -> str:
@@ -58,10 +61,10 @@ class HfHub:
                 path = hf_hub_download(repo_id=repo_id, filename=filename)
             else:
                 path = snapshot_download(repo_id)
-            logger.info(f"Downloaded {repo_id} to {path}")
+            log.info(f"Downloaded {repo_id} to {path}")
             return path
         except Exception as e:
-            logger.error(f"Download failed: {e}")
+            log.error(f"Download failed: {e}")
             raise
 
     def upload_model(self, 
@@ -98,7 +101,7 @@ class HfHub:
             return True
             
         except Exception as e:
-            logger.error(f"Upload failed: {e}")
+            log.error(f"Upload failed: {e}")
             return False
 
     def get_model_list(self, filter_criteria: Optional[Dict] = None) -> List[Dict]:
@@ -114,7 +117,7 @@ class HfHub:
             models = self.api.list_models(filter=filter_criteria)
             return [model.to_dict() for model in models]
         except Exception as e:
-            logger.error(f"Failed to list models: {e}")
+            log.error(f"Failed to list models: {e}")
             return []
 
     def get_model_tags(self, repo_id: str) -> List[str]:
@@ -130,7 +133,7 @@ class HfHub:
             model_info = self.api.model_info(repo_id)
             return model_info.tags
         except Exception as e:
-            logger.error(f"Failed to get tags: {e}")
+            log.error(f"Failed to get tags: {e}")
             return []
 
     def validate_model(self, repo_id: str, expected_files: List[str]) -> bool:
@@ -147,11 +150,11 @@ class HfHub:
             files = self.api.list_repo_files(repo_id)
             missing = set(expected_files) - set(files)
             if missing:
-                logger.warning(f"Missing files: {missing}")
+                log.warning(f"Missing files: {missing}")
                 return False
             return True
         except Exception as e:
-            logger.error(f"Validation failed: {e}")
+            log.error(f"Validation failed: {e}")
             return False
 
     def get_model_info(self, model_id: str) -> Dict:
@@ -167,7 +170,7 @@ class HfHub:
             info = self.api.model_info(model_id)
             return info.to_dict()
         except Exception as e:
-            logger.error(f"Failed to get model info: {e}")
+            log.error(f"Failed to get model info: {e}")
             return {}
 
     async def download_model_async(self, *args, **kwargs):
