@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 # Add the project root to the path to make imports work when running directly
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Fix: Use '../../' instead of '..' to go up two levels to the project root
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from oarc.hf.hf_utils import HfUtils
 from oarc.speech.voice.voice_utils import VoiceUtils
