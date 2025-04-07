@@ -171,7 +171,7 @@ class TestAgent:
             
             # Log the voice configuration
             voice_type = "xtts_v2"
-            voice_name = "c3po"
+            voice_name = "C3PO"
             log.info(f"Configuring TTS with voice type '{voice_type}', voice '{voice_name}'")
             
             # Use the SpeechManager singleton with explicit voice parameters

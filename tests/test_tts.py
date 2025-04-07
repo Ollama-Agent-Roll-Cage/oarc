@@ -39,7 +39,7 @@ def test_tts():
     paths.ensure_paths(developer_tools_dict)
     
     # Initialize SpeechManager - explicitly specify voice name
-    voice_name = "c3po"
+    voice_name = "C3PO"
     voice_type = "xtts_v2"
     speech_manager = SpeechManager(voice_name=voice_name, voice_type=voice_type)
     

@@ -120,7 +120,7 @@ class SpeechUtils:
             log.info("Base Coqui XTTS v2 model already exists")
             
         # STEP 2: Check if default c3po voice model exists in custom_xtts_v2 directory
-        log.info("Checking for c3po custom voice model")
+        log.info("Checking for C3PO custom voice model")
         custom_model_found = False
         custom_model_dir_to_use = None
         

@@ -310,13 +310,13 @@ class SpeechManager:
             from oarc.speech.voice.voice_ref_pack import VoiceRefPackType
             from oarc.hf.hf_utils import HfUtils
             
-            c3po_model_dir = os.path.join(custom_coqui_dir, "XTTS-v2_c3po")
+            c3po_model_dir = os.path.join(custom_coqui_dir, "XTTS-v2_C3PO")
             if not os.path.exists(c3po_model_dir) or not os.path.exists(os.path.join(c3po_model_dir, "model.pth")):
                 log.info("C3PO voice model not found, downloading...")
                 c3po_repo = VoiceRefPackType.C3PO.value.repo_url
                 _, c3po_success = HfUtils.download_voice_ref_pack(
                     c3po_repo,
-                    "XTTS-v2_c3po",
+                    "XTTS-v2_C3PO",
                     target_type="model"
                 )
                 if not c3po_success:
@@ -383,7 +383,12 @@ class SpeechManager:
                     progress_bar=False
                 )
                 self.tts.to(self.device)
+                
+                # TEMPORARY FIX: Force model to be treated as single-speaker to avoid 
+                # the "Model is multi-speaker but no `speaker` is provided" error
                 self.is_multi_speaker = False
+                log.info("OVERRIDE: Treating model as single-speaker to avoid speaker errors")
+                
                 log.info(f"Loaded fine-tuned model for voice: {self.voice_name}")
             else:
                 # Initialize with base model and reference voice
@@ -404,6 +409,58 @@ class SpeechManager:
         except Exception as e:
             raise RuntimeError(f"Error initializing TTS model: {str(e)}")
 
+    def _check_if_multi_speaker(self, tts_instance):
+        """
+        Check if a TTS model is multi-speaker by examining its config.
+        
+        Args:
+            tts_instance: The TTS instance to check
+            
+        Returns:
+            bool: True if multi-speaker, False if single-speaker
+        """
+        try:
+            # Try to access the model config dictionary
+            config = tts_instance.model_config
+            
+            # Check for XTTS multi-speaker indicators
+            if hasattr(tts_instance, "is_multi_speaker"):
+                return tts_instance.is_multi_speaker
+                
+            # Check for various config keys that indicate multi-speaker
+            if "model_args" in config and "num_speakers" in config["model_args"]:
+                return config["model_args"]["num_speakers"] > 1
+                
+            # Check for datasets with multiple speakers
+            if "datasets" in config and len(config["datasets"]) > 0:
+                # If any dataset has multiple speakers, it's a multi-speaker model
+                for dataset in config["datasets"]:
+                    if "meta_file_train" in dataset:
+                        return True
+                        
+            # For XTTS specific checks
+            if "model" in config and isinstance(config["model"], dict):
+                # Some models use speaker_encoder which indicates multi-speaker
+                if "use_speaker_encoder" in config["model"] and config["model"]["use_speaker_encoder"]:
+                    return True
+                
+                # For XTTS v2
+                if "model_type" in config["model"] and "xtts" in config["model"]["model_type"].lower():
+                    # Most XTTS models are multi-speaker by default
+                    return True
+                    
+            # For backward compatibility - if it has voice_file or voice_dir attributes
+            if hasattr(tts_instance, "voice_file") or hasattr(tts_instance, "voice_dir"):
+                return True
+                
+            # If we made it here, assume it's not multi-speaker
+            return False
+            
+        except Exception as e:
+            log.warning(f"Error checking if model is multi-speaker: {e}")
+            # Default to True for safety - we'll pass speaker_wav which non-multi-speaker models will ignore
+            return True
+
     def generate_speech(self, text, speed=1.0, language="en"):
         """
         Generate speech audio for the provided text.
@@ -423,8 +480,12 @@ class SpeechManager:
             # Clear VRAM cache
             torch.cuda.empty_cache()
             
-            # Generate audio
+            # Generate audio based on model type
             if self.is_multi_speaker:
+                if not self.voice_ref_path:
+                    raise ValueError("Multi-speaker model requires a voice reference file")
+                    
+                log.info(f"Generating speech with multi-speaker model using reference: {self.voice_ref_path}")
                 audio = self.tts.tts(
                     text=text,
                     speaker_wav=self.voice_ref_path,
@@ -432,6 +493,7 @@ class SpeechManager:
                     speed=speed
                 )
             else:
+                log.info("Generating speech with single-speaker model")
                 audio = self.tts.tts(
                     text=text,
                     language=language,
@@ -522,20 +584,32 @@ class SpeechManager:
                 )
                 fallback_tts.to(device)
                 
-                # Since TTS API doesn't have an overwrite parameter, we need to handle it in a special way
-                # If the file exists and we don't want to overwrite, we need to use a temporary file
-                # and then copy it to the target file
+                # Check if this model is multi-speaker
+                is_fallback_multi_speaker = self._check_if_multi_speaker(fallback_tts)
+                
+                # Generate different arguments based on whether it's multi-speaker
+                tts_args = {
+                    "text": text,
+                    "file_path": output_file,
+                    "language": language,
+                    "speed": speed
+                }
+                
+                # Add speaker_wav parameter if this is a multi-speaker model
+                if is_fallback_multi_speaker and self.voice_ref_path:
+                    tts_args["speaker_wav"] = self.voice_ref_path
+                    log.info(f"Using speaker_wav with fallback model: {self.voice_ref_path}")
+                
+                # Since TTS API doesn't have an overwrite parameter, we need to handle it specially
                 if os.path.exists(output_file) and not overwrite:
                     temp_file = output_file + ".temp"
                     log.info(f"Using temporary file: {temp_file}")
                     
-                    # Generate speech with fine-tuned model to temp file
-                    fallback_tts.tts_to_file(
-                        text=text,
-                        file_path=temp_file,
-                        language=language,
-                        speed=speed
-                    )
+                    # Use a temporary file name for the tts_to_file call
+                    tts_args["file_path"] = temp_file
+                    
+                    # Generate speech with model to temp file
+                    fallback_tts.tts_to_file(**tts_args)
                     
                     # Copy the temp file to the non-conflicting filename
                     shutil.copy2(temp_file, output_file)
@@ -544,13 +618,9 @@ class SpeechManager:
                     os.remove(temp_file)
                     log.info(f"Renamed temporary file to: {output_file}")
                 else:
-                    # Generate speech with fine-tuned model directly to output file
-                    fallback_tts.tts_to_file(
-                        text=text,
-                        file_path=output_file,
-                        language=language,
-                        speed=speed
-                    )
+                    # Generate speech directly to output file
+                    fallback_tts.tts_to_file(**tts_args)
+            
             elif self.voice_ref_path:
                 # Use XTTS v2 with voice reference
                 log.info(f"Using XTTS v2 with voice reference: {self.voice_ref_path}")

@@ -6,20 +6,20 @@ a Gradio interface for testing, robust sentence splitting, user interruption cap
 and resource cleanup routines to ensure smooth performance.
 """
 
-import sounddevice as sd
-import soundfile as sf
-import threading
 import os
-import torch
 import re
+import json
+import time
 import queue
-import asyncio
+import shutil
+import threading
+from typing import Optional
 
 import numpy as np
-import shutil
-import time
+import torch
+import sounddevice as sd
+import soundfile as sf
 import keyboard
-import json
 import websockets
 
 from oarc.utils.log import log
@@ -361,3 +361,17 @@ class TextToSpeech:
                 'audio_type': audio_type,
                 'audio_data': list(audio_data)
             }))
+
+    async def send_tts(self, text: str, voice_name: Optional[str] = None) -> bool:
+        """Send TTS audio to the frontend"""
+        try:
+            # Use SpeechManager to generate speech
+            speech_manager = SpeechManager(voice_name=voice_name if voice_name else "C3PO")
+            audio_data = speech_manager.generate_speech(text, speed=1.0, language="en")
+            if audio_data is not None:
+                await self.send_audio_to_frontend(audio_data, "tts")
+                return True
+            return False
+        except Exception as e:
+            log.error(f"Error sending TTS audio: {e}")
+            return False
