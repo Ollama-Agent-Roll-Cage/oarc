@@ -135,7 +135,7 @@ def accept_coqui_license():
     # Set TTS_HOME to our Coqui directory from Paths API
     from oarc.utils.paths import Paths
     paths_instance = Paths()
-    coqui_dir = paths_instance.get_coqui_dir()  # Use the existing Coqui directory
+    coqui_dir = paths_instance.get_coqui_path()  # Use the existing Coqui directory
     os.environ["TTS_HOME"] = coqui_dir
     os.makedirs(coqui_dir, exist_ok=True)
     log.info(f"Set TTS_HOME to Coqui directory: {coqui_dir}")

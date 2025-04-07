@@ -1,48 +1,52 @@
 """
-Speech Manager for OARC.
+OARC Speech Manager.
 
-This module provides centralized management for speech-related functionality
-including Text-to-Speech initialization, voice reference handling, and audio
-resource management. It serves as a central point for configuring and initializing
-speech components with appropriate error handling and fallback mechanisms.
+This module centralizes the management of speech-related functionality,
+including Text-to-Speech (TTS) model initialization, voice reference handling,
+and audio resource management. It ensures consistent configuration, robust
+error handling, and efficient resource utilization across the application.
 """
 
 import os
-import torch
-import numpy as np
-import logging
 import shutil
+import numpy as np
+import torch
+import json
 from TTS.api import TTS
 from huggingface_hub import snapshot_download
 
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
 from oarc.utils.decorators.singleton import singleton
-from oarc.utils.setup.tts_utils import accept_coqui_license
-from oarc.speech.speech_errors import TTSInitializationError
 from oarc.utils.setup.cuda_utils import check_cuda_capable
+from oarc.speech.speech_utils import SpeechUtils
 
 
 @singleton
 class SpeechManager:
     """
     Centralized manager for speech-related functionality.
-    
-    This class handles TTS model initialization, voice reference management,
-    audio device configuration, and other shared speech processing resources.
-    It provides consistent error handling and fallback mechanisms.
-    
-    Uses the singleton pattern to ensure only one instance is created
-    across the application, saving resources and ensuring consistent state.
+
+    This class is responsible for managing Text-to-Speech (TTS) models, voice
+    references, and audio device configurations. It ensures efficient resource
+    utilization, consistent error handling, and seamless integration of speech
+    processing capabilities across the application.
+
+    By employing the singleton pattern, this class guarantees that only one
+    instance exists throughout the application lifecycle, promoting resource
+    efficiency and maintaining a consistent state.
     """
     
     def __init__(self, voice_name="c3po", voice_type="xtts_v2"):
         """
-        Initialize the speech manager with specified voice configuration.
-        
+        Initialize the speech manager with the specified voice configuration.
+
         Args:
-            voice_name (str): Name of the voice to use (default: "c3po")
-            voice_type (str): Type of voice technology to use (default: "xtts_v2")
+            voice_name (str, optional): The name of the voice to use. Defaults to "c3po".
+            voice_type (str, optional): The type of voice technology to use. Defaults to "xtts_v2".
+
+        This method sets up the initial configuration for the speech manager, including
+        the voice name and type, and prepares the necessary resources for speech processing.
         """
         self.voice_name = voice_name
         self.voice_type = voice_type
@@ -54,7 +58,7 @@ class SpeechManager:
         is_cuda_available, cuda_version = check_cuda_capable()
         
         # Verify torch was actually compiled with CUDA if CUDA is detected
-        if is_cuda_available:
+        if (is_cuda_available):
             try:
                 # Test if torch can actually use CUDA (simple tensor creation)
                 test_tensor = torch.zeros(1).cuda()
@@ -76,14 +80,15 @@ class SpeechManager:
         
         # Initialize TTS model
         self.tts = None
-        self.voice_reference_path = None
+        self.voice_ref_path = None
         self.initialize_tts_model()
     
     def setup_paths(self):
         """
         Set up paths for speech-related resources.
-        
-        Configures all directory paths needed for TTS voices, models, and output files.
+
+        Ensures all necessary directories for TTS voices, models, and output files
+        are properly configured and created if they do not exist.
         """
         # Get path dictionary from the Paths singleton instance
         self.developer_tools_dict = self.paths.get_tts_paths_dict()
@@ -101,98 +106,24 @@ class SpeechManager:
             os.makedirs(path, exist_ok=True)
 
     # Voice Pack Management methods
-    def download_voice_pack(self, repo_id, voice_name=None):
+    def verify_voice_ref_pack(self, voice_dir):
         """
-        Download a voice pack from HuggingFace Hub
-        
+        Verify the integrity of a voice pack directory.
+
+        This method checks whether the specified directory contains all the
+        required files for a valid voice pack.
+
         Args:
-            repo_id (str): HuggingFace repo ID (e.g., "Borcherding/XTTS-v2_C3PO")
-                           or a full URL (https://huggingface.co/Borcherding/XTTS-v2_C3PO/tree/main)
-            voice_name (str, optional): Name to save the voice pack as. 
-                                       If None, will use last part of repo_id.
-                                       
+            voice_dir (str): Path to the voice pack directory.
+
         Returns:
-            str: Path to downloaded voice pack directory
-            bool: Success status
-        """
-        # Handle full URLs by extracting the repo_id
-        if repo_id.startswith("http"):
-            from oarc.utils.speech_utils import SpeechUtils
-            repo_id = SpeechUtils.extract_repo_id_from_url(repo_id)
-        
-        if not voice_name:
-            voice_name = repo_id.split('/')[-1].lower()
-            # Remove XTTS-v2_ prefix if present
-            if voice_name.startswith("xtts-v2_"):
-                voice_name = voice_name[8:]
-            
-        log.info(f"Downloading voice pack from {repo_id} as {voice_name}")
-        
-        # Get the voice reference directory
-        voice_reference_dir = self.paths.get_voice_reference_dir()
-        
-        # Create voice directory
-        voice_dir = os.path.join(voice_reference_dir, voice_name)
-        os.makedirs(voice_dir, exist_ok=True)
-        log.debug(f"Created voice directory at: {voice_dir}")
-        
-        try:
-            # Download the repository files
-            log.info(f"Starting HuggingFace Hub download for {repo_id}")
-            downloaded_path = snapshot_download(
-                repo_id=repo_id,
-                local_dir=voice_dir,
-                local_dir_use_symlinks=False,  # Full download, no symlinks
-                repo_type="model"  # Explicitly specify this is a model repo
-            )
-            
-            # List the downloaded files to help with debugging
-            files = os.listdir(downloaded_path)
-            log.info(f"Downloaded voice pack to {downloaded_path} with {len(files)} files: {', '.join(files)}")
-            
-            # Copy files from downloaded_path to voice_dir if they're different
-            if downloaded_path != voice_dir:
-                for filename in files:
-                    source_file = os.path.join(downloaded_path, filename)
-                    target_file = os.path.join(voice_dir, filename)
-                    if os.path.isfile(source_file) and not os.path.exists(target_file):
-                        shutil.copy2(source_file, target_file)
-                log.info(f"Copied files from {downloaded_path} to {voice_dir}")
-            
-            # Verify the downloaded content
-            if self.verify_voice_pack(voice_dir):
-                log.info(f"Voice pack {voice_name} successfully downloaded and verified")
-                
-                # If reference.wav exists but clone_speech.wav doesn't, create a copy as clone_speech.wav
-                reference_file = os.path.join(voice_dir, "reference.wav")
-                clone_speech_file = os.path.join(voice_dir, "clone_speech.wav")
-                if os.path.exists(reference_file) and not os.path.exists(clone_speech_file):
-                    shutil.copy2(reference_file, clone_speech_file)
-                    log.info(f"Copied reference.wav to clone_speech.wav for compatibility")
-                
-                return voice_dir, True
-            else:
-                log.error(f"Downloaded voice pack {voice_name} failed verification")
-                return voice_dir, False
-                
-        except Exception as e:
-            log.error(f"Error downloading voice pack from {repo_id}: {e}", exc_info=True)
-            return None, False
-    
-    def verify_voice_pack(self, voice_dir):
-        """
-        Verify that a voice pack directory contains all required files
-        
-        Args:
-            voice_dir (str): Path to voice pack directory
-            
-        Returns:
-            bool: True if valid, False otherwise
+            bool: True if the voice pack is valid (contains all required files),
+              False otherwise.
         """
         log.info(f"Verifying voice pack at {voice_dir}")
         
         # Check for reference audio file (either reference.wav or clone_speech.wav)
-        has_reference = (
+        has_ref = (
             os.path.isfile(os.path.join(voice_dir, "reference.wav")) or
             os.path.isfile(os.path.join(voice_dir, "clone_speech.wav"))
         )
@@ -203,7 +134,7 @@ class SpeechManager:
         has_vocab = os.path.isfile(os.path.join(voice_dir, "vocab.json"))
         
         # Log the verification results
-        if not has_reference:
+        if not has_ref:
             log.error(f"Voice pack missing reference audio file (reference.wav or clone_speech.wav)")
         if not has_model:
             log.error(f"Voice pack missing model.pth file")
@@ -213,12 +144,12 @@ class SpeechManager:
             log.error(f"Voice pack missing vocab.json file")
             
         # Return overall verification result
-        is_valid = has_reference and has_model and has_config and has_vocab
+        is_valid = has_ref and has_model and has_config and has_vocab
         log.info(f"Voice pack verification {'successful' if is_valid else 'failed'}")
         
         return is_valid
     
-    def list_available_voices(self):
+    def list_ref_voices(self):
         """
         List all available voice packs
         
@@ -226,25 +157,25 @@ class SpeechManager:
             list: Names of available voice packs
         """
         try:
-            voice_reference_dir = self.paths.get_voice_reference_dir()
-            voices = [d for d in os.listdir(voice_reference_dir) 
-                     if os.path.isdir(os.path.join(voice_reference_dir, d))]
+            voice_ref_dir = self.paths.get_voice_ref_path()
+            voices = [d for d in os.listdir(voice_ref_dir) 
+                     if os.path.isdir(os.path.join(voice_ref_dir, d))]
             
             # Filter to only include verified voice packs
-            verified_voices = []
+            verified_voice_ref_packs = []
             for voice in voices:
-                voice_dir = os.path.join(voice_reference_dir, voice)
-                if self.verify_voice_pack(voice_dir):
-                    verified_voices.append(voice)
+                voice_dir = os.path.join(voice_ref_dir, voice)
+                if self.verify_voice_ref_pack(voice_dir):
+                    verified_voice_ref_packs.append(voice)
                     
-            log.info(f"Found {len(verified_voices)} verified voice packs: {', '.join(verified_voices)}")
-            return verified_voices
+            log.info(f"Found {len(verified_voice_ref_packs)} verified voice packs: {', '.join(verified_voice_ref_packs)}")
+            return verified_voice_ref_packs
             
         except Exception as e:
             log.error(f"Error listing available voices: {e}")
             return []
             
-    def get_voice_path(self, voice_name):
+    def get_voice_ref_pack_path(self, voice_name):
         """
         Get the full path to a voice pack
         
@@ -254,13 +185,13 @@ class SpeechManager:
         Returns:
             str: Full path to the voice pack directory or None if not found
         """
-        voice_reference_dir = self.paths.get_voice_reference_dir()
-        voice_dir = os.path.join(voice_reference_dir, voice_name)
-        if os.path.isdir(voice_dir) and self.verify_voice_pack(voice_dir):
+        voice_ref_path = self.paths.get_voice_ref_path()
+        voice_dir = os.path.join(voice_ref_path, voice_name)
+        if os.path.isdir(voice_dir) and self.verify_voice_ref_pack(voice_dir):
             return voice_dir
         return None
     
-    def delete_voice_pack(self, voice_name):
+    def delete_voice_ref_pack(self, voice_name):
         """
         Delete a voice pack
         
@@ -270,8 +201,8 @@ class SpeechManager:
         Returns:
             bool: Success status
         """
-        voice_reference_dir = self.paths.get_voice_reference_dir()
-        voice_dir = os.path.join(voice_reference_dir, voice_name)
+        voice_ref_dir = self.paths.get_voice_ref_path()
+        voice_dir = os.path.join(voice_ref_dir, voice_name)
         
         if not os.path.isdir(voice_dir):
             log.error(f"Voice pack {voice_name} not found")
@@ -292,38 +223,38 @@ class SpeechManager:
         Returns:
             dict: Dictionary of voice name to voice directory path for verified voice packs
         """
-        voice_packs = {}
+        voice_ref_pack = {}
         
-        voice_ref_pack_dir = os.path.join(self.paths.get_coqui_dir(), 'voice_reference_pack')
+        voice_ref_pack_dir = os.path.join(self.paths.get_coqui_path(), 'voice_reference_pack')
         if not os.path.exists(voice_ref_pack_dir):
             os.makedirs(voice_ref_pack_dir, exist_ok=True)
             log.info(f"Created voice reference pack directory at {voice_ref_pack_dir}")
-            return voice_packs
+            return voice_ref_pack
             
         # Check for subdirectories which might contain voice packs
         try:
-            voice_dirs = [d for d in os.listdir(voice_ref_pack_dir) 
+            paths = [d for d in os.listdir(voice_ref_pack_dir) 
                           if os.path.isdir(os.path.join(voice_ref_pack_dir, d))]
             
-            if not voice_dirs:
+            if not paths:
                 log.info("No voice packs found in voice_reference_pack directory")
-                return voice_packs
+                return voice_ref_pack
                 
-            log.info(f"Found {len(voice_dirs)} potential voice packs: {', '.join(voice_dirs)}")
+            log.info(f"Found {len(paths)} potential voice packs: {', '.join(paths)}")
             
             # Verify each potential voice pack
-            for voice_name in voice_dirs:
-                voice_dir = os.path.join(voice_ref_pack_dir, voice_name)
+            for name in paths:
+                path = os.path.join(voice_ref_pack_dir, name)
                 
                 # Check if this is a valid voice pack
-                if self.verify_voice_pack(voice_dir):
-                    voice_packs[voice_name] = voice_dir
-                    log.info(f"Verified voice pack: {voice_name}")
+                if self.verify_voice_ref_pack(path):
+                    voice_ref_pack[name] = path
+                    log.info(f"Verified voice pack: {name}")
                 else:
-                    log.warning(f"Directory {voice_name} is not a valid voice pack")
+                    log.warning(f"Directory {name} is not a valid voice pack")
                     
-            log.info(f"Found {len(voice_packs)} verified voice packs: {', '.join(voice_packs.keys())}")
-            return voice_packs
+            log.info(f"Found {len(voice_ref_pack)} verified voice packs: {', '.join(voice_ref_pack.keys())}")
+            return voice_ref_pack
             
         except Exception as e:
             log.error(f"Error discovering voice packs: {e}", exc_info=True)
@@ -333,8 +264,11 @@ class SpeechManager:
         """
         Initialize the appropriate TTS model.
         
-        Loads or creates the TTS model based on the specified voice type and name.
-        Handles fallbacks and error scenarios gracefully.
+        Follows a sequential blocking pattern:
+        1. Check if base Coqui XTTS v2 model exists, download if needed
+        2. Check if default c3po voice model exists, download if needed
+        3. Copy reference.wav from custom model to voice_ref_pack directory
+        4. Initialize the appropriate TTS model
         """
         try:
             log.info(f"=========== INITIALIZING TEXT-TO-SPEECH ===========")
@@ -345,41 +279,102 @@ class SpeechManager:
             
             # Get paths using the Paths singleton
             model_git_dir = self.paths.get_model_dir()
-            coqui_dir = self.paths.get_coqui_dir()
-            voice_ref_dir = self.paths.get_voice_reference_dir()
+            coqui_dir = self.paths.get_coqui_path()
+            voice_ref_dir = self.paths.get_voice_ref_path()
+            custom_coqui_dir = self.paths.get_tts_paths_dict()['custom_coqui']
             
             log.info(f"Using model directory: {model_git_dir}")
             log.info(f"Using Coqui directory: {coqui_dir}")
+            log.info(f"Using custom Coqui directory: {custom_coqui_dir}")
             log.info(f"Using voice reference directory: {voice_ref_dir}")
             
-            # Check for fine-tuned model first
-            fine_tuned_model_path = os.path.join(coqui_dir, f'XTTS-v2_{self.voice_name}')
+            # STEP 1: Ensure base Coqui XTTS v2 model exists
+            base_xtts_dir = os.path.join(coqui_dir, "xtts")
+            os.makedirs(base_xtts_dir, exist_ok=True)
             
-            # List available fine-tuned voices for logging
-            available_voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
-                             if d.startswith('XTTS-v2_') and os.path.isdir(os.path.join(coqui_dir, d))]
-            log.info(f"Available fine-tuned voices: {', '.join(available_voices) if available_voices else 'None'}")
+            log.info("Checking for base Coqui XTTS v2 model")
+            if not os.path.exists(os.path.join(base_xtts_dir, "model.pth")):
+                log.info("Base Coqui XTTS v2 model not found, downloading...")
+                from oarc.hf.hf_utils import HfUtils
+                _, model_success = HfUtils.download_voice_ref_pack(
+                    "coqui/XTTS-v2",  # Base XTTS v2 repository
+                    "xtts",
+                    target_type="base_model"  # Use special type for base model
+                )
+                if not model_success:
+                    log.error("Failed to download base XTTS v2 model")
+            else:
+                log.info("Base Coqui XTTS v2 model already exists")
+                
+            # STEP 2: Ensure c3po voice model exists
+            from oarc.speech.voice.voice_ref_pack import VoiceRefPackType
+            from oarc.hf.hf_utils import HfUtils
             
-            # Check for voice reference
+            c3po_model_dir = os.path.join(custom_coqui_dir, "XTTS-v2_c3po")
+            if not os.path.exists(c3po_model_dir) or not os.path.exists(os.path.join(c3po_model_dir, "model.pth")):
+                log.info("C3PO voice model not found, downloading...")
+                c3po_repo = VoiceRefPackType.C3PO.value.repo_url
+                _, c3po_success = HfUtils.download_voice_ref_pack(
+                    c3po_repo,
+                    "XTTS-v2_c3po",
+                    target_type="model"
+                )
+                if not c3po_success:
+                    log.error("Failed to download C3PO voice model")
+            else:
+                log.info("C3PO voice model already exists")
+            
+            # STEP 3: Prepare voice reference directory and find reference file
             voice_dir = os.path.join(voice_ref_dir, self.voice_name)
             os.makedirs(voice_dir, exist_ok=True)
             
-            # Look for reference files using the same pattern as test_tts_fast.py
-            self.voice_reference_path = None
-            for filename in ["clone_speech.wav", "reference.wav"]:
-                ref_path = os.path.join(voice_dir, filename)
-                if os.path.exists(ref_path):
-                    self.voice_reference_path = ref_path
-                    log.info(f"Found voice reference file: {self.voice_reference_path}")
-                    break
+            # Look for reference files
+            from oarc.speech.voice.voice_utils import VoiceUtils
+            self.voice_ref_path = VoiceUtils.find_voice_ref_file(self.voice_name)
             
-            # If fine-tuned model exists, use it
-            if os.path.exists(fine_tuned_model_path):
+            # If no reference file found, ensure it exists
+            if not self.voice_ref_path:
+                log.info(f"No reference file found for {self.voice_name}, attempting to create one")
+                from oarc.speech.speech_utils import SpeechUtils
+                
+                # Try to ensure the voice reference exists (downloads/copies if needed)
+                if SpeechUtils.ensure_voice_reference_exists(self.voice_name):
+                    # Get the path to the newly created reference file
+                    self.voice_ref_path = VoiceUtils.find_voice_ref_file(self.voice_name)
+                    
+                    if self.voice_ref_path:
+                        log.info(f"Successfully created voice reference: {self.voice_ref_path}")
+                    else:
+                        # This should not happen if ensure_voice_reference_exists returned True
+                        log.error(f"Voice reference was created but could not be found")
+                
+                # If we still don't have a reference file, raise an error
+                if not self.voice_ref_path:
+                    available_refs = os.listdir(voice_ref_dir) if os.path.exists(voice_ref_dir) else 'None'
+                    raise FileNotFoundError(
+                        f"Voice reference file not found for {self.voice_name}. "
+                        f"Please ensure voice references exist in: {voice_ref_dir}\n"
+                        f"Available voices: {available_refs}"
+                    )
+            
+            # STEP 4: Find the most appropriate model to initialize
+            fine_tuned_model_path = self.find_fine_tuned_model(
+                voice_name=self.voice_name,
+                coqui_dir=coqui_dir,
+                custom_coqui_dir=custom_coqui_dir,
+                verbose=False
+            )
+            
+            # STEP 5: Initialize TTS model
+            if fine_tuned_model_path:
+                # Initialize with fine-tuned model
                 config_path = os.path.join(fine_tuned_model_path, "config.json")
                 model_path = os.path.join(fine_tuned_model_path, "model.pth")
                 
-                if not os.path.exists(config_path) or not os.path.exists(model_path):
-                    raise FileNotFoundError(f"Missing model files in {fine_tuned_model_path}")
+                if not os.path.exists(config_path):
+                    raise FileNotFoundError(f"Config file not found at {config_path}")
+                if not os.path.exists(model_path):
+                    raise FileNotFoundError(f"Model file not found at {model_path}")
                     
                 log.info(f"Loading fine-tuned model from: {fine_tuned_model_path}")
                 self.tts = TTS(
@@ -389,61 +384,24 @@ class SpeechManager:
                 )
                 self.tts.to(self.device)
                 self.is_multi_speaker = False
-                
-                # Use the model's reference.wav if we don't have one already
-                if not self.voice_reference_path:
-                    model_ref_path = os.path.join(fine_tuned_model_path, "reference.wav")
-                    if os.path.exists(model_ref_path):
-                        self.voice_reference_path = model_ref_path
-                        log.info(f"Using model's reference.wav: {self.voice_reference_path}")
-                
                 log.info(f"Loaded fine-tuned model for voice: {self.voice_name}")
-                    
             else:
-                # Use base model with reference voice
-                log.info(f"No fine-tuned model found for {self.voice_name}, using base model with voice reference")
-                
-                # Use the same model name as in test_tts_fast.py
+                # Initialize with base model and reference voice
+                log.info(f"Using base model with voice reference for {self.voice_name}")
                 model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
                 log.info(f"Initializing XTTS v2 model: {model_name}")
-                
-                # Initialize with the correct model name
                 self.tts = TTS(model_name=model_name)
                 self.tts.to(self.device)
                 self.is_multi_speaker = True
-                
-                # Verify we have a voice reference file
-                if not self.voice_reference_path:
-                    # Try copying from an alternative location if available
-                    from oarc.utils.speech_utils import SpeechUtils
-                    
-                    # Use SpeechUtils to find a reference file
-                    alt_ref_path = SpeechUtils.find_voice_reference_file(self.voice_name, self.paths)
-                    
-                    if alt_ref_path:
-                        # Create voice_dir if needed and copy the file
-                        os.makedirs(voice_dir, exist_ok=True)
-                        clone_speech_path = os.path.join(voice_dir, "clone_speech.wav")
-                        import shutil
-                        shutil.copy2(alt_ref_path, clone_speech_path)
-                        self.voice_reference_path = clone_speech_path
-                        log.info(f"Copied voice reference from {alt_ref_path} to {clone_speech_path}")
-                    else:
-                        # No reference file found anywhere
-                        available_refs = os.listdir(voice_ref_dir) if os.path.exists(voice_ref_dir) else 'None'
-                        raise FileNotFoundError(
-                            f"Voice reference file not found for {self.voice_name}. "
-                            f"Please ensure voice references exist in: {voice_ref_dir}\n"
-                            f"Available voices: {available_refs}"
-                        )
             
+            log.info("=" * 50)
             log.info(f"TTS Model initialized successfully on {self.device}")
-            log.info(f"Using voice reference: {self.voice_reference_path}")
-            log.info(f"=========== TEXT-TO-SPEECH INITIALIZED ===========")
+            log.info(f"Using voice reference: {self.voice_ref_path}")
+            log.info(f"TEXT-TO-SPEECH INITIALIZED")
+            log.info("=" * 50)
             return True
                 
         except Exception as e:
-            log.error(f"Error initializing TTS model: {str(e)}", exc_info=True)
             raise RuntimeError(f"Error initializing TTS model: {str(e)}")
 
     def generate_speech(self, text, speed=1.0, language="en"):
@@ -460,8 +418,7 @@ class SpeechManager:
         """
         try:
             if not self.tts:
-                log.warning("TTS model not initialized, returning silence")
-                return np.array([], dtype=np.float32)
+                raise RuntimeError("TTS model not initialized, returning silence")
                 
             # Clear VRAM cache
             torch.cuda.empty_cache()
@@ -470,7 +427,7 @@ class SpeechManager:
             if self.is_multi_speaker:
                 audio = self.tts.tts(
                     text=text,
-                    speaker_wav=self.voice_reference_path,
+                    speaker_wav=self.voice_ref_path,
                     language=language,
                     speed=speed
                 )
@@ -491,8 +448,293 @@ class SpeechManager:
             return audio_np
             
         except Exception as e:
-            log.error(f"Error generating speech: {str(e)}", exc_info=True)
-            return np.array([], dtype=np.float32)
+            raise RuntimeError(f"Error generating speech: {str(e)}")
+
+    def generate_speech_to_file(self, text, output_file, speed=1.0, language="en", force_fallback=False, overwrite=False):
+        """
+        Generate speech and save directly to a file, with automatic fallback to alternative models if needed.
+        
+        This method attempts to generate speech using the currently initialized TTS model,
+        then falls back to alternative models if needed, writing the result directly to a file.
+        
+        Args:
+            text (str): The text to convert to speech
+            output_file (str): Path to save the output audio file
+            speed (float): Speed factor for speech generation (default: 1.0)
+            language (str): Language code for speech (default: "en")
+            force_fallback (bool): Force using the fallback chain even if a model is initialized
+            overwrite (bool): Whether to overwrite existing files (default: False)
+            
+        Returns:
+            bool: True if speech was successfully generated and saved, False otherwise
+        """
+        # If we don't want to overwrite, generate a non-conflicting filename
+        if not overwrite and os.path.exists(output_file):
+            output_file = SpeechUtils.get_non_conflicting_filename(output_file)
+
+        # If we have an initialized model and aren't forcing fallback, use it
+        if self.tts is not None and not force_fallback:
+            try:
+                log.info(f"Generating speech using initialized TTS model")
+                audio = self.generate_speech(text, speed, language)
+                
+                # Save the generated audio to a file
+                if audio is not None and len(audio) > 0:
+                    import soundfile as sf
+                    sf.write(output_file, audio, self.sample_rate)
+                    log.info(f"Speech generated and saved to {output_file}")
+                    return True
+                else:
+                    log.warning("Generated audio was empty, falling back to alternative models")
+            except Exception as e:
+                log.warning(f"Error using initialized TTS model: {e}", exc_info=True)
+                log.warning("Falling back to alternative models")
+        else:
+            log.info("No initialized TTS model, using fallback models")
+        
+        # Get paths for fallback logic
+        paths = Paths()
+        coqui_dir = paths.get_coqui_path()
+        custom_coqui_dir = paths.get_tts_paths_dict()['custom_coqui']
+        
+        # Step 1: Try to find a fine-tuned model
+        fine_tuned_model_path = self.find_fine_tuned_model(self.voice_name, coqui_dir, custom_coqui_dir, verbose=False)
+        
+        # Step 2: Get voice reference file using SpeechUtils
+        if not self.voice_ref_path:
+            self.voice_ref_path = SpeechUtils.find_voice_ref_pack_file(self.voice_name)
+        
+        # Determine device to use
+        device = self.device  # Use already determined device
+        
+        try:
+            # Step 3: Attempt to generate speech with the appropriate model
+            if fine_tuned_model_path:
+                # Use fine-tuned model
+                log.info(f"Using fine-tuned model from: {fine_tuned_model_path}")
+                config_path = os.path.join(fine_tuned_model_path, "config.json")
+                
+                # Load the model
+                fallback_tts = TTS(
+                    model_path=fine_tuned_model_path,
+                    config_path=config_path,
+                    progress_bar=False
+                )
+                fallback_tts.to(device)
+                
+                # Since TTS API doesn't have an overwrite parameter, we need to handle it in a special way
+                # If the file exists and we don't want to overwrite, we need to use a temporary file
+                # and then copy it to the target file
+                if os.path.exists(output_file) and not overwrite:
+                    temp_file = output_file + ".temp"
+                    log.info(f"Using temporary file: {temp_file}")
+                    
+                    # Generate speech with fine-tuned model to temp file
+                    fallback_tts.tts_to_file(
+                        text=text,
+                        file_path=temp_file,
+                        language=language,
+                        speed=speed
+                    )
+                    
+                    # Copy the temp file to the non-conflicting filename
+                    shutil.copy2(temp_file, output_file)
+                    
+                    # Remove the temp file
+                    os.remove(temp_file)
+                    log.info(f"Renamed temporary file to: {output_file}")
+                else:
+                    # Generate speech with fine-tuned model directly to output file
+                    fallback_tts.tts_to_file(
+                        text=text,
+                        file_path=output_file,
+                        language=language,
+                        speed=speed
+                    )
+            elif self.voice_ref_path:
+                # Use XTTS v2 with voice reference
+                log.info(f"Using XTTS v2 with voice reference: {self.voice_ref_path}")
+                model_name = "tts_models/multilingual/multi-dataset/xtts_v2"
+                log.info(f"Initializing XTTS v2 model with reference voice: {model_name}")
+                
+                # Initialize TTS with XTTS v2
+                fallback_tts = TTS(model_name=model_name)
+                fallback_tts.to(device)
+                
+                # Handle overwrite parameter same as above
+                if os.path.exists(output_file) and not overwrite:
+                    temp_file = output_file + ".temp"
+                    
+                    # Generate speech with reference voice to temp file
+                    fallback_tts.tts_to_file(
+                        text=text,
+                        file_path=temp_file,
+                        speaker_wav=self.voice_ref_path,
+                        language=language,
+                        speed=speed
+                    )
+                    
+                    # Copy the temp file to the non-conflicting filename
+                    shutil.copy2(temp_file, output_file)
+                    
+                    # Remove the temp file
+                    os.remove(temp_file)
+                else:
+                    # Generate speech with reference voice directly
+                    fallback_tts.tts_to_file(
+                        text=text,
+                        file_path=output_file,
+                        speaker_wav=self.voice_ref_path,
+                        language=language,
+                        speed=speed
+                    )
+            else:
+                # Fall back to a simple model
+                log.warning(f"No voice model or reference found for {self.voice_name}. Using default model instead.")
+                model_name = "tts_models/en/ljspeech/tacotron2-DDC"
+                log.info(f"Initializing default TTS model: {model_name}")
+                fallback_tts = TTS(model_name=model_name)
+                
+                # Handle overwrite parameter
+                if os.path.exists(output_file) and not overwrite:
+                    temp_file = output_file + ".temp"
+                    
+                    # Generate speech with default model to temp file
+                    fallback_tts.tts_to_file(
+                        text=text,
+                        file_path=temp_file
+                    )
+                    
+                    # Copy the temp file to the non-conflicting filename
+                    shutil.copy2(temp_file, output_file)
+                    
+                    # Remove the temp file
+                    os.remove(temp_file)
+                else:
+                    # Generate speech with default model directly
+                    fallback_tts.tts_to_file(
+                        text=text,
+                        file_path=output_file
+                    )
+            
+            log.info(f"Speech generated successfully and saved to {output_file}")
+            return True
+            
+        except Exception as e:
+            log.error(f"Error in fallback TTS generation: {e}", exc_info=True)
+            return False
+
+    def find_fine_tuned_model(self, voice_name, coqui_dir=None, custom_coqui_dir=None, verbose=True):
+        """
+        Find a fine-tuned model in available directories with configurable logging detail.
+        
+        This method searches for fine-tuned voice models in standard and custom
+        directories, with thorough logging for debugging purposes. It checks various
+        naming patterns and validates found models.
+        
+        Args:
+            voice_name (str): Name of the voice to find model for
+            coqui_dir (str, optional): Path to the main Coqui directory. 
+                                       If None, uses the path from Paths singleton.
+            custom_coqui_dir (str, optional): Path to custom Coqui directory.
+                                             If None, uses the path from Paths singleton.
+            verbose (bool, optional): Whether to log with INFO level (True) or DEBUG level (False).
+                                     Defaults to True.
+            
+        Returns:
+            str: Path to fine-tuned model or None if not found
+        """
+        # Get paths if not provided
+        if coqui_dir is None or custom_coqui_dir is None:
+            paths = Paths()
+            if coqui_dir is None:
+                coqui_dir = paths.get_coqui_path()
+            if custom_coqui_dir is None:
+                custom_coqui_dir = paths.get_tts_paths_dict()['custom_coqui']
+        
+        # Configure logging level based on verbose flag
+        import logging
+        original_level = log._base_logger.level
+        if not verbose:
+            log._base_logger.setLevel(logging.DEBUG)
+        
+        try:
+            # Check if directories exist with appropriate logging
+            log_fn = log.info if verbose else log.debug
+            log_fn(f"Checking if coqui_dir exists: {os.path.exists(coqui_dir)}")
+            log_fn(f"Checking if custom_coqui_dir exists: {os.path.exists(custom_coqui_dir)}")
+            
+            # Log directory contents for debugging
+            if os.path.exists(custom_coqui_dir):
+                log_fn(f"Contents of custom_coqui_dir: {os.listdir(custom_coqui_dir)}")
+            
+            # Check for Borcherding directory which might contain models
+            borcherding_dir = os.path.join(os.path.dirname(custom_coqui_dir), "Borcherding")
+            if os.path.exists(borcherding_dir):
+                log_fn(f"Contents of Borcherding directory: {os.listdir(borcherding_dir)}")
+            
+            # Check various naming patterns in both directories
+            possible_paths = [
+                os.path.join(coqui_dir, f"XTTS-v2_{voice_name}"),
+                os.path.join(coqui_dir, voice_name),
+                os.path.join(custom_coqui_dir, f"XTTS-v2_{voice_name}"),
+                os.path.join(custom_coqui_dir, voice_name),
+                os.path.join(custom_coqui_dir, f"{voice_name}_xtts_v2"),
+                
+                # Add paths matching actual directory structures seen in the wild
+                os.path.join(os.path.dirname(custom_coqui_dir), "Borcherding", f"XTTS-v2_{voice_name}"),
+                os.path.join(os.path.dirname(custom_coqui_dir), "Borcherding-XTTS-v2_C3PO"),
+                
+                # Try parent directory
+                os.path.join(os.path.dirname(custom_coqui_dir), f"XTTS-v2_{voice_name}"),
+                
+                # Try HuggingFace cache
+                os.path.join(os.path.dirname(custom_coqui_dir), "huggingface", "hub", f"models--Borcherding--XTTS-v2_{voice_name}")
+            ]
+            
+            # Log all paths we're checking
+            for path in possible_paths:
+                log_fn(f"Checking path: {path}")
+            
+            # Check each path for model files
+            for path in possible_paths:
+                if os.path.exists(path):
+                    config_path = os.path.join(path, "config.json")
+                    model_path = os.path.join(path, "model.pth")
+                    
+                    if os.path.exists(config_path) and os.path.exists(model_path):
+                        log_fn(f"Found fine-tuned model at: {path}")
+                        
+                        # Extra validation - check that it's actually an XTTS model
+                        try:
+                            with open(config_path, 'r', encoding='utf-8') as f:
+                                config = json.load(f)
+                            if 'model' in config and 'model_type' in config['model'] and 'xtts' in config['model']['model_type'].lower():
+                                return path
+                            else:
+                                # Use the diagnostic function for more detailed logging
+                                from oarc.speech.speech_utils import SpeechUtils
+                                diagnostics = SpeechUtils.diagnose_model_config(path)
+                                log.warning(f"Found model at {path} but it's not an XTTS model")
+                                log.debug(f"Model validation diagnostics: {diagnostics}")
+                                
+                                # Even if validation fails, let's use the model anyway if it has the basics
+                                log.info(f"Attempting to use model despite validation failure: {path}")
+                                return path
+                        except Exception as e:
+                            log.warning(f"Found model files at {path} but couldn't validate config: {e}", exc_info=True)
+                            # Still return it and try using it anyway
+                            return path
+                    else:
+                        log_fn(f"Found directory {path} but missing model files")
+            
+            log.warning(f"No fine-tuned model found for {voice_name}")
+            return None
+            
+        finally:
+            # Always restore original logging level if changed
+            if not verbose:
+                log._base_logger.setLevel(original_level)
 
     def cleanup(self):
         """
@@ -504,36 +746,44 @@ class SpeechManager:
         torch.cuda.empty_cache()
         self.tts = None
         
-        # Reset the singleton instance for proper cleanup
+        # Reset the singleton instance
         self._reset_singleton()
 
+# TODO this should be moved into its own script file
 if __name__ == "__main__":
-    import argparse
+    """Command-line interface for the OARC Speech Manager."""
+
     import sys
-    
+    import argparse
+
+    from oarc.utils.const import SUCCESS, FAILURE
+
     parser = argparse.ArgumentParser(description="OARC Speech Manager")
     parser.add_argument("--list-voices", action="store_true", help="List all available voice packs")
     args = parser.parse_args()
     
-    # Initialize the speech manager
-    speech_manager = SpeechManager()
+    # Initialize the SpeechManager singleton
+    manager = SpeechManager()
     
     if args.list_voices:
-        print("\n=== Available Voice Packs ===")
-        voices = speech_manager.list_available_voices()
+        print("=" * 50)
+        print("Available Voice Packs")
+        voices = manager.list_ref_voices()
         if voices:
             for voice in voices:
                 print(f"- {voice}")
-        else:
-            print("No voice packs found")
+                print("=" * 50)
+        else: 
+            # No voice packs found
+            from oarc.utils.paths import Paths
+            paths = Paths()
+            print(f"- No voice packs found. Please check your setup.")
+            print(f"- Voice reference pack path: {paths.get_voice_ref_path()}")
+            print(f"- Expected path structure for voice pack: {paths.get_voice_ref_path()}/[voice_name]/clone_speech.wav\n")
+            print("=" * 50)
+            sys.exit(FAILURE)
         
-        # Display voice reference path to help with troubleshooting
-        from oarc.utils.paths import Paths
-        paths = Paths()
-        print(f"\nVoice reference directory: {paths.get_voice_reference_dir()}")
-        print(f"Expected path structure: {paths.get_voice_reference_dir()}/[voice_name]/clone_speech.wav\n")
-    
     else:
         parser.print_help()
         
-    sys.exit(0)
+    sys.exit(SUCCESS)

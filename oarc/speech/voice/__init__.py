@@ -11,12 +11,12 @@ across the OARC application.
 """
 
 from .voice_type import VoiceType
-from .voice_ref_pack_type import VoiceRefPackType, VoiceRefPackInfo
+from .voice_ref_pack import VoiceRefPackType, VoiceRefPack
 from .voice_utils import VoiceUtils
 
 __all__ = [
     'VoiceType',
     'VoiceRefPackType',
-    'VoiceRefPackInfo',
+    'VoiceRefPack',
     'VoiceUtils'
 ]

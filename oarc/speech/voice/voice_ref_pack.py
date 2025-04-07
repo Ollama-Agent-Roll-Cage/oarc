@@ -9,13 +9,16 @@ including its Hugging Face repository URL.
 from enum import Enum
 from dataclasses import dataclass
 
+from oarc.speech.voice.voice_type import VoiceType
+
 
 @dataclass
-class VoiceRefPackInfo:
+class VoiceRefPack:
     """Information about a voice reference pack."""
     name: str
     repo_url: str
     creator: str
+    voice_type: VoiceType
     description: str = ""
 
 
@@ -26,41 +29,46 @@ class VoiceRefPackType(Enum):
     including its Hugging Face repository and creator.
     """
     # Base model
-    XTTS_V2_BASE = VoiceRefPackInfo(
+    XTTS_V2_BASE = VoiceRefPack(
         name="XTTS-v2",
         repo_url="https://hf.co/coqui/XTTS-v2",
         creator="Coqui",
+        voice_type=VoiceType.XTTS_V2,
         description="Base XTTS v2 multilingual voice model"
     )
     
     # Character voices
-    C3PO = VoiceRefPackInfo(
+    C3PO = VoiceRefPack(
         name="C3PO",
         repo_url="https://hf.co/Borcherding/XTTS-v2_C3PO",
         creator="Borcherding",
+        voice_type=VoiceType.XTTS_V2,
         description="C3PO droid voice from Star Wars"
     )
     
-    CARLI_G = VoiceRefPackInfo(
+    CARLI_G = VoiceRefPack(
         name="CarliG",
         repo_url="https://hf.co/Borcherding/XTTS-v2_CarliG",
         creator="Borcherding",
+        voice_type=VoiceType.XTTS_V2,
         description="CarliG voice model"
     )
     
     # Sports voices
-    PETER_DRURY = VoiceRefPackInfo(
+    PETER_DRURY = VoiceRefPack(
         name="PeterDrury",
         repo_url="https://hf.co/kodoqmc/XTTS-v2_PeterDrury",
         creator="kodoqmc",
+        voice_type=VoiceType.XTTS_V2,
         description="Peter Drury sports commentator voice"
     )
     
     # Sci-fi voices
-    SAN_TI = VoiceRefPackInfo(
+    SAN_TI = VoiceRefPack(
         name="San-Ti",
         repo_url="https://hf.co/kodoqmc/XTTS-v2_San-Ti",
         creator="kodoqmc",
+        voice_type=VoiceType.XTTS_V2,
         description="San-Ti voice model"
     )
     

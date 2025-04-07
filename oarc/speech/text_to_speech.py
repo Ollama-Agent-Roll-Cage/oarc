@@ -15,7 +15,6 @@ import re
 import queue
 import asyncio
 
-from TTS.api import TTS
 import numpy as np
 import shutil
 import time
@@ -25,11 +24,13 @@ import websockets
 
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
+from oarc.speech.speech_manager import SpeechManager
 
 WEBSOCKET_URL = 'ws://localhost:2020/audio-stream'
 
 class TextToSpeech:
-    """ a class for managing the text to speech conversation between the user, ollama, & coqui-tts.
+    """ a class for managing the text to speech conversion.
+    This class utilizes the SpeechManager singleton for TTS model management.
     """
 
     def __init__(self, developer_tools_dict, voice_type, voice_name):
@@ -49,7 +50,7 @@ class TextToSpeech:
         # Initialize paths using the Paths singleton
         self.paths = Paths()  # The singleton decorator will handle returning the instance
         
-        # Get paths directly from the paths singleton instead of using setup_paths
+        # Get paths directly from the paths singleton
         tts_paths = self.paths.get_tts_paths_dict()
         self.current_dir = tts_paths['current_dir']
         self.parent_dir = tts_paths['parent_dir']
@@ -59,151 +60,48 @@ class TextToSpeech:
         self.tts_voice_ref_wav_pack_path = tts_paths['tts_voice_ref_wav_pack_path_dir']
         
         # Initialize other properties
-        self.tts_model = None
-        self.sample_rate = 24000  # Default sample rate for TTS
         self.audio_data = None
         self.is_generating = False
         self.should_interrupt = False
+        self.audio_buffer = np.array([], dtype=np.float32)
+        self.speech_interrupted = False
         
-        # Initialize the TTS model
-        self.initialize_tts_model()
-
-    def initialize_tts_model(self):
-        """
-        Initialize the appropriate TTS model.
+        # Get the colors dictionary (for terminal output)
+        self.colors = {
+            "RED": "\033[31m",
+            "GREEN": "\033[32m",
+            "YELLOW": "\033[33m",
+            "BLUE": "\033[34m",
+            "PURPLE": "\033[35m",
+            "CYAN": "\033[36m",
+            "LIGHT_CYAN": "\033[96m",
+            "BRIGHT_YELLOW": "\033[93m",
+            "RESET": "\033[0m"
+        }
         
-        Loads or creates the TTS model based on the specified voice type and name.
-        Handles fallbacks and error scenarios gracefully.
-        """
-        try:
-            log.info(f"=========== INITIALIZING TEXT-TO-SPEECH ===========")
-            model_git_dir = self.paths.get_model_dir()
-            log.info(f"Using model directory: {model_git_dir}")
-
-            # Construct paths
-            coqui_dir = os.path.join(model_git_dir, 'coqui')
-            if not os.path.exists(coqui_dir):
-                os.makedirs(coqui_dir, exist_ok=True)
-                log.warning(f"Coqui directory not found, creating: {coqui_dir}")
-
-            # Use the voice reference directory from Paths instead of constructing it manually
-            voice_ref_dir = self.paths.get_voice_reference_dir()
-            log.info(f"Using voice reference directory: {voice_ref_dir}")
-
-            # List available voices
-            available_voices = [d.replace('XTTS-v2_', '') for d in os.listdir(coqui_dir) 
-                              if d.startswith('XTTS-v2_') and os.path.isdir(os.path.join(coqui_dir, d))]
-            log.info(f"Available voices: {', '.join(available_voices) if available_voices else 'None'}")
-            
-            fine_tuned_model_path = os.path.join(coqui_dir, f'XTTS-v2_{self.voice_name}')
-                
-            if os.path.exists(fine_tuned_model_path):
-                # Use fine-tuned model
-                config_path = os.path.join(fine_tuned_model_path, "config.json")
-                model_path = os.path.join(fine_tuned_model_path, "model.pth")
-                
-                if not os.path.exists(config_path):
-                    raise FileNotFoundError(f"Config file not found at {config_path}")
-                if not os.path.exists(model_path):
-                    raise FileNotFoundError(f"Model file not found at {model_path}")
-                    
-                log.info(f"Loading fine-tuned model from: {fine_tuned_model_path}")
-                self.tts = TTS(
-                    model_path=fine_tuned_model_path,
-                    config_path=config_path,
-                    progress_bar=False
-                )
-                self.tts.to(self.device)
-                self.is_multi_speaker = False
-                self.voice_reference_path = os.path.join(fine_tuned_model_path, "reference.wav")
-                log.info(f"Loaded fine-tuned model for voice: {self.voice_name}")
-                    
-            else:
-                # Use base model with reference voice
-                log.info(f"No fine-tuned model found for {self.voice_name}, using base model with voice reference")
-                self.tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(self.device)
-                self.is_multi_speaker = True
-                    
-                # Look for voice reference in voice_reference_pack - use the proper directory
-                voice_dir = os.path.join(voice_ref_dir, self.voice_name)
-                os.makedirs(voice_dir, exist_ok=True)
-                self.voice_reference_path = os.path.join(voice_dir, "clone_speech.wav")
-                log.info(f"Looking for voice reference at: {self.voice_reference_path}")
-                    
-                if not os.path.exists(self.voice_reference_path):
-                    # Try reference.wav before raising error
-                    alt_ref_path = os.path.join(voice_dir, "reference.wav")
-                    if os.path.exists(alt_ref_path):
-                        # Copy to clone_speech.wav
-                        shutil.copy2(alt_ref_path, self.voice_reference_path)
-                        log.info(f"Copied reference.wav to clone_speech.wav for compatibility")
-                    else:
-                        raise FileNotFoundError(
-                            f"Voice reference file not found at {self.voice_reference_path}\n"
-                            f"Please ensure voice reference exists at: {voice_dir}\n"
-                            f"Available voices in reference pack: {os.listdir(voice_ref_dir) if os.path.exists(voice_ref_dir) else 'None'}"
-                        )
-                    
-            log.info(f"TTS Model initialized successfully on {self.device}")
-            log.info(f"=========== TEXT-TO-SPEECH INITIALIZED ===========")
-            return True
-                
-        except Exception as e:
-            raise RuntimeError(f"Error initializing TTS model: {str(e)}")
-    
+        # Get device configuration
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        # Use SpeechManager for TTS instead of duplicating initialization
+        self.speech_manager = SpeechManager(voice_name=self.voice_name, voice_type=self.voice_type)
+        
+        # Get TTS model and properties from SpeechManager
+        self.tts = self.speech_manager.tts
+        self.is_multi_speaker = self.speech_manager.is_multi_speaker
+        self.voice_name_reference_speech_path = self.speech_manager.voice_ref_path
+        self.sample_rate = self.speech_manager.sample_rate
+        
+        log.info(f"TextToSpeech initialized using SpeechManager with voice: {self.voice_name}")
 
     def process_tts_responses(self, response, voice_name):
         """Process text response into audio data suitable for streaming"""
         try:
-            # Clear VRAM cache
-            torch.cuda.empty_cache()
-            
-            # Split into sentences
-            sentences = self.split_into_sentences(response)
-            
-            # Clear existing audio buffer
-            self.audio_buffer = np.array([], dtype=np.float32)
-            
-            # Process each sentence
-            for sentence in sentences:
-                if self.speech_interrupted:
-                    break
-                    
-                # Generate audio
-                if self.is_multi_speaker:
-                    audio = self.tts.tts(
-                        text=sentence,
-                        speaker_wav=self.voice_reference_path,
-                        language="en",
-                        speed=3
-                    )
-                else:
-                    audio = self.tts.tts(
-                        text=sentence,
-                        language="en",
-                        speed=3
-                    )
-                
-                # Convert to float32 numpy array
-                audio_np = np.array(audio, dtype=np.float32)
-                
-                # Normalize audio
-                if np.abs(audio_np).max() > 0:
-                    audio_np = audio_np / np.abs(audio_np).max()
-                
-                # Append to buffer
-                self.audio_buffer = np.append(self.audio_buffer, audio_np)
-            
-            # Send audio data to frontend for visualization
-            asyncio.run(self.send_audio_to_frontend(self.audio_buffer, "tts"))
-            
-            # Return the complete audio buffer
-            return self.audio_buffer
+            # Use the SpeechManager for speech generation to avoid duplicating code
+            return self.speech_manager.generate_speech(response, speed=1.0, language="en")
             
         except Exception as e:
-            print(f"Error generating audio: {e}")
+            log.error(f"Error generating audio: {e}")
             return None
-
 
     def play_audio_from_file(self, filename):
         """A method for audio playback from file."""

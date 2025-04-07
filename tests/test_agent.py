@@ -11,9 +11,6 @@ import platform
 # Add proper logging
 from oarc.utils.log import log
 
-# Add voice pack URL
-VOICE_PACK_URL = "https://huggingface.co/Borcherding/XTTS-v2_C3PO/tree/main"
-
 try:
     import gradio as gr
     from oarc.api import API
@@ -28,7 +25,7 @@ from oarc.speech import TextToSpeech, SpeechToText, SpeechManager
 from oarc.yolo import YoloProcessor
 from oarc.utils.paths import Paths
 from oarc.speech.speech_errors import TTSInitializationError
-from oarc.utils.speech_utils import SpeechUtils
+from oarc.speech.speech_utils import SpeechUtils
 
 from oarc.server.gradio import GradioServer, GradioServerAPI
 from fastapi import Request
@@ -145,8 +142,7 @@ class TestAgent:
         log.info(f"Python: {platform.python_version()}")
         
         # Log all configured paths for transparency and debugging
-        # FIX: Use the correct method to get the Paths singleton instance
-        paths = Paths()  # The singleton decorator will return the instance
+        paths = Paths()
         paths.log_paths()
         
         # Core components
@@ -178,9 +174,9 @@ class TestAgent:
             voice_name = "c3po"
             log.info(f"Configuring TTS with voice type '{voice_type}', voice '{voice_name}'")
             
-            # Use the SpeechManager singleton
+            # Use the SpeechManager singleton with explicit voice parameters
             from oarc.speech.speech_manager import SpeechManager
-            self.tts = SpeechManager()
+            self.tts = SpeechManager(voice_name=voice_name, voice_type=voice_type)
             log.info("Text-to-speech component initialized")
         except Exception as e:
             log.critical(f"Critical TTS initialization error: {str(e)}")
@@ -394,8 +390,11 @@ def main():
     
     try:
         # Initialize speech manager - this must succeed before we proceed 
+        # SpeechManager will handle voice pack verification and download as needed
         try:
-            manager = SpeechManager()
+            voice_name = "c3po"
+            manager = SpeechManager(voice_name=voice_name)
+            # No need for explicit voice pack download - SpeechManager handles this
         except (TTSInitializationError, FileNotFoundError) as e:
             log.critical(f"Failed to initialize SpeechManager: {e}")
             # Exit immediately on any SpeechManager error

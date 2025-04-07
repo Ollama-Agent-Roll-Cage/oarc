@@ -14,18 +14,12 @@ Functions:
         Tests the SpeechToText component with hotkey-triggered speech recognition
 """
 
-import logging
+import os
 
-from oarc.speech import TextToSpeech, SpeechToText
+# Use the centralized logging instead of creating our own logger
+from oarc.utils.log import log
+from oarc.speech import TextToSpeech, SpeechToText, SpeechManager
 from oarc.utils.paths import Paths
-
-log = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
 
 def test_tts():
     """Test TextToSpeech functionality.
@@ -35,7 +29,7 @@ def test_tts():
     """
     log.info("Starting TextToSpeech test")
     
-    # Initialize Paths utility
+    # Initialize Paths utility - correctly uses singleton pattern
     paths = Paths()
     
     # Get TTS paths dictionary
@@ -44,18 +38,43 @@ def test_tts():
     # Ensure all required directories exist
     paths.ensure_paths(developer_tools_dict)
     
-    # Initialize the TextToSpeech component
+    # Initialize SpeechManager - explicitly specify voice name
+    voice_name = "c3po"
+    voice_type = "xtts_v2"
+    speech_manager = SpeechManager(voice_name=voice_name, voice_type=voice_type)
+    
+    # Test speech generation with SpeechManager
+    test_text = "Hello! I am C-3PO, human-cyborg relations!"
+    log.info(f"Processing text with SpeechManager: '{test_text}'")
+    
+    try:
+        audio = speech_manager.generate_speech(test_text)
+        if audio is not None:
+            log.info(f"Successfully generated audio with SpeechManager")
+            
+            # For output file creation
+            output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+            os.makedirs(output_dir, exist_ok=True)
+            output_file = os.path.join(output_dir, "speech_manager_output.wav")
+            
+            # Save the audio file
+            import soundfile as sf
+            sf.write(output_file, audio, speech_manager.sample_rate)
+            log.info(f"Saved audio to {output_file}")
+    except Exception as e:
+        log.error(f"SpeechManager test failed: {e}", exc_info=True)
+    
+    # Also test using the TextToSpeech class directly (which now uses SpeechManager internally)
     log.info("Initializing TextToSpeech with C-3PO voice")
     tts = TextToSpeech(
         developer_tools_dict=developer_tools_dict,
         voice_type="xtts_v2",
-        voice_name="c3po"
+        voice_name=voice_name
     )
     
     # Test speech generation with a sample text
-    test_text = "Hello! I am C-3PO, human-cyborg relations!"
-    log.info(f"Processing text: '{test_text}'")
-    audio = tts.process_tts_responses(test_text, "c3po")
+    log.info(f"Processing text with TextToSpeech: '{test_text}'")
+    audio = tts.process_tts_responses(test_text, voice_name)
     
     if audio is not None:
         log.info(f"Successfully generated audio of length: {len(audio)} samples")

@@ -1,10 +1,11 @@
 """
 OARC Project Paths Utility
 
-This module defines the Paths class as a singleton, which provides methods to manage essential directories 
-for the OARC project. It handles directories for models, HuggingFace caches, Ollama models, and spells 
-by ensuring their existence and creating them if necessary. The singleton pattern ensures consistency
-across the entire application.
+This module provides the `Paths` singleton class, which centralizes the management of essential directories 
+used throughout the OARC project. It ensures the existence of directories for models, HuggingFace caches, 
+Ollama models, and other resources, creating them as needed. By using the singleton pattern, this utility 
+ensures consistent path configurations across the application, while also supporting dynamic updates when 
+environment variables change.
 """
 
 import os
@@ -29,10 +30,10 @@ IGNORED_AGENTS_DIR = "IgnoredAgents"
 @singleton
 class Paths:
     """
-    Singleton class for managing paths in the OARC project.
-    
-    This class provides methods to access paths, ensuring that only
-    one instance of the paths configuration exists across the application.
+    Singleton class for managing and centralizing path configurations in the OARC project.
+
+    This class ensures consistent access to essential directories, dynamically updates paths
+    when environment variables change, and provides utility methods to validate and log paths.
     """
     
     def __init__(self):
@@ -58,7 +59,8 @@ class Paths:
     def refresh_paths(self):
         """
         Refresh all paths by checking environment variables and updating paths if needed.
-        This allows paths to be updated when environment variables change without restarting.
+        This ensures that any changes to environment variables are reflected in the path configurations
+        without requiring a restart of the application.
         """
         log.info("Refreshing paths configuration")
         
@@ -149,7 +151,7 @@ class Paths:
         """Get and validate spell directory with fallback"""
         return self._paths['models']['spells']
     
-    def get_coqui_dir(self):
+    def get_coqui_path(self):
         """Get Coqui TTS models directory"""
         return self._paths['tts']['coqui']
     
@@ -161,7 +163,7 @@ class Paths:
         """Get generated audio output directory"""
         return self._paths['tts']['generated']
     
-    def get_voice_reference_dir(self):
+    def get_voice_ref_path(self):
         """Get voice reference samples directory"""
         return self._paths['tts']['voice_reference']
     
@@ -199,7 +201,7 @@ class Paths:
                 
                 # Handle nested dictionaries of paths
                 elif isinstance(path, dict):
-                    for subkey, subpath in path.items():
+                    for _, subpath in path.items():
                         if isinstance(subpath, str):
                             os.makedirs(subpath, exist_ok=True)
                             log.debug(f"Created/verified nested directory: {subpath}")
@@ -225,35 +227,36 @@ class Paths:
         Log all currently configured paths to help with debugging and verification.
         This provides a clear overview of where the system is looking for various resources.
         """
-        log.info("========== OARC PATH CONFIGURATION ==========")
-        
+        log.info("=" * 50)
+        log.info("OARC PATH CONFIGURATION")
+
         # Base paths
-        log.info("--- Base Paths ---")
+        log.info("----- Base Paths -----")
         log.info(f"Project Root: {self._paths['base'].get('project_root', 'Not set')}")
         log.info(f"Model Directory: {self._paths['base'].get('model_dir', 'Not set')}")
         log.info(f"Current Directory: {self._paths['base'].get('current_dir', 'Not set')}")
         log.info(f"Parent Directory: {self._paths['base'].get('parent_dir', 'Not set')}")
         
         # Model paths
-        log.info("--- Model Paths ---")
+        log.info("----- Model Paths -----")
         log.info(f"HuggingFace Cache: {self._paths['models'].get('hf_cache', 'Not set')}")
         log.info(f"Ollama Models: {self._paths['models'].get('ollama_models', 'Not set')}")
         log.info(f"Spells: {self._paths['models'].get('spells', 'Not set')}")
         
         # TTS paths
-        log.info("--- TTS Paths ---")
+        log.info("----- TTS Paths -----")
         log.info(f"Coqui: {self._paths['tts'].get('coqui', 'Not set')}")
         log.info(f"Whisper: {self._paths['tts'].get('whisper', 'Not set')}")
         log.info(f"Generated: {self._paths['tts'].get('generated', 'Not set')}")
         log.info(f"Voice Reference: {self._paths['tts'].get('voice_reference', 'Not set')}")
         
         # Environment variables status
-        log.info("--- Environment Variables ---")
+        log.info("----- Environment Variables -----")
         for var_name, value in self._paths['env_vars'].items():
             status = "Set" if value else "Not set (using default)"
             log.info(f"{var_name}: {status}")
         
-        log.info("==========================================")
+        log.info("=" * 50)
     
     # YOLO-related path methods
     def get_yolo_models_dir(self):

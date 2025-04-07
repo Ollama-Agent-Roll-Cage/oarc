@@ -14,10 +14,11 @@ class VoiceType(Enum):
     """
     Enumeration of supported voice types.
     """
-    XTTS_V2 = "xtts_v2"
-    XTTS_V1 = "xtts_v1"
-    COQUI_TTS = "coqui_tts"
-    CUSTOM = "custom"
+    # Updated to match actual model prefixes used in URLs
+    XTTS_V2 = "XTTS-v2"
+    XTTS_V1 = "XTTS-v1"
+    COQUI_TTS = "coqui-tts"
+    CUSTOM = "custom-tts"
 
     @staticmethod
     def is_valid(voice_type):

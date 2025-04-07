@@ -14,6 +14,7 @@ from .speech_to_text_api import SpeechToTextAPI
 from .tts_request import TTSRequest
 from .transcription_app import TranscriptionApp
 from .speech_errors import TTSInitializationError
+from .speech_utils import SpeechUtils
 
 __all__ = [
     # Classes
@@ -24,6 +25,7 @@ __all__ = [
     'SpeechToTextAPI',
     'TTSRequest',
     'TranscriptionApp',
+    'SpeechUtils',
 
     # Errors
     'TTSInitializationError',
