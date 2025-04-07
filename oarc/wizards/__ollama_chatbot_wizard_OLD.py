@@ -88,11 +88,13 @@ from pymongo import MongoClient
 __all__ = ['ollamaAgentRollCage']
 
 # ai tools
+# TODO these need to be imported properly
 from wizardSpellBook.publicWand.ollamaAddOnLibrary import ollamaCommands
 from wizardSpellBook.publicWand.speechToSpeech import speechToText
 from wizardSpellBook.publicWand.speechToSpeech import textToSpeech
 
 # file handling and construction
+# TODO these need to be imported properly
 from wizardSpellBook.publicWand.writeModelfile import model_write_class
 from wizardSpellBook.publicWand.createConvertModel import create_convert_manager
 from wizardSpellBook.publicWand.directoryManager import directory_manager_class
@@ -100,9 +102,11 @@ from wizardSpellBook.publicWand.dataSetManipulator import data_set_constructor
 from wizardSpellBook.publicWand.dataSetManipulator import screen_shot_collector
 
 # networking imports
+# TODO these need to be imported properly
 from wizardSpellBook.publicWand.nodeCustomMethods import FileSharingNode
 
 # agentCores utils
+# TODO these need to be imported properly
 from wizardSpellBook.publicWand.agentCores.agentCores import agentCores
 from wizardSpellBook.publicWand.agentCores.agentMatrix import agentMatrix
 from wizardSpellBook.publicWand.promptModel import multiModalPrompting
