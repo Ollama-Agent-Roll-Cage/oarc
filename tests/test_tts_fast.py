@@ -141,7 +141,7 @@ def test_basic_tts():
         
         # Generate speech
         log.info("Generating speech directly using the model")
-        message = "Hello! I am C-3PO, human-cyborg relations! Is this Borch? I miss my friend Borch? Have you seen borch, o dear I hope something had not happened to him?"
+        message = "Hello! I am C-3PO, human-cyborg relations. I am fluent in over six million forms of communication. How may I assist you today?"
         
         outputs = model.synthesize(
             message,

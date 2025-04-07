@@ -13,10 +13,10 @@ demonstrates voice interaction, image analysis, and command execution.
 """
 
 import asyncio
-import logging
 import sys
 from pathlib import Path
 
+# Now import from oarc
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
 from oarc.utils.const import (
@@ -343,13 +343,6 @@ class OARCIntegrationTest:
 
 async def main():
     """Main function to run the OARC integration test."""
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
     # Run the integration test
     test = OARCIntegrationTest()
     result = await test.run_tests()
