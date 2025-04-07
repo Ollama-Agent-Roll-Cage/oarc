@@ -6,18 +6,19 @@ synthesized speech responses using gTTS and pygame, while handling asynchronous 
 The interface also features a search functionality to highlight transcribed text, making it a versatile tool
 for interactive voice-based interactions.
 """
-
-import io
 import os
+import sys
+import io
 import queue
 import threading
 import tempfile
 import wave
 import audioop
-import sys
+
 # Set environment variable to hide pygame welcome message
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
+# PyQt6 imports
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor, QTextCursor, QTextCharFormat, QTextDocument
 from PyQt6.QtWidgets import (
@@ -25,12 +26,14 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QWidget
 )
 
+# External library imports
 import whisper
 import pyaudio
 import ollama
 from gtts import gTTS
 import pygame
 
+# Internal imports
 from oarc.utils.log import log
 
 os.environ["PATH"] += os.pathsep + r"ffmpeg\bin"

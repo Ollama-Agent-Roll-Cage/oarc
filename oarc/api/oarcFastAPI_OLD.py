@@ -17,6 +17,8 @@ from typing import Dict, Any, Optional
 from pydantic import BaseModel
 from pprint import pformat
 
+from oarc.wizards.ollamaChatbotWizard_OLD import ollamaAgentRollCage
+
 # Ensure this is only called once in the main entry point of your app
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -98,8 +100,7 @@ class rollCage:
         """Initialize or get existing chatbot instance"""
         if agent_id not in self.agentCage:
             try:
-                from ollamaChatbotWizard import ollamaAgentRollCage as AgentClass
-                loaded_agent = AgentClass(agent_id=agent_id)
+                loaded_agent = ollamaAgentRollCage(agent_id=agent_id)
                 self.agentCage[agent_id] = loaded_agent  # Correctly add the instance to the dictionary
                 logger.info(f"Initialized new chatbot for agent {agent_id}")
                 return True

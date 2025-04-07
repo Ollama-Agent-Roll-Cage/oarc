@@ -26,3 +26,21 @@ HF_SHORT_URL = "https://hf.co/"
 
 #Voice reference pack types
 HF_VOICE_REF_PACK_C3PO = "Borcherding/XTTS-v2_C3PO"
+
+# Emoji constants for CLI and logging
+EMOJI = {
+    "sparkles": "✨",
+    "brain": "🧠",
+    "rocket": "🚀",
+    "camera": "📷",
+    "shield": "🛡️",
+    "sound": "🔊",
+    "code": "💻",
+    "check": "✅",
+    "error": "❌",
+    "warning": "⚠️",
+    "info": "ℹ️",
+    "clock": "⏱️",
+    "star": "⭐",
+    "light": "💡",
+}

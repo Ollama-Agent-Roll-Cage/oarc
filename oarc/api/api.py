@@ -18,7 +18,7 @@ from oarc.api.llm_prompt_api import LLMPromptAPI
 from oarc.api.spell_loader import SpellLoader
 from oarc.database.agent_storage import AgentStorage
 from oarc.database.pandas_db import PandasDB
-from oarc.promptModel import MultiModalPrompting
+from oarc.prompt import MultiModalPrompting
 from oarc.speech import SpeechToText, SpeechToTextAPI, TextToSpeech, TextToSpeechAPI
 from oarc.utils.decorators.singleton import singleton
 from oarc.utils.log import log

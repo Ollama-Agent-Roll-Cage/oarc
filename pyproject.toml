@@ -68,6 +68,7 @@ dependencies = [
     # Windows-specific dependencies
     "pywin32>=306; platform_system == 'Windows'",
     "pyvirtualcam>=0.12.1",
+    "discord>=2.3.2",
 ]
 
 [project.optional-dependencies]

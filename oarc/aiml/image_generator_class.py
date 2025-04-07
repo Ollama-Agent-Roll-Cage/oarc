@@ -7,15 +7,15 @@ Date: 4/4/2024
 """
 
 import os
-import requests
-import json
 import base64
-import asyncio
-import aiohttp
-from io import BytesIO
-from typing import Optional, Dict, Any, List, Union, Tuple
-from PIL import Image
 import logging
+import asyncio
+from io import BytesIO
+from typing import Optional, Dict, Any, List, Union
+
+import requests
+import aiohttp
+from PIL import Image
 
 class ImageGenerator:
     """

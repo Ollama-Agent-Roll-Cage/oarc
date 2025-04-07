@@ -1,17 +1,16 @@
 """hf_hub.py
 """
-
 import os
 import asyncio
 from typing import Optional, Dict, List
 
 from huggingface_hub import (
-    create_repo, 
-    upload_file, 
+    create_repo,
+    upload_file,
     upload_folder,
     hf_hub_download,
     snapshot_download,
-    HfApi
+    HfApi,
 )
 
 from oarc.utils.log import log

@@ -3,7 +3,7 @@ Defines the TTSRequest model using Pydantic for handling text-to-speech request 
 This module encapsulates the configuration for voice name, speed, language, and text.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 from oarc.utils.log import log
 
 

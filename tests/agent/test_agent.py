@@ -10,7 +10,7 @@ import gradio as gr
 from fastapi import Request
 
 from oarc.database import PandasDB
-from oarc.promptModel import MultiModalPrompting
+from oarc.prompt import MultiModalPrompting
 from oarc.server.gradio import GradioServer, GradioServerAPI
 from oarc.speech import SpeechManager, SpeechToText
 from oarc.speech.speech_errors import TTSInitializationError

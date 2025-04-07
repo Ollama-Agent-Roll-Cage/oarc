@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 from oarc.base_api.base_tool_api import BaseToolAPI
-from oarc.promptModel.multi_modal_prompting import MultiModalPrompting
+from oarc.prompt.multi_modal_prompting import MultiModalPrompting
 
 
 class LLMPromptAPI(BaseToolAPI):

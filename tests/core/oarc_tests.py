@@ -16,8 +16,9 @@ import os
 import asyncio
 from pathlib import Path
 
-# Add the project root to the path to make imports work when running directly
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Fix the import path to correctly locate async_harness.py
+# We need to add the project root to the path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 # Now import from oarc
 from oarc.utils.log import log
@@ -34,14 +35,14 @@ from oarc.database.agent_storage import AgentStorage
 from oarc.database.pandas_db import PandasDB
 
 # Prompting and command components
-from oarc.promptModel.multi_modal_prompting import MultiModalPrompting
+from oarc.prompt.multi_modal_prompting import MultiModalPrompting
 from oarc.wizards.flag_manger import FlagManager
 from oarc.wizards.commandLibrary import commandLibrary
 
 # Vision components
 from oarc.yolo.processor import YoloProcessor
 
-# Import the test harness
+# Import the test harness - now that we've set up the correct path
 from tests.async_harness import AsyncTestHarness
 
 # Test constants
@@ -141,7 +142,8 @@ class OARCTests(AsyncTestHarness):
         # Initialize YoloProcessor for vision
         self.yolo = YoloProcessor()
         
-        # Create FlagManager with all components
+        # Create FlagManager with only the parameters it accepts
+        # Remove path-related parameters that are causing the error
         self.flag_manager = FlagManager(
             agent_id=self.agent_id,
             command_library=self.cmd_library.command_library,
@@ -154,13 +156,7 @@ class OARCTests(AsyncTestHarness):
             tts_processor_instance=self.tts,
             speech_recognizer_instance=self.stt,
             yolo_processor_instance=self.yolo,
-            large_language_model=self.model_name,
-            current_dir=tts_paths['current_path'],
-            parent_dir=tts_paths['parent_path'],
-            speech_dir=tts_paths['speech_dir'],
-            recognize_speech_dir=tts_paths['recognize_speech_dir'],
-            generate_speech_dir=tts_paths['generate_speech_dir'],
-            tts_voice_ref_wav_pack_path=tts_paths['tts_voice_ref_wav_pack_path_dir']
+            large_language_model=self.model_name
         )
         
         log.info("OARC components setup complete")
@@ -177,9 +173,9 @@ class OARCTests(AsyncTestHarness):
         if hasattr(self, 'stt') and self.stt:
             self.stt.cleanup()
         
-        # Close YOLO resources
-        if hasattr(self, 'yolo') and self.yolo:
-            self.yolo.cleanup()
+        # YoloProcessor doesn't have a cleanup method, so we remove this call
+        # if hasattr(self, 'yolo') and self.yolo:
+        #     self.yolo.cleanup()
         
         # Close speech manager resources
         if hasattr(self, 'speech_manager') and self.speech_manager:
@@ -190,31 +186,34 @@ class OARCTests(AsyncTestHarness):
         log.info("Testing agent creation")
         
         try:
-            # Create or load test agent
+            # Create or load test agent from agent_storage
             available_agents = await self.agent_storage.list_available_agents()
-            
             if self.agent_id in available_agents:
                 log.info(f"Using existing agent: {self.agent_id}")
                 agent_config = self.agent_storage.load_agent(self.agent_id)
             else:
                 log.info(f"Creating new agent: {self.agent_id}")
-                self.agent_storage.create_agent_from_template(
-                    template_name="assistant",
-                    agent_id=self.agent_id,
-                    custom_config={
-                        "voice": {
-                            "type": self.voice_type,
-                            "name": self.voice_name
-                        },
-                        "model": self.model_name,
-                        "flags": {
-                            "TTS_FLAG": True,
-                            "STT_FLAG": True,
-                            "LLAVA_FLAG": True,
-                            "AUTO_SPEECH_FLAG": False
-                        }
+                custom_config = {
+                    "voice": {
+                        "type": self.voice_type,
+                        "name": self.voice_name
+                    },
+                    "model": self.model_name,
+                    "flags": {
+                        "TTS_FLAG": True,
+                        "STT_FLAG": True, 
+                        "LLAVA_FLAG": True,
+                        "AUTO_SPEECH_FLAG": False
                     }
+                }
+                
+                # Use agent_storage to create agent from template
+                self.agent_storage.create_agent_from_template(
+                    template_name="assistant", 
+                    agent_id=self.agent_id,
+                    custom_config=custom_config
                 )
+                
                 agent_config = self.agent_storage.load_agent(self.agent_id)
             
             log.info(f"Agent configuration: {agent_config}")
@@ -311,9 +310,9 @@ class OARCTests(AsyncTestHarness):
                     
                     # Send multimodal prompt
                     vision_response = await self.multi_modal.llava_prompt(
-                        user_input_prompt=vision_prompt,
-                        user_screenshot_raw2=image_data,
-                        llava_user_input_prompt=vision_prompt
+                        input_prompt=vision_prompt,
+                        screenshot_raw2=image_data,
+                        llava_input_prompt=vision_prompt
                     )
                     
                     log.info(f"Received vision response: '{vision_response[:100]}...'")

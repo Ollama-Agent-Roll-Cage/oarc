@@ -39,6 +39,7 @@ class AgentStorage:
         from oarc.database.pandas_db import PandasDB
         self.pandas_db = PandasDB()
         self.agent_df = None
+        self.db = PandasDB()
         
 
     def setup_default_agents(self):
@@ -490,38 +491,10 @@ class AgentStorage:
 
     async def list_available_agents(self) -> list:
         """
-        Retrieves a list of available agents along with their detailed configurations.
-        This method fetches agent data from the database, loads their full configurations,
-        and extracts relevant details such as model names and version information.
-        Returns:
-            list: A list of dictionaries, where each dictionary contains the following keys:
-                - agent_id (str): The unique identifier of the agent.
-                - largeLanguageModel (str or None): The name of the large language model used by the agent, if available.
-                - largeLanguageAndVisionAssistant (str or None): The name of the large language and vision assistant model, if available.
-                - voiceGenerationTTS (str or None): The name of the voice generation TTS model, if available.
-                - version (str): The version of the agent, or "Unknown" if not specified.
-        Logs:
-            Logs an error message if an exception occurs during the process.
-        Returns an empty list if an error occurs.
+        Temporarily return an empty list until it's fully implemented.
         """
         try:
-            agents = self.pandas_db.listAgentCores()
-            formatted_agents = []
-            
-            for agent in agents:
-                # Load full config to get additional details
-                config = self.pandas_db.loadAgentCore(agent['agent_core']["agent_id"])
-                if config:
-                    models = config["agent_core"]["models"]
-                    formatted_agents.append({
-                        "agent_id": agent["agent_id"],
-                        "largeLanguageModel": models.get("largeLanguageModel", {}).get("names", [None])[0],
-                        "largeLanguageAndVisionAssistant": models.get("largeLanguageAndVisionAssistant", {}).get("names", [None])[0],
-                        "voiceGenerationTTS": models.get("voiceGenerationTTS", {}).get("names", [None])[0],
-                        "version": agent.get("version", "Unknown")
-                    })
-            
-            return formatted_agents
+            return []
         except Exception as e:
             log.error(f"Error listing agents: {e}")
             return []
@@ -650,16 +623,9 @@ class AgentStorage:
 
     def get_agent_config(self, agent_id: str) -> Optional[Dict[str, Any]]:
         """
-        Retrieve the configuration details for a specific agent from the agentMatrix in agentCores.
-
-        Args:
-            agent_id (str): The unique identifier of the agent whose configuration is to be retrieved.
-
-        Returns:
-            Optional[Dict[str, Any]]: A dictionary containing the agent's configuration details if found,
-            otherwise None.
+        Retrieve the configuration details for a specific agent.
         """
-        return self.pandas_db.agentMatrixObject.get_agent(agent_id)
+        return self.pandas_db.loadAgentCore(agent_id)
     
 
     async def get_command_library(self):
@@ -678,3 +644,35 @@ class AgentStorage:
         except Exception as e:
             log.error(f"Error getting command library: {e}")
             return {"error": str(e)}
+
+    def create_agent_from_template(self, template_name: str, agent_id: str, custom_config: dict = None):
+        """
+        Create an agent from a template.
+
+        This method creates a new agent using a predefined template and stores it in the database.
+        It allows for optional customization of the agent's configuration.
+
+        Args:
+            template_name (str): The name of the template to use for creating the agent.
+            agent_id (str): The unique identifier for the new agent.
+            custom_config (dict, optional): Additional configuration to customize the agent.
+
+        Logs:
+            Logs a success message if the agent is successfully created.
+            Logs an error message if the operation fails.
+        """
+        try:
+            existing_agent = self.get_agent_config(agent_id)
+            if existing_agent:
+                log.info(f"Agent '{agent_id}' already exists. Skipping creation.")
+                return existing_agent
+
+            log.info(f"Creating agent '{agent_id}' from template '{template_name}'")
+            self.db.create_agent_from_template(template_name, agent_id, custom_config)
+            new_agent = self.load_agent(agent_id)
+            log.info(f"Agent '{agent_id}' created successfully from template '{template_name}'")
+            return new_agent
+
+        except Exception as e:
+            log.error(f"Error creating agent from template: {e}")
+            raise

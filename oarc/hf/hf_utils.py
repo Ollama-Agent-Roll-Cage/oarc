@@ -1,14 +1,13 @@
 """Utility functions for HuggingFace repository URLs."""
-
-import re
 import os
+import re
 import shutil
+
 from huggingface_hub import snapshot_download
 
+from oarc.speech.voice.voice_utils import VoiceUtils
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
-from oarc.utils.const import HF_URL
-from oarc.speech.voice.voice_utils import VoiceUtils
 
 class HfUtils:
     """

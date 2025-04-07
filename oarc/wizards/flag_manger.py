@@ -16,7 +16,7 @@ from oarc.utils.log import log
 from oarc.utils.paths import Paths # TODO this should be implemented
 from oarc.utils.decorators.singleton import singleton
 from oarc.speech.text_to_speech import TextToSpeech
-from oarc.promptModel import MultiModalPrompting
+from oarc.prompt import MultiModalPrompting
 
 
 @singleton

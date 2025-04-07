@@ -179,7 +179,7 @@ class PandasDB:
                             'type': 'llm'
                         },
                         'largeLanguageAndVisionAssistant': {
-                            'name': self.lvm,
+                            'name': self.llava,
                             'type': 'vision'
                         },
                         'yoloVision': {
@@ -403,7 +403,7 @@ class PandasDB:
             # models
             self.llm = config["agent_core"]["models"]["largeLanguageModel"]["names"][0] if config["agent_core"]["models"]["largeLanguageModel"]["names"] else None
             self.embedding_model = config["agent_core"]["models"]["embedding"]["names"][0] if config["agent_core"]["models"]["embedding"]["names"] else None
-            self.lvm = config["agent_core"]["models"]["largeLanguageAndVisionAssistant"]["names"][0] if config["agent_core"]["models"]["largeLanguageAndVisionAssistant"]["names"] else None
+            self.llava = config["agent_core"]["models"]["largeLanguageAndVisionAssistant"]["names"][0] if config["agent_core"]["models"]["largeLanguageAndVisionAssistant"]["names"] else None
             self.vision = config["agent_core"]["models"]["yoloVision"]["names"][0] if config["agent_core"]["models"]["yoloVision"]["names"] else None
             self.sst = config["agent_core"]["models"]["speechRecognitionSTT"]["names"][0] if config["agent_core"]["models"]["speechRecognitionSTT"]["names"] else None
             self.voice_name = config["agent_core"]["models"]["voiceGenerationTTS"]["names"][0] if config["agent_core"]["models"]["voiceGenerationTTS"]["names"] else None
@@ -548,7 +548,7 @@ class PandasDB:
                             "instances": []
                         },
                         "largeLanguageAndVisionAssistant": {
-                            "names": [self.lvm] if self.lvm else [],
+                            "names": [self.llava] if self.llava else [],
                             "instances": []
                         },
                         "yoloVision": {
@@ -649,7 +649,7 @@ class PandasDB:
                 "model_config_template": {}
             },
             "largeLanguageAndVisionAssistant": {
-                "names": [self.lvm] if self.lvm else [],
+                "names": [self.llava] if self.llava else [],
                 "instances": [],
                 "model_config_template": {}
             },
