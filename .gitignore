@@ -193,3 +193,6 @@ oarc.egg-info/
 coqui-ai-TTS
 models
 huggingface
+
+# test output files
+tests/output/
