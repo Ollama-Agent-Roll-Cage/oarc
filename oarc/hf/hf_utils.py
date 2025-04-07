@@ -79,7 +79,7 @@ class HfUtils:
             url_or_repo_id (str): The HuggingFace repository URL or direct repository ID
             voice_name (str, optional): Name to save the voice pack as
             target_type (str, optional): Type of download: "reference" for voice reference samples,
-                                        "model" for fine-tuned models. Defaults to "reference".
+                                        "model" for fine-tuned models, "base_model" for base XTTS.
             
         Returns:
             tuple: (path to downloaded content, success status)
@@ -111,10 +111,19 @@ class HfUtils:
                 # For voice reference samples (small WAV files)
                 target_dir = paths.get_voice_ref_path()
                 log.info(f"Downloading voice reference pack from {repo_id} as {voice_name}")
+                # Create voice directory
+                voice_path = os.path.join(target_dir, voice_name)
+            elif target_type.lower() == "base_model":
+                # For the base XTTS model (goes directly in coqui/xtts, not in a subdirectory)
+                target_dir = paths.get_coqui_path()
+                voice_path = os.path.join(target_dir, "xtts")  # Direct path to xtts directory
+                log.info(f"Downloading base XTTS model from {repo_id} to {voice_path}")
             elif target_type.lower() == "model":
                 # For fine-tuned models (full model files)
                 target_dir = os.path.join(paths.get_model_dir(), "custom_xtts_v2")
                 log.info(f"Downloading fine-tuned model from {repo_id} as {voice_name}")
+                # Create model directory
+                voice_path = os.path.join(target_dir, voice_name)
             else:
                 raise ValueError(f"Unknown target type: {target_type}")
                 
@@ -122,7 +131,6 @@ class HfUtils:
             os.makedirs(target_dir, exist_ok=True)
             
             # Create voice/model directory
-            voice_path = os.path.join(target_dir, voice_name)
             os.makedirs(voice_path, exist_ok=True)
             log.debug(f"Created directory at: {voice_path}")
             
