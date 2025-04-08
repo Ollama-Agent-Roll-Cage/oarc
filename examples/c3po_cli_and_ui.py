@@ -68,7 +68,7 @@ class C3POGenerator:
             log.error(f"Error initializing C3PO generator: {str(e)}", exc_info=True)
             return False
     
-    def generate_speech(self, text: str, output_file: str, speed: float = 1.0, language: str = "en") -> bool:
+    def generate_speech(self, text: str, output_file: str, speed: float = 1.0, language: str = "sp") -> bool:
         """Generate speech with C3PO voice.
         
         Args:
