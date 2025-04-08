@@ -10,6 +10,9 @@ This application demonstrates a complete speech-to-speech workflow using the OAR
 
 The application provides both text and voice interfaces, allowing users to
 interact with AI models through speech or keyboard input.
+
+Author: @Borch & @P3nGu1nZz
+Date: 4/8/2025
 """
 
 import os
@@ -24,6 +27,8 @@ import ollama
 import base64
 import json
 import pandas as pd
+import numpy as np
+import sounddevice as sd
 
 # PyQt6 imports
 from PyQt6.QtWidgets import (
@@ -44,45 +49,83 @@ from oarc.prompt import MultiModalPrompting
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
 
-
 class MessageBubble(QFrame):
-    """Widget to display a single message in chat-like bubble style."""
+    """Widget to display a single message in chat-like bubble style with neon highlights."""
     
     def __init__(self, message, is_user=True, parent=None):
         super().__init__(parent)
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setFrameShape(QFrame.Shape.NoFrame)
         
         # Set styles based on message sender
         if is_user:
-            self.setStyleSheet(
-                "background-color: #DCF8C6; border-radius: 10px; padding: 10px; margin: 5px;"
-            )
+            self.setStyleSheet("""
+                background-color: #2a2a2a;
+                border-left: 4px solid #00e5ff;
+                border-radius: 5px;
+                padding: 5px;
+                margin: 5px 20px 5px 50px;
+            """)
             alignment = Qt.AlignmentFlag.AlignRight
+            icon = "🧠"  # User icon
         else:
-            self.setStyleSheet(
-                "background-color: #FFFFFF; border-radius: 10px; padding: 10px; margin: 5px;"
-            )
+            self.setStyleSheet("""
+                background-color: #252525;
+                border-left: 4px solid #ff1744;
+                border-radius: 5px;
+                padding: 5px;
+                margin: 5px 50px 5px 20px;
+            """)
             alignment = Qt.AlignmentFlag.AlignLeft
+            icon = "🤖"  # AI icon
         
         # Layout and label for message content
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+        
+        # Header with icon and timestamp
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 5)
+        
+        # Icon label
+        icon_label = QLabel(icon)
+        icon_label.setStyleSheet("background-color: transparent; font-size: 14px;")
+        header_layout.addWidget(icon_label)
+        
+        # Add entity label
+        entity_label = QLabel("YOU" if is_user else "OARC AI")
+        entity_label.setStyleSheet(f"""
+            background-color: transparent;
+            color: {'#00e5ff' if is_user else '#ff1744'};
+            font-weight: bold;
+            font-size: 10px;
+            letter-spacing: 1px;
+        """)
+        header_layout.addWidget(entity_label)
+        
+        header_layout.addStretch()
         
         # Add timestamp 
-        timestamp = QLabel(datetime.now().strftime("%H:%M"))
-        timestamp.setStyleSheet("color: #888888; background-color: transparent;")
+        timestamp = QLabel(datetime.now().strftime("%H:%M:%S"))
+        timestamp.setStyleSheet("color: #666666; background-color: transparent; font-size: 9px;")
         timestamp.setAlignment(alignment)
+        header_layout.addWidget(timestamp)
         
-        # Message text
+        layout.addLayout(header_layout)
+        
+        # Message text with improved styling
         message_label = QLabel(message)
         message_label.setWordWrap(True)
-        message_label.setStyleSheet("background-color: transparent;")
+        message_label.setStyleSheet(f"""
+            background-color: transparent;
+            color: #e0e0e0;
+            font-size: 13px;
+            letter-spacing: 0.2px;
+            line-height: 1.4;
+        """)
         message_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         
-        # Add widgets to layout
         layout.addWidget(message_label)
-        layout.addWidget(timestamp)
 
 
 class OARCSpeechChat(QMainWindow):
@@ -99,11 +142,20 @@ class OARCSpeechChat(QMainWindow):
         # Initialize state
         self.is_listening = False
         self.is_speaking = False
-        self.ollama_model = "llama3"  # Default model
+        self.running = False  # Initialize running attribute for fluid conversation
+        self.ollama_model = "llama3"  # Default model only used if setup fails
         self.voice_name = "C3PO"  # Default voice
-        self.available_models = ["llama3", "llama2", "mistral"]  # Default models in case setup fails
+        self.language = "en"  # Default language
+        self.available_models = []  # Initialize empty, will be filled by setup_components
         
-        self.setup_components()  # This will properly set self.available_models
+        # Animation variables
+        self.pulse_opacity = 1.0
+        self.pulse_direction = -0.1
+        self.indicator_active = False
+        
+        # Setup the components first to get available models
+        self.setup_components()
+        # Then setup UI which needs the model list
         self.setup_ui()
         
         # Set up queues for threaded operations
@@ -145,6 +197,11 @@ class OARCSpeechChat(QMainWindow):
             log.info("Initializing Text-to-Speech...")
             self.tts = TextToSpeech(voice_name=self.voice_name, voice_type="xtts_v2")
             
+            log.info(f"Voice reference path: {self.tts.voice_name_reference_speech_path}")
+            if not os.path.exists(self.tts.voice_name_reference_speech_path):
+                log.error(f"Voice reference file not found: {self.tts.voice_name_reference_speech_path}")
+                log.error("This will prevent TTS from working properly")
+            
             # Initialize Ollama interface
             log.info("Initializing Ollama Commands...")
             self.ollama = OllamaCommands()
@@ -153,28 +210,39 @@ class OARCSpeechChat(QMainWindow):
             try:
                 log.info("Fetching available Ollama models...")
                 
-                # Use the ollama_list method from the OllamaCommands class
-                # which needs to be run in an async context
-                models_list = asyncio.run(self.ollama.ollama_list())
+                # Create a new event loop for async operation
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
                 
-                if models_list:
+                # Use the ollama_list method from the OllamaCommands class
+                models_list = loop.run_until_complete(self.ollama.ollama_list())
+                loop.close()
+                
+                if models_list and len(models_list) > 0:
                     self.available_models = models_list
+                    # Set the first model as default if available
+                    self.ollama_model = models_list[0]
                     log.info(f"Found {len(self.available_models)} Ollama models: {self.available_models}")
                 else:
-                    log.warning("No Ollama models found")
-                    self.available_models = []
-                    
+                    log.warning("No Ollama models found, using defaults")
+                    self.available_models = ["llama3", "llama2", "mistral"]  # Fallback defaults
             except Exception as e:
                 log.warning(f"Error getting Ollama models: {str(e)}")
-                self.available_models = []
+                # Use fallback defaults if model fetching fails
+                self.available_models = ["llama3", "llama2", "mistral"]
                 
             # Initialize MultiModalPrompting
             log.info("Initializing MultiModalPrompting...")
             self.prompt_manager = MultiModalPrompting()
+            
             # Set necessary attributes for proper functioning
             self.prompt_manager.AGENT_FLAG = True
             self.prompt_manager.SYSTEM_SELECT_FLAG = False
-            self.prompt_manager.TTS_FLAG = True  # We want to use TTS integration
+            self.prompt_manager.TTS_FLAG = True  # Enable TTS integration
+            self.prompt_manager.LLAVA_FLAG = False  # Ensure LLAVA flag is set
+            self.prompt_manager.EMBEDDING_FLAG = False
+            self.prompt_manager.MEMORY_CLEAR_FLAG = False
+            self.prompt_manager.LLM_BOOSTER_PROMPT_FLAG = False
 
             # Initialize TTS processor for MultiModalPrompting if needed
             if not hasattr(self.prompt_manager, 'tts_processor_instance'):
@@ -182,10 +250,29 @@ class OARCSpeechChat(QMainWindow):
             
             log.info("All components initialized successfully")
             
+            # Add below your existing component initialization
+            # Test sound playback to ensure audio device is working
+            log.info("Testing sound output...")
+            
+            # Generate a short beep sound
+            sample_rate = 44100
+            duration = 0.5  # seconds
+            frequency = 440  # Hz (A4 note)
+            t = np.linspace(0, duration, int(sample_rate * duration), False)
+            beep = 0.2 * np.sin(2 * np.pi * frequency * t)  # Sine wave
+            
+            # Play the test sound
+            sd.play(beep, sample_rate)
+            sd.wait()
+            
+            log.info("Sound test complete")
+        except Exception as e:
+            log.error(f"Sound test failed: {str(e)}. Please check your audio configuration.")
+            
         except Exception as e:
             log.error(f"Error initializing components: {str(e)}", exc_info=True)
-            # Set default available_models if they weren't set due to error
-            if not hasattr(self, 'available_models'):
+            # Ensure we have at least some default models if they weren't set due to error
+            if not hasattr(self, 'available_models') or not self.available_models:
                 self.available_models = ["llama3", "llama2", "mistral"]
             QMessageBox.critical(self, "Initialization Error", 
                                 f"Failed to initialize OARC components: {str(e)}")
@@ -215,33 +302,222 @@ class OARCSpeechChat(QMainWindow):
             raise
     
     def setup_ui(self):
-        """Set up the user interface."""
+        """Set up the modernized dark mode neon UI."""
         self.setWindowTitle("OARC Speech-to-Speech Chat")
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(900, 700)
+        
+        # Set global stylesheet for the entire application
+        self.setStyleSheet("""
+            QMainWindow, QWidget {
+                background-color: #121212;
+                color: #e0e0e0;
+            }
+            QScrollArea {
+                background-color: #1a1a1a;
+                border: none;
+                border-radius: 10px;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #1a1a1a;
+                width: 12px;
+                margin: 0px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background: #00b8d4;
+                min-height: 30px;
+                border-radius: 5px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QComboBox {
+                background-color: #2a2a2a;
+                border: 1px solid #00b8d4;
+                border-radius: 5px;
+                padding: 5px;
+                color: #e0e0e0;
+                selection-background-color: #00b8d4;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2a2a2a;
+                selection-background-color: #00b8d4;
+                selection-color: #121212;
+                border: 1px solid #00b8d4;
+            }
+            QLabel {
+                color: #e0e0e0;
+            }
+            QTextEdit {
+                background-color: #2a2a2a;
+                border: 1px solid #00b8d4;
+                border-radius: 5px;
+                padding: 8px;
+                color: #e0e0e0;
+                selection-background-color: #00b8d4;
+                selection-color: #121212;
+            }
+            QPushButton {
+                background-color: #2a2a2a;
+                color: #00b8d4;
+                border: 1px solid #00b8d4;
+                border-radius: 5px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3a;
+                border-color: #00e5ff;
+                color: #00e5ff;
+            }
+            QPushButton:pressed {
+                background-color: #00b8d4;
+                color: #121212;
+            }
+            QPushButton:disabled {
+                background-color: #1a1a1a;
+                color: #5a5a5a;
+                border-color: #5a5a5a;
+            }
+            QProgressBar {
+                border: 1px solid #00b8d4;
+                border-radius: 5px;
+                background-color: #1a1a1a;
+                text-align: center;
+                color: #e0e0e0;
+                height: 20px;
+            }
+            QProgressBar::chunk {
+                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00b8d4, stop:1 #00e5ff);
+                border-radius: 4px;
+            }
+            QSplitter::handle {
+                background-color: #00b8d4;
+                height: 2px;
+            }
+        """)
         
         # Main widget and layout
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(10)
         
-        # Title section
-        title_label = QLabel("OARC Speech-to-Speech Chat")
-        title_label.setStyleSheet("font-size: 20px; font-weight: bold; margin: 10px;")
+        # Animated title section with neon effect
+        title_widget = QWidget()
+        title_widget.setFixedHeight(80)
+        title_widget.setStyleSheet("""
+            background-color: #1a1a1a;
+            border-radius: 10px;
+            border: 1px solid #00b8d4;
+        """)
+        title_layout = QVBoxLayout(title_widget)
+        
+        title_label = QLabel("OARC NEURAL SPEECH INTERFACE")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(title_label)
+        title_label.setStyleSheet("""
+            font-size: 28px;
+            font-weight: bold;
+            color: #00e5ff;
+            text-shadow: 0 0 10px #00b8d4, 0 0 20px #00b8d4, 0 0 30px #00b8d4;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            letter-spacing: 2px;
+        """)
+        title_layout.addWidget(title_label)
+        
+        subtitle_label = QLabel("AI-POWERED VOICE COMMUNICATION SYSTEM")
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle_label.setStyleSheet("""
+            font-size: 12px;
+            color: #b0b0b0;
+            letter-spacing: 1px;
+        """)
+        title_layout.addWidget(subtitle_label)
+        
+        main_layout.addWidget(title_widget)
+        
+        # Create a pulsing animation for the title
+        self.pulse_effect = QTimer(self)
+        self.pulse_effect.timeout.connect(self.pulse_title)
+        self.pulse_effect.start(2000)  # Pulse every 2 seconds
+        self.pulse_opacity = 1.0
+        self.pulse_direction = -0.1
         
         # Create splitter for chat and controls
         splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.setStyleSheet("QSplitter::handle { height: 2px; }")
         main_layout.addWidget(splitter, 1)
         
-        # Chat area with scroll
+        # Chat area with scroll and neon border
         chat_widget = QWidget()
+        chat_widget.setStyleSheet("""
+            background-color: #1a1a1a;
+            border-radius: 10px;
+            border: 1px solid #00b8d4;
+        """)
         chat_layout = QVBoxLayout(chat_widget)
+        chat_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Add chat header
+        chat_header = QWidget()
+        chat_header.setFixedHeight(40)
+        chat_header.setStyleSheet("background-color: transparent;")
+        header_layout = QHBoxLayout(chat_header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        chat_icon = QLabel("💬")
+        chat_icon.setStyleSheet("font-size: 20px; color: #00e5ff;")
+        header_layout.addWidget(chat_icon)
+        
+        chat_title = QLabel("CONVERSATION")
+        chat_title.setStyleSheet("""
+            font-size: 14px;
+            font-weight: bold;
+            color: #00e5ff;
+            letter-spacing: 1px;
+        """)
+        header_layout.addWidget(chat_title)
+        
+        header_layout.addStretch()
+        
+        # Add animated indicator for active listening
+        self.listening_indicator = QLabel("●")
+        self.listening_indicator.setStyleSheet("""
+            font-size: 16px;
+            color: #333333;
+        """)
+        header_layout.addWidget(self.listening_indicator)
+        
+        # Create listening indicator animation
+        self.indicator_timer = QTimer(self)
+        self.indicator_timer.timeout.connect(self.animate_indicator)
+        self.indicator_timer.start(500)  # Toggle every 500ms
+        self.indicator_active = False
+        
+        chat_layout.addWidget(chat_header)
+        
+        # Line separator
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        separator.setStyleSheet("background-color: #00b8d4; margin: 0px 0px 10px 0px;")
+        separator.setFixedHeight(1)
+        chat_layout.addWidget(separator)
         
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_content = QWidget()
+        self.scroll_content.setStyleSheet("background-color: transparent;")
         self.scroll_layout = QVBoxLayout(self.scroll_content)
+        self.scroll_layout.setContentsMargins(5, 5, 5, 5)
+        self.scroll_layout.setSpacing(10)
         
         # Add spacer at the bottom to push content up
         self.scroll_layout.addSpacerItem(
@@ -251,51 +527,89 @@ class OARCSpeechChat(QMainWindow):
         self.scroll_area.setWidget(self.scroll_content)
         chat_layout.addWidget(self.scroll_area)
         
-        # Controls panel
+        # Controls panel with neon glow
         controls_widget = QWidget()
+        controls_widget.setStyleSheet("""
+            background-color: #1a1a1a;
+            border-radius: 10px;
+            border: 1px solid #00b8d4;
+        """)
         controls_layout = QVBoxLayout(controls_widget)
+        controls_layout.setContentsMargins(15, 15, 15, 15)
+        controls_layout.setSpacing(15)
         
-        # FLUID SPEECH-TO-SPEECH BUTTON
-        self.fluid_button = QPushButton("🎙️ START FLUID CONVERSATION")
+        # FLUID SPEECH-TO-SPEECH BUTTON with neon glow effect
+        self.fluid_button = QPushButton("🎙️ START NEURAL VOICE INTERFACE")
         self.fluid_button.setCheckable(True)
         self.fluid_button.setStyleSheet("""
             QPushButton {
-                font-size: 16pt;
-                padding: 20px;
+                font-size: 18pt;
+                padding: 15px;
                 margin-bottom: 15px;
-                background-color: #4CAF50;
-                color: white;
+                background-color: #0d333d;
+                color: #00e5ff;
+                border: 2px solid #00b8d4;
                 border-radius: 10px;
                 font-weight: bold;
-            }
-            QPushButton:checked {
-                background-color: #f44336;
+                text-shadow: 0 0 10px #00b8d4;
+                font-family: 'Segoe UI', Arial, sans-serif;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #164450;
+                border-color: #00e5ff;
+                text-shadow: 0 0 15px #00e5ff;
+            }
+            QPushButton:checked {
+                background-color: #701c23;
+                border-color: #ff1744;
+                color: #ff1744;
+                text-shadow: 0 0 10px #ff1744;
             }
         """)
         self.fluid_button.clicked.connect(self.toggle_fluid_conversation)
         controls_layout.addWidget(self.fluid_button)
         
-        # Settings section
+        # Settings section with dark theme
         settings_group = QWidget()
+        settings_group.setStyleSheet("""
+            background-color: #252525;
+            border-radius: 8px;
+        """)
         settings_layout = QVBoxLayout(settings_group)
+        settings_layout.setContentsMargins(10, 10, 10, 10)
+        settings_layout.setSpacing(10)
         
         # Add a section title
-        settings_title = QLabel("Settings")
-        settings_title.setStyleSheet("font-weight: bold; margin-top: 5px;")
+        settings_title = QLabel("CONFIGURATION")
+        settings_title.setStyleSheet("""
+            font-weight: bold;
+            color: #00e5ff;
+            font-size: 12px;
+            letter-spacing: 1px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #00b8d4;
+        """)
         settings_layout.addWidget(settings_title)
         
         # Model and voice selection
         selection_layout = QHBoxLayout()
+        selection_layout.setSpacing(15)
         
         # Model selection
         model_layout = QVBoxLayout()
-        model_layout.addWidget(QLabel("Ollama Model:"))
+        model_layout.setSpacing(5)
+        model_label = QLabel("AI MODEL:")
+        model_label.setStyleSheet("color: #b0b0b0; font-size: 10px; letter-spacing: 1px;")
+        model_layout.addWidget(model_label)
+        
         self.model_combo = QComboBox()
-        if self.available_models:
+        self.model_combo.setMinimumHeight(35)
+        if self.available_models and len(self.available_models) > 0:
             self.model_combo.addItems(self.available_models)
+            # Select the default model if it's in the available models
+            default_index = self.model_combo.findText(self.ollama_model)
+            if default_index >= 0:
+                self.model_combo.setCurrentIndex(default_index)
         else:
             self.model_combo.addItem("No models available")
             self.model_combo.setEnabled(False)
@@ -304,26 +618,79 @@ class OARCSpeechChat(QMainWindow):
         
         # Voice selection
         voice_layout = QVBoxLayout()
-        voice_layout.addWidget(QLabel("Voice:"))
+        voice_layout.setSpacing(5)
+        voice_label = QLabel("VOICE SYNTHESIS:")
+        voice_label.setStyleSheet("color: #b0b0b0; font-size: 10px; letter-spacing: 1px;")
+        voice_layout.addWidget(voice_label)
+        
         self.voice_combo = QComboBox()
+        self.voice_combo.setMinimumHeight(35)
         self.voice_combo.addItems(["C3PO", "Darth Vader", "Yoda"])  # Add your available voices
         self.voice_combo.currentTextChanged.connect(self.change_voice)
         voice_layout.addWidget(self.voice_combo)
         selection_layout.addLayout(voice_layout)
         
+        # Add language selection
+        language_layout = QVBoxLayout()
+        language_layout.setSpacing(5)
+        language_label = QLabel("LANGUAGE:")
+        language_label.setStyleSheet("color: #b0b0b0; font-size: 10px; letter-spacing: 1px;")
+        language_layout.addWidget(language_label)
+        
+        self.language_combo = QComboBox()
+        self.language_combo.setMinimumHeight(35)
+        # Add language names for better UX
+        language_options = [
+            ("en", "English"),
+            ("fr", "French"),
+            ("de", "German"),
+            ("es", "Spanish"),
+            ("it", "Italian"),
+            ("ja", "Japanese"),
+            ("ko", "Korean"),
+            ("pt", "Portuguese"),
+            ("ru", "Russian"),
+            ("zh", "Chinese"),
+            ("nl", "Dutch"),
+            ("tr", "Turkish"),
+            ("pl", "Polish"),
+            ("ar", "Arabic")
+        ]
+        for code, name in language_options:
+            self.language_combo.addItem(f"{name} ({code})", code)
+        self.language_combo.currentIndexChanged.connect(self.change_language_from_combo)
+        language_layout.addWidget(self.language_combo)
+        selection_layout.addLayout(language_layout)
+        
         settings_layout.addLayout(selection_layout)
+        
         controls_layout.addWidget(settings_group)
         
         # Standard controls hidden in a collapsible section
         self.controls_group = QWidget()
+        self.controls_group.setStyleSheet("""
+            background-color: #252525;
+            border-radius: 8px;
+        """)
         manual_layout = QVBoxLayout(self.controls_group)
+        manual_layout.setContentsMargins(10, 10, 10, 10)
+        manual_layout.setSpacing(10)
         
-        manual_title = QLabel("Manual Controls")
-        manual_title.setStyleSheet("font-weight: bold; margin-top: 5px;")
+        manual_title = QLabel("MANUAL CONTROL SYSTEM")
+        manual_title.setStyleSheet("""
+            font-weight: bold;
+            color: #00e5ff;
+            font-size: 12px;
+            letter-spacing: 1px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #00b8d4;
+        """)
         manual_layout.addWidget(manual_title)
         
         # Input area
         input_layout = QHBoxLayout()
+        input_layout.setSpacing(10)
+        
         self.text_input = QTextEdit()
         self.text_input.setPlaceholderText("Type your message here...")
         self.text_input.setMaximumHeight(80)
@@ -331,13 +698,14 @@ class OARCSpeechChat(QMainWindow):
         
         # Buttons
         button_layout = QVBoxLayout()
+        button_layout.setSpacing(5)
         
-        self.listen_button = QPushButton("🎤 Listen")
+        self.listen_button = QPushButton("🎤 LISTEN")
         self.listen_button.setCheckable(True)
         self.listen_button.clicked.connect(self.toggle_listening)
         button_layout.addWidget(self.listen_button)
         
-        self.send_button = QPushButton("📤 Send")
+        self.send_button = QPushButton("📤 TRANSMIT")
         self.send_button.clicked.connect(self.send_message)
         button_layout.addWidget(self.send_button)
         
@@ -348,48 +716,75 @@ class OARCSpeechChat(QMainWindow):
         self.controls_group.setVisible(False)
         controls_layout.addWidget(self.controls_group)
         
-        # Utility buttons
+        # Utility buttons with neon style
         utility_layout = QHBoxLayout()
+        utility_layout.setSpacing(10)
         
         # Toggle manual controls button
-        toggle_controls_button = QPushButton("⚙️ Toggle Manual Controls")
+        toggle_controls_button = QPushButton("⚙️ MANUAL CONTROLS")
         toggle_controls_button.clicked.connect(self.toggle_manual_controls)
         utility_layout.addWidget(toggle_controls_button)
         
-        self.clear_button = QPushButton("🗑️ Clear")
+        self.clear_button = QPushButton("🗑️ RESET CONVERSATION")
         self.clear_button.clicked.connect(self.clear_conversation)
         utility_layout.addWidget(self.clear_button)
         
-        self.stop_button = QPushButton("🔇 Stop Speaking")
+        self.stop_button = QPushButton("🔇 STOP AUDIO")
         self.stop_button.clicked.connect(self.interrupt_speech)
         self.stop_button.setEnabled(False)  # Disabled until speech is playing
         utility_layout.addWidget(self.stop_button)
         
         controls_layout.addLayout(utility_layout)
         
-        # Progress and status
+        # Progress and status with neon accent
+        status_container = QWidget()
+        status_container.setStyleSheet("""
+            background-color: #252525;
+            border-radius: 8px;
+        """)
+        status_layout = QVBoxLayout(status_container)
+        status_layout.setContentsMargins(10, 10, 10, 10)
+        status_layout.setSpacing(10)
+        
+        status_header = QLabel("SYSTEM STATUS")
+        status_header.setStyleSheet("""
+            font-weight: bold;
+            color: #00e5ff;
+            font-size: 10px;
+            letter-spacing: 1px;
+        """)
+        status_layout.addWidget(status_header)
+        
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFormat("Ready")
-        controls_layout.addWidget(self.progress_bar)
+        self.progress_bar.setFormat("IDLE")
+        self.progress_bar.setFixedHeight(15)
+        status_layout.addWidget(self.progress_bar)
         
-        self.status_label = QLabel("Click the green button to start a fluid conversation")
-        self.status_label.setStyleSheet("color: #555555;")
-        controls_layout.addWidget(self.status_label)
+        self.status_label = QLabel("SYSTEM READY - CLICK THE NEURAL VOICE INTERFACE TO BEGIN")
+        self.status_label.setStyleSheet("""
+            font-size: 11px;
+            padding: 5px;
+            background-color: #1a1a1a;
+            border-radius: 4px;
+        """)
+        status_layout.addWidget(self.status_label)
+        
+        controls_layout.addWidget(status_container)
         
         # Add widgets to splitter
         splitter.addWidget(chat_widget)
         splitter.addWidget(controls_widget)
         
         # Set splitter proportions
-        splitter.setSizes([400, 200])
+        splitter.setSizes([500, 300])
         
-        # Add initial welcome message
+        # Add initial welcome message with neon style
         self.add_message_bubble(
-            "Hello! I'm your OARC AI assistant. Click the green button above to start our conversation. "
-            "I'll listen to you and respond automatically with voice.", 
+            "OARC Neural Interface initialized. Click the green button above to activate voice communication. "
+            "System is ready for bilateral voice interaction.", 
             False
         )
     
@@ -415,16 +810,20 @@ class OARCSpeechChat(QMainWindow):
             self.status_signal.emit("Listening for speech...")
             
             # Use OARC's SpeechToText to listen for speech
-            audio_data = self.stt.listen(threshold=600, silence_duration=0.5)
-            if not self.is_listening:
-                return  # User stopped listening
+            audio_file = self.stt.listen(threshold=100, silence_duration=0.5)
+            if not self.is_listening or not audio_file:
+                return  # User stopped listening or no audio detected
             
             self.status_signal.emit("Processing speech...")
             self.progress_signal.emit(50, "Transcribing")
             
-            # Transcribe the captured audio
-            transcribed_text = self.stt.transcribe(audio_data)
-            if transcribed_text:
+            # Use the async recognizer method with our event loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            transcribed_text = loop.run_until_complete(self.stt.recognize_speech(audio_file))
+            loop.close()
+            
+            if transcribed_text and len(transcribed_text.strip()) > 0:
                 self.status_signal.emit("Speech recognized!")
                 self.progress_signal.emit(100, "Recognized")
                 
@@ -495,7 +894,7 @@ class OARCSpeechChat(QMainWindow):
                         "MEMORY_CLEAR_FLAG": False,
                         "LLAVA_FLAG": False,
                         "LLM_BOOSTER_PROMPT_FLAG": False,
-                        "TTS_FLAG": True
+                        "TTS_FLAG": True  # Enable TTS integration
                     }
                 }
             }
@@ -547,58 +946,78 @@ class OARCSpeechChat(QMainWindow):
         while True:
             try:
                 # Get next text from queue
-                text = self.speech_queue.get()
+                queue_item = self.speech_queue.get()
+                
+                # Handle both string and tuple formats
+                if isinstance(queue_item, tuple):
+                    text, language = queue_item
+                else:
+                    text = queue_item
+                    language = "en"  # Default language
+                    
                 self.is_speaking = True
                 
                 # Update UI state
                 self.status_signal.emit("Generating speech...")
                 self.progress_signal.emit(75, "Processing text")
                 
-                # Split text into sentences for better chunking
-                sentences = self.tts.split_into_sentences(text)
-                
-                if len(sentences) > 1:
-                    # Use the advanced chunking and parallel processing for multiple sentences
-                    self.status_signal.emit(f"Processing {len(sentences)} sentences...")
+                try:
+                    # Split text into sentences
+                    sentences = self.tts.split_into_sentences(text)
+                    log.info(f"Text split into {len(sentences)} sentences")
                     
-                    # Generate and play in streaming mode
-                    # This automatically handles chunking and parallel generation/playback
-                    self.tts.generate_play_audio_loop(sentences)
-                else:
-                    # For single sentence, we can use simpler approach
-                    self.status_signal.emit("Generating speech...")
-                    audio_data = self.tts.process_tts_responses(text, self.voice_name)
+                    # Modify to handle sentence batching for more natural pauses and flow
+                    sentence_batches = []
+                    current_batch = ""
                     
-                    # Save to temporary file and play
-                    temp_dir = os.path.join(Paths().get_output_dir(), "temp")
-                    os.makedirs(temp_dir, exist_ok=True)
-                    temp_file = os.path.join(temp_dir, f"speech_{int(time.time())}.wav")
+                    # Group sentences into logical batches (around 100-150 chars)
+                    for sentence in sentences:
+                        if len(current_batch) + len(sentence) < 150:
+                            current_batch += " " + sentence if current_batch else sentence
+                        else:
+                            if current_batch:
+                                sentence_batches.append(current_batch)
+                            current_batch = sentence
                     
-                    # Save audio data to file
-                    sf.write(temp_file, audio_data, self.tts.sample_rate)
+                    # Add final batch if it exists
+                    if current_batch:
+                        sentence_batches.append(current_batch)
                     
-                    # Play audio in appropriate platform-specific way
-                    if sys.platform == "win32":
-                        os.startfile(temp_file)
-                    elif sys.platform == "darwin":  # macOS
-                        from subprocess import call
-                        call(["afplay", temp_file])
-                    else:  # Linux
-                        from subprocess import call
-                        call(["aplay", temp_file])
-                
-                # Update progress when done
-                self.progress_signal.emit(100, "Speech complete")
-                time.sleep(2)  # Keep progress visible briefly
-                self.progress_signal.emit(0, "Ready")
+                    log.info(f"Created {len(sentence_batches)} sentence batches for audio generation")
+                    
+                    # Process each sentence batch
+                    for i, batch in enumerate(sentence_batches):
+                        if not self.is_speaking:  # Check if interrupted
+                            break
+                            
+                        self.status_signal.emit(f"Playing speech part {i+1}/{len(sentence_batches)}...")
+                        self.progress_signal.emit(80 + (i * 20 // len(sentence_batches)), f"Playing part {i+1}")
+                        
+                        # Generate audio for this batch
+                        audio_data = self.speech_manager.generate_speech(batch, language=language)
+                        
+                        if audio_data is not None and len(audio_data) > 0:
+                            # Play the audio
+                            sd.play(audio_data, self.speech_manager.sample_rate)
+                            sd.wait()  # Wait for audio to finish
+                        else:
+                            log.warning(f"Failed to generate audio for batch {i+1}")
+                    
+                    # Update UI when done
+                    self.progress_signal.emit(100, "Speech complete")
+                    self.status_signal.emit("Ready to listen")
+                    
+                except Exception as e:
+                    log.error(f"Error processing speech: {str(e)}", exc_info=True)
+                    self.status_signal.emit(f"Speech error: {str(e)}")
                 
             except Exception as e:
                 log.error(f"Error in speech generation: {str(e)}", exc_info=True)
-                self.status_signal.emit(f"Speech error: {str(e)}")
-            
+                
             finally:
                 self.speech_queue.task_done()
                 self.is_speaking = False
+                self.progress_signal.emit(0, "Ready")
     
     # Update UI state in process_queues method
     def process_queues(self):
@@ -623,6 +1042,12 @@ class OARCSpeechChat(QMainWindow):
         except Exception as e:
             log.error(f"Error changing voice: {str(e)}", exc_info=True)
             self.status_signal.emit(f"Voice change error: {str(e)}")
+    
+    def change_language(self, language):
+        """Change the language for TTS and STT."""
+        log.info(f"Changing language to: {language}")
+        self.language = language
+        self.status_signal.emit(f"Language changed to {language}")
     
     def clear_conversation(self):
         """Clear the conversation history."""
@@ -761,6 +1186,10 @@ class OARCSpeechChat(QMainWindow):
 
     def toggle_fluid_conversation(self, checked):
         """Toggle fluid speech-to-speech conversation mode."""
+        # If we're already running and trying to start again, prevent it
+        if self.running and checked:
+            return
+            
         if checked:
             # First verify that we have a model available
             if not self.available_models:
@@ -768,6 +1197,11 @@ class OARCSpeechChat(QMainWindow):
                                     "No Ollama models are available. Please install at least one model.")
                 self.fluid_button.setChecked(False)
                 return
+                    
+            # Stop any existing process first
+            self.running = False
+            # Wait a moment for any existing threads to recognize they should stop
+            time.sleep(0.5)
                 
             # Start fluid conversation
             self.running = True  # Set running flag to true
@@ -780,7 +1214,7 @@ class OARCSpeechChat(QMainWindow):
         else:
             # Stop fluid conversation
             self.running = False  # Set running flag to false
-            self.fluid_button.setText("🎙️ START FLUID CONVERSATION")
+            self.fluid_button.setText("🎙️ START NEURAL VOICE INTERFACE")
             self.status_signal.emit("Conversation stopped")
             self.progress_signal.emit(0, "Ready")
             
@@ -799,36 +1233,67 @@ class OARCSpeechChat(QMainWindow):
             
             while self.running:
                 try:
-                    # Instead of waiting for wake word, just listen for voice
+                    # Use the regular listen method with MORE SENSITIVE threshold
                     self.status_signal.emit("Listening for speech...")
                     self.progress_signal.emit(10, "Listening")
                     
-                    # Use the regular listen method instead of listen_for_wake_word
-                    temp_file = self.stt.listen(threshold=600, silence_duration=0.5)
+                    # Lower threshold to make it more sensitive
+                    temp_file = self.stt.listen(threshold=350, silence_duration=1.0)
                     
                     if not self.running:
                         break  # Exit if we've been told to stop
                     
                     if not temp_file:
+                        log.info("No speech detected above threshold, continuing to listen...")
+                        self.status_signal.emit("No speech detected. Listening again...")
                         continue  # No speech detected, continue listening
                     
                     # Process the recorded speech
                     self.status_signal.emit("Processing speech...")
                     self.progress_signal.emit(30, "Processing")
                     
-                    # Get the transcription
-                    transcribed_text = self.stt.recognize_speech(temp_file)
-                    
-                    # Clean up temp file
+                    # Use Google STT directly with the selected language
                     try:
-                        os.remove(temp_file)
+                        import speech_recognition as sr
+                        recognizer = sr.Recognizer()
+                        with sr.AudioFile(temp_file) as source:
+                            audio_data = recognizer.record(source)
+                        # Use the language from the UI dropdown
+                        transcribed_text = recognizer.recognize_google(audio_data, language=self.language)
+                        log.info(f"Google STT result: '{transcribed_text}'")
                     except Exception as e:
-                        log.warning(f"Failed to remove temporary file: {e}")
+                        log.error(f"Google STT failed: {e}")
+                        # Fallback to async recognizer if Google fails
+                        transcribed_text = loop.run_until_complete(self.stt.recognize_speech(temp_file))
+                    
+                    # Clean up temp file with retries
+                    cleanup_success = False
+                    for retry in range(3):
+                        try:
+                            if os.path.exists(temp_file):
+                                os.remove(temp_file)
+                                cleanup_success = True
+                                break
+                        except Exception as e:
+                            log.warning(f"Failed to remove temp file (attempt {retry+1}/3): {e}")
+                            time.sleep(0.5)  # Wait a bit before retrying
+                    
+                    if not cleanup_success:
+                        log.warning(f"Could not remove temp file: {temp_file}")
+                    
+                    # Skip "Google Speech Recognition could not understand audio" messages
+                    if transcribed_text and "could not understand audio" in transcribed_text.lower():
+                        self.status_signal.emit("Couldn't hear clearly. Please try again.")
+                        self.progress_signal.emit(0, "Idle")
+                        continue
                     
                     if not transcribed_text or len(transcribed_text.strip()) == 0:
                         self.status_signal.emit("Couldn't hear anything clearly. Please try again.")
                         self.progress_signal.emit(0, "Idle")
                         continue
+                    
+                    # Log what was heard for debugging
+                    log.info(f"Heard: '{transcribed_text}'")
                     
                     # Add user message to UI
                     self.message_signal.emit(transcribed_text, True)
@@ -839,58 +1304,74 @@ class OARCSpeechChat(QMainWindow):
                     # Get selected model
                     model = self.model_combo.currentText()
                     
-                    # Get response from Ollama using the powerful MultiModalPrompting
+                    # Get selected language from UI if available
+                    language = getattr(self, 'language', 'en')  # Default to 'en' if not set
+
+                    # Update agent with language parameter
+                    agent = {
+                        "agent_core": {
+                            "agent_id": "speech_chat",
+                            "prompts": {
+                                "userInput": transcribed_text,
+                                "llmSystem": "You are a helpful AI assistant in a voice conversation. Keep responses concise and natural."
+                            },
+                            "models": {
+                                "largeLanguageModel": {
+                                    "names": [model]
+                                }
+                            },
+                            "conversation": {
+                                "load_name": "speech_chat_conversation"
+                            },
+                            "language": language,  # Add language to the agent config
+                            "modalityFlags": {
+                                "EMBEDDING_FLAG": False,
+                                "MEMORY_CLEAR_FLAG": False,
+                                "LLAVA_FLAG": False,
+                                "LLM_BOOSTER_PROMPT_FLAG": False,
+                                "TTS_FLAG": True,
+                                "STREAMING_FLAG": True
+                            }
+                        }
+                    }
+                    
+                    # Get conversation history
+                    history = self.get_conversation_history(limit=10)
+                    
+                    # Create a streaming handler class
+                    class StreamingHandler:
+                        def __init__(self, parent):
+                            self.parent = parent
+                            self.full_response = ""
+                        
+                        async def store_message(self, message):
+                            # This method is expected by MultiModalPrompting but we don't need it
+                            pass
+                        
+                        async def handle_stream(self, chunk):
+                            # This is the method that will be called with streaming chunks
+                            # We'll update the UI with each chunk
+                            if chunk:
+                                self.full_response += chunk
+                                self.parent.message_signal.emit(self.full_response, False)
+                    
+                    # Try to use MultiModalPrompting with an event handler
                     try:
                         self.status_signal.emit(f"Getting response from {model}...")
                         
-                        # Create a minimal agent configuration
-                        agent = {
-                            "agent_core": {
-                                "agent_id": "speech_chat",
-                                "prompts": {
-                                    "userInput": transcribed_text,
-                                    "llmSystem": "You are a helpful AI assistant in a voice conversation. Keep responses concise and natural."
-                                },
-                                "models": {
-                                    "largeLanguageModel": {
-                                        "names": [model]
-                                    }
-                                },
-                                "conversation": {
-                                    "load_name": "speech_chat_conversation"
-                                },
-                                "modalityFlags": {
-                                    "EMBEDDING_FLAG": False,
-                                    "MEMORY_CLEAR_FLAG": False,
-                                    "LLAVA_FLAG": False,
-                                    "LLM_BOOSTER_PROMPT_FLAG": False,
-                                    "TTS_FLAG": True
-                                }
-                            }
-                        }
+                        # Create the handler instance
+                        handler = StreamingHandler(self)
                         
-                        # Create a simple handler object
-                        class SimpleHandler:
-                            async def store_message(self, message):
-                                pass
-                        
-                        # Get conversation history
-                        history = self.get_conversation_history(limit=10)
-                        
-                        # Use the event loop we created for this thread
+                        # Use the send_prompt method (this call is simplified, not using 'stream' param)
                         ai_message = loop.run_until_complete(self.prompt_manager.send_prompt(
                             agent=agent,
-                            handler=SimpleHandler(),
+                            handler=handler,
                             history=history
                         ))
                         
-                        if not ai_message or (isinstance(ai_message, str) and ai_message.startswith("Error:")):
-                            self.status_signal.emit(f"Error: {ai_message}")
-                            self.progress_signal.emit(0, "Error")
-                            continue
-                    
-                        # Add AI message to UI
-                        self.message_signal.emit(ai_message, False)
+                        # If we have a handler with accumulated response, use that
+                        if hasattr(handler, 'full_response') and handler.full_response:
+                            ai_message = handler.full_response
                         
                         # Store in database
                         self.store_message("assistant", ai_message)
@@ -900,15 +1381,47 @@ class OARCSpeechChat(QMainWindow):
                         self.progress_signal.emit(75, "Generating speech")
                         
                         # Add to speech queue
-                        self.speech_queue.put(ai_message)
+                        self.speech_queue.put((ai_message, self.language))
                         
                     except Exception as e:
-                        log.error(f"Error getting response: {str(e)}", exc_info=True)
-                        self.status_signal.emit(f"Error: {str(e)}")
-                        self.progress_signal.emit(0, "Error")
+                        log.error(f"Streaming with MultiModalPrompting failed: {e}")
+                        
+                        # Direct Ollama API fallback
+                        try:
+                            self.status_signal.emit(f"Fallback: Direct API call to {model}...")
+                            
+                            # Set up messages for direct Ollama API call
+                            messages = [{"role": "system", "content": "You are a helpful AI assistant in a voice conversation. Keep responses concise and natural."}]
+                            for msg in history:
+                                messages.append({"role": msg["role"], "content": msg["content"]})
+                            messages.append({"role": "user", "content": transcribed_text})
+                            
+                            # Make the direct API call
+                            response = loop.run_until_complete(ollama.chat(
+                                model=model,
+                                messages=messages
+                            ))
+                            
+                            # Extract content from response
+                            ai_message = response["message"]["content"]
+                            
+                            # Add AI message to UI
+                            self.message_signal.emit(ai_message, False)
+                            
+                            # Store in database
+                            self.store_message("assistant", ai_message)
+                            
+                            # Add to speech queue
+                            self.speech_queue.put((ai_message, self.language))
+                            
+                        except Exception as e2:
+                            log.error(f"Fallback to direct API also failed: {e2}")
+                            self.status_signal.emit(f"Error: {str(e2)}")
+                            self.progress_signal.emit(0, "Error")
                     
                     self.status_signal.emit("Listening...")
                     self.progress_signal.emit(0, "Idle")
+                    time.sleep(0.5)  # Brief pause before listening again
                     
                 except Exception as e:
                     if self.running:  # Only log if we're still supposed to be running
@@ -916,7 +1429,7 @@ class OARCSpeechChat(QMainWindow):
                         self.status_signal.emit(f"Error: {str(e)}")
                         self.progress_signal.emit(0, "Error")
                         time.sleep(2)  # Pause briefly before continuing
-                
+                    
         except Exception as e:
             log.error(f"Fatal error in fluid conversation thread: {str(e)}", exc_info=True)
         
@@ -926,6 +1439,49 @@ class OARCSpeechChat(QMainWindow):
                 loop.close()
             except:
                 pass
+
+    # Add these new animation methods to your class
+    def pulse_title(self):
+        """Create a pulsing effect for the title."""
+        title_widget = self.findChild(QWidget, "title_widget")
+        if title_widget:
+            title_label = title_widget.findChildren(QLabel)[0]  # The title label
+            
+            # Update opacity based on direction
+            self.pulse_opacity += self.pulse_direction
+            
+            # Change direction when reaching boundaries
+            if self.pulse_opacity <= 0.7 or self.pulse_opacity >= 1.0:
+                self.pulse_direction *= -1
+            
+            # Instead of using text-shadow, use color and font options
+            title_label.setStyleSheet(f"""
+                font-size: 28px;
+                font-weight: bold;
+                color: #00e5ff;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                letter-spacing: 2px;
+            """)
+
+    def animate_indicator(self):
+        """Animate the listening indicator."""
+        self.indicator_active = not self.indicator_active
+        if self.running:  # Only show active animation when in conversation mode
+            if self.indicator_active:
+                self.listening_indicator.setStyleSheet("font-size: 16px; color: #ff1744;")
+            else:
+                self.listening_indicator.setStyleSheet("font-size: 16px; color: #701c23;")
+        else:
+            if self.indicator_active:
+                self.listening_indicator.setStyleSheet("font-size: 16px; color: #00e5ff;")
+            else:
+                self.listening_indicator.setStyleSheet("font-size: 16px; color: #0d333d;")
+
+    # Add method to extract language code from combo box
+    def change_language_from_combo(self, index):
+        # Get the actual language code from the item data
+        language_code = self.language_combo.itemData(index)
+        self.change_language(language_code)
 
 
 def main():

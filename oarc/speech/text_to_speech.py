@@ -136,11 +136,11 @@ class TextToSpeech:
         
         log.info(f"TextToSpeech initialized using SpeechManager with voice: {self.voice_name}")
 
-    def process_tts_responses(self, response, voice_name):
+    def process_tts_responses(self, response, voice_name, language="en"):
         """Process text response into audio data suitable for streaming"""
         try:
-            # Use the SpeechManager for speech generation to avoid duplicating code
-            return self.speech_manager.generate_speech(response, speed=1.0, language="en")
+            # Use the SpeechManager for speech generation with language parameter
+            return self.speech_manager.generate_speech(response, speed=1.0, language=language)
             
         except Exception as e:
             log.error(f"Error generating audio: {e}")
@@ -336,7 +336,6 @@ class TextToSpeech:
 
         return final_sentences
     
-
     def gradio_interface(self):
         """Create Gradio interface for the detector"""
         import gradio as gr
@@ -363,16 +362,38 @@ class TextToSpeech:
                 'audio_data': list(audio_data)
             }))
 
-    async def send_tts(self, text: str, voice_name: Optional[str] = None) -> bool:
+    async def send_tts(self, text: str, voice_name: Optional[str] = None, language: str = "en") -> bool:
         """Send TTS audio to the frontend"""
         try:
-            # Use SpeechManager to generate speech
-            speech_manager = SpeechManager(voice_name=voice_name if voice_name else "C3PO")
-            audio_data = speech_manager.generate_speech(text, speed=1.0, language="en")
+            # Use SpeechManager to generate speech with language
+            speech_manager = SpeechManager(voice_name=voice_name if voice_name else self.voice_name)
+            audio_data = speech_manager.generate_speech(text, speed=1.0, language=language)
             if audio_data is not None:
                 await self.send_audio_to_frontend(audio_data, "tts")
                 return True
             return False
         except Exception as e:
             log.error(f"Error sending TTS audio: {e}")
+            return False
+
+    async def process_tts_audio(self, text, language="en"):
+        """Process text to speech with the specified language"""
+        try:
+            # Generate the audio using SpeechManager
+            audio_data = self.speech_manager.generate_speech(text, speed=1.0, language=language)
+            
+            if audio_data is not None:
+                # If there's a frontend to send to, do so
+                if hasattr(self, 'send_audio_to_frontend'):
+                    await self.send_audio_to_frontend(audio_data, "tts")
+                
+                # Play the audio directly
+                import sounddevice as sd
+                sd.play(audio_data, self.sample_rate)
+                sd.wait()  # Wait for audio to finish playing
+                
+                return True
+            return False
+        except Exception as e:
+            log.error(f"Error processing TTS audio: {e}")
             return False

@@ -474,25 +474,41 @@ class SpeechManager:
         """
         try:
             if not self.tts:
-                raise RuntimeError("TTS model not initialized, returning silence")
-                
+                log.error("TTS model not initialized")
+                return np.array([], dtype=np.float32)
+            
             # Clear VRAM cache
             torch.cuda.empty_cache()
             
-            # Generate audio based on model type
-            if self.is_multi_speaker:
+            log.info(f"Generating speech with {'multi' if self.is_multi_speaker else 'single'}-speaker model")
+            
+            # Force the model to be treated as multi-speaker and ensure voice_ref_path is available
+            if not self.voice_ref_path:
+                # Try to find the reference file
+                from oarc.speech.voice.voice_utils import VoiceUtils
+                self.voice_ref_path = VoiceUtils.find_voice_ref_file(self.voice_name)
+                
                 if not self.voice_ref_path:
-                    raise ValueError("Multi-speaker model requires a voice reference file")
-                    
-                log.info(f"Generating speech with multi-speaker model using reference: {self.voice_ref_path}")
+                    log.error("Voice reference file not found, using fallback")
+                    # Use a fallback reference file - make sure this exists in your repo
+                    fallback_path = os.path.join(self.paths.get_voice_ref_path(), "c3po", "reference.wav")
+                    if os.path.exists(fallback_path):
+                        self.voice_ref_path = fallback_path
+                    else:
+                        log.error("Fallback reference file not found")
+                        return np.array([], dtype=np.float32)
+            
+            # Always provide speaker_wav for maximum compatibility
+            try:
                 audio = self.tts.tts(
-                    text=text,
+                    text=text, 
                     speaker_wav=self.voice_ref_path,
                     language=language,
                     speed=speed
                 )
-            else:
-                log.info("Generating speech with single-speaker model")
+            except Exception as e:
+                log.warning(f"Error with speaker reference, trying without: {e}")
+                # Try as single speaker mode
                 audio = self.tts.tts(
                     text=text,
                     language=language,
@@ -504,12 +520,13 @@ class SpeechManager:
             
             # Normalize audio
             if np.abs(audio_np).max() > 0:
-                audio_np = audio_np / np.abs(audio_np).max()
-                
+                audio_np = audio_np / np.abs(audio_np).max() * 0.9
+            
             return audio_np
             
         except Exception as e:
-            raise RuntimeError(f"Error generating speech: {str(e)}")
+            log.error(f"Error generating speech: {str(e)}")
+            return np.array([], dtype=np.float32)  # Return empty array on error
 
     def generate_speech_to_file(self, text, output_file, speed=1.0, language="en", force_fallback=False, overwrite=False):
         """

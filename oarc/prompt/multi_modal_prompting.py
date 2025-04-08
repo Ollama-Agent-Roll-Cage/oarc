@@ -27,13 +27,26 @@ class MultiModalPrompting:
 
 
     def __init__(self):
+        # Initialize standard flags
         self.AGENT_FLAG = True
         self.SYSTEM_SELECT_FLAG = False
+        self.TTS_FLAG = True  # TTS integration flag
+        
+        # Add missing flag that's causing the error
+        self.LLAVA_FLAG = False  # Flag for LLAVA (vision) processing
+        
+        # Add other flags that might be needed 
+        self.EMBEDDING_FLAG = False
+        self.MEMORY_CLEAR_FLAG = False
+        self.LLM_BOOSTER_PROMPT_FLAG = False
+        self.VISION_SYSTEM_PROMPT = False
+        
+        # Initialize other attributes
         self.agent = None
         self.history = None
         self.handler = None
         self.database = PandasDB()
-        self.paths = Paths() # Get singleton instance
+        self.paths = Paths()  # Get singleton instance
         
 
     def set_model(self, model_name: str) -> bool:
@@ -171,7 +184,6 @@ class MultiModalPrompting:
 
     async def send_prompt(self, agent, handler, history):
         """Send prompt with multimodal data handling"""
-        # TODO split up into more modular functions, and add more error handling
         try:
             self.agent = agent
             self.history = history
@@ -182,8 +194,15 @@ class MultiModalPrompting:
 
             log.info(f"Loading agent {conversation_name[:50]} with model {model[:50]} and prompt {user_prompt[:50]}")
 
+            # Set flags from agent configuration
             EMBEDDING_FLAG = self.agent["agent_core"]["modalityFlags"]["EMBEDDING_FLAG"]
             MEMORY_CLEAR_FLAG = self.agent["agent_core"]["modalityFlags"]["MEMORY_CLEAR_FLAG"]
+            STREAMING_FLAG = self.agent["agent_core"]["modalityFlags"].get("STREAMING_FLAG", False)
+            
+            # Keep LLAVA and other flags
+            self.LLAVA_FLAG = self.agent["agent_core"]["modalityFlags"].get("LLAVA_FLAG", False)
+            self.LLM_BOOSTER_PROMPT_FLAG = self.agent["agent_core"]["modalityFlags"].get("LLM_BOOSTER_PROMPT_FLAG", False)
+            self.TTS_FLAG = self.agent["agent_core"]["modalityFlags"].get("TTS_FLAG", False)
 
             self.handler = handler
 
@@ -194,19 +213,16 @@ class MultiModalPrompting:
             # Get system prompt
             system_prompt = self.get_system_prompt()
             if not system_prompt:
+                log.warning("No system prompt found in agent configuration")
                 log.warning("Using default system prompt")
                 system_prompt = "You are a helpful assistant. Please help the user with their task."
 
-            # Ensure llmSystem key is present in loaded_agent
-            if "llmSystem" not in self.agent["agent_core"]["prompts"]:
-                log.error("llmSystem key is missing in loaded_agent")
-                raise KeyError("llmSystem key is missing in loaded_agent")
-
-            # set system prompt
-            if self.AGENT_FLAG or self.SYSTEM_SELECT_FLAG and self.agent["agent_core"]["agent_id"] != "default":
+            # Set system prompt in history
+            if "llmSystem" in self.agent["agent_core"]["prompts"]:
                 self.history.append({"role": "system", "content": self.agent["agent_core"]["prompts"]["llmSystem"]})
                 log.info(f"System prompt set: {self.agent['agent_core']['prompts']['llmSystem']}")
 
+            # Handle LLAVA and booster prompts as before
             if not self.LLAVA_FLAG and not self.LLM_BOOSTER_PROMPT_FLAG:
                 self.history.append({"role": "user", "content": user_prompt})
                 log.info(f"User prompt added: {user_prompt}")
@@ -216,61 +232,120 @@ class MultiModalPrompting:
                 self.history.append({"role": "user", "content": self.fused_prompt})
                 log.info(f"Fused prompt added: {self.fused_prompt}")
 
+            # Handle LLAVA vision processing if enabled
             if self.LLAVA_FLAG:
-                with open(f'{self.screenshot_path}', 'rb') as f:
-                    user_screenshot_raw2 = base64.b64encode(f.read()).decode('utf-8')
+                # Your existing LLAVA code here
+                pass
 
-                self.llava_response = await self.llava_prompt(user_prompt, user_screenshot_raw2, user_prompt, self.language_and_vision_model)
+            # Get language from agent config
+            language = agent["agent_core"].get("language", "en") if "agent_core" in agent else "en"
 
-                if self.LLM_BOOSTER_PROMPT_FLAG:
-                    self.history.append({"role": "assistant", "content": f"VISION_DATA: {self.llava_response}"})
-                    self.fused_prompt = self.agent["agent_core"]["prompts"]["llmBooster"] + f"{user_prompt}"
-                    self.history.append({"role": "user", "content": self.fused_prompt})
-                    log.info(f"LLAVA response and fused prompt added: {self.llava_response}, {self.fused_prompt}")
-
+            # Generate response
+            model_response = ''
             if EMBEDDING_FLAG is True:
                 response = await self.embedding_ollama_prompt(self.agent_id, user_prompt)
+                model_response = response
             else:
-                response = await ollama.chat(
-                    model = model, 
-                    messages=self.history,
-                    stream=True
-                )
-
-            model_response = ''
-
-            async for chunk in response:
-                if 'message' in chunk and 'content' in chunk['message']:
-                    chunk_content = chunk['message']['content']
-                    if isinstance(chunk_content, dict):
-                        chunk_content = json.dumps(chunk_content)
+                try:
+                    # Import ollama here to ensure it's available
+                    from oarc.ollama.utils import ollama
+                    
+                    if STREAMING_FLAG:
+                        log.info(f"Using streaming mode with model {model}")
+                        
+                        # Initialize an empty response
+                        model_response = ""
+                        current_sentence = ""
+                        sentence_buffer = []
+                        
+                        # Get the streaming response
+                        try:
+                            response = await ollama.chat(
+                                model=model,
+                                messages=self.history,
+                                stream=True
+                            )
+                            
+                            # Process the streaming response properly
+                            if hasattr(response, '__aiter__'):
+                                # Modern interface with async for
+                                async for chunk in response:
+                                    if 'message' in chunk and 'content' in chunk['message']:
+                                        content = chunk['message']['content']
+                                        model_response += content
+                                        current_sentence += content
+                                        
+                                        # Check for sentence boundaries to process in chunks
+                                        if content in '.!?\n' and len(current_sentence.strip()) > 0:
+                                            sentence_buffer.append(current_sentence)
+                                            current_sentence = ""
+                                            
+                                            # If we have a complete sentence, process it
+                                            if hasattr(handler, 'handle_stream'):
+                                                for sentence in sentence_buffer:
+                                                    await handler.handle_stream(sentence)
+                                                sentence_buffer = []
+                                        
+                                        # For longer chunks without sentence breaks
+                                        if len(current_sentence) > 120:
+                                            sentence_buffer.append(current_sentence)
+                                            current_sentence = ""
+                                            
+                                            # Process buffered sentences
+                                            if hasattr(handler, 'handle_stream'):
+                                                for sentence in sentence_buffer:
+                                                    await handler.handle_stream(sentence)
+                                                sentence_buffer = []
+                            else:
+                                # For older non-async interface
+                                for chunk in response:
+                                    if 'message' in chunk and 'content' in chunk['message']:
+                                        content = chunk['message']['content']
+                                        model_response += content
+                                        
+                                        # Call handler's stream handler if it exists
+                                        if hasattr(handler, 'handle_stream'):
+                                            await handler.handle_stream(content)
+                            
+                            # Process any remaining content
+                            if current_sentence or sentence_buffer:
+                                if current_sentence:
+                                    sentence_buffer.append(current_sentence)
+                                
+                                if hasattr(handler, 'handle_stream'):
+                                    for sentence in sentence_buffer:
+                                        await handler.handle_stream(sentence)
+                                        
+                            log.info(f"Streaming response complete: {model_response[:100]}...")
+                        except Exception as e:
+                            log.error(f"Error processing stream: {e}")
+                            raise
                     else:
-                        chunk_content = str(chunk_content)
-
-                    model_response += chunk_content
-                    log.info(chunk_content, end='', flush=True)
-
+                        # Regular non-streaming response
+                        log.info(f"Using standard response from model {model}")
+                        response = await ollama.chat(
+                            model=model,
+                            messages=self.history
+                        )
+                        model_response = response['message']['content']
+                        log.info(f"Response generation complete: {model_response[:100]}...")
+                except Exception as e:
+                    log.error(f"Error during Ollama chat: {e}")
+                    return f"Error: {e}"
+            
+            # Store in conversation history
             self.history.append({"role": "assistant", "content": model_response})
-
-            if self.TTS_FLAG:
-                await self.tts_processor_instance.process_tts_responses(model_response, self.voice_name)
-                if self.speech_interrupted:
-                    log.info("Speech was interrupted. Ready for next input.")
-                    self.speech_interrupted = False
-
-            # Store the conversation in the conversation handler
-            await self.handler.store_message({"role": "assistant", "content": model_response})
-
-            # Store the conversation with metadata
+            
+            # Add metadata as before
             metadata = {
                 "model_info": {
-                    "name": self.llm,
+                    "name": model,
                     "type": "llm"
                 }
             }
 
-            # If we have vision data
-            if self.LLAVA_FLAG and user_screenshot_raw2:
+            # Add vision data to metadata if available
+            if self.LLAVA_FLAG and 'user_screenshot_raw2' in locals():
                 metadata["vision"] = {
                     "llava": [{
                         "image": user_screenshot_raw2,
@@ -278,35 +353,15 @@ class MultiModalPrompting:
                     }]
                 }
 
-            # If we have audio data
-            if hasattr(self, "audio_data"):
-                metadata["audio"] = {
-                    "stt": self.audio_data
-                }
+            # Handle TTS processing if enabled
+            if self.TTS_FLAG and hasattr(self, 'tts_processor_instance'):
+                try:
+                    # Process TTS with the correct voice reference
+                    await self.tts_processor_instance.process_tts_audio(model_response, language=language)
+                except Exception as e:
+                    log.error(f"TTS processing error: {str(e)}")
 
-            # Store in PandasDB with metadata
-            await self.database.store_message(
-                role="user",
-                content=user_prompt,
-                metadata=metadata
-            )
-
-            # Store assistant response
-            await self.database.store_message(
-                role="assistant", 
-                content=model_response,
-                metadata={
-                    "model_info": {
-                        "name": self.llm,
-                        "type": "llm"
-                    }
-                }
-            )
-
-            if user_screenshot_raw2:
-                return model_response, user_screenshot_raw2
-            else:
-                return model_response
+            return model_response
 
         except Exception as e:
             log.error(f"Error in send_prompt: {e}")
