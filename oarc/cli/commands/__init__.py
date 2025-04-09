@@ -3,7 +3,7 @@
 This package contains the implementations of various CLI commands.
 """
 
-from oarc.commands import (
+from oarc.cli.commands import (
     build_command,
     run_command,
     setup_command,

@@ -1,7 +1,7 @@
 """Command-line interface router for OARC."""
 
 from oarc.cli.parser import parse_cli_args
-from oarc.commands.command_type import CommandType, get_command_type
+from oarc.cli.commands.command_type import CommandType, get_command_type
 from oarc.cli.help import MAIN_HELP
 
 def handle(**kwargs):
@@ -22,7 +22,7 @@ def handle(**kwargs):
         log.info(f"Parsed arguments: {args}")
         log.info(f"Executing command type: {command_type}")
 
-        from oarc.commands import build_command, run_command, setup_command
+        from oarc.cli.commands import build_command, run_command, setup_command
 
         if 'command' in config:
             del config['command']
