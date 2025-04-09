@@ -85,7 +85,11 @@ class SpeechUtils:
         paths = Paths()
         
         # Get the relevant paths
-        voice_ref_pack_path = os.path.join(paths.get_voice_ref_path(), voice_name)
+        base_voice_ref_path = paths.get_voice_ref_path()
+        normalized_voice_name = os.path.normpath(voice_name)
+        if not normalized_voice_name.startswith(base_voice_ref_path):
+            raise ValueError("Invalid voice name")
+        voice_ref_pack_path = os.path.join(base_voice_ref_path, normalized_voice_name)
         coqui_path = paths.get_coqui_path()
         # Base XTTS model goes in models/coqui/xtts directory
         base_xtts_path = os.path.join(coqui_path, "xtts")  
