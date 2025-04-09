@@ -8,9 +8,9 @@ import os
 import logging
 import json
 
-from oarc.ollamaUtils.modelfileFactory.conversion_manager import ConversionManager
-from oarc.ollamaUtils import ModelfileWriter
-from oarc.ollamaUtils.ollama_commands import OllamaCommands
+from oarc.ollama.modelfile.conversion_manager import ConversionManager
+from oarc.ollama import ModelfileWriter
+from oarc.ollama.utils.ollama_commands import OllamaCommands
 from oarc.utils.paths import Paths
 
 log = logging.getLogger(__name__)

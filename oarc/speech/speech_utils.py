@@ -18,7 +18,6 @@ import shutil
 
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
-from oarc.speech.voice.voice_type import VoiceType
 
 class SpeechUtils:
     """
@@ -42,20 +41,20 @@ class SpeechUtils:
             return base_filename
             
         # Split the filename into name and extension
-        file_dir = os.path.dirname(base_filename)
-        filename_only = os.path.basename(base_filename)
-        name, ext = os.path.splitext(filename_only)
+        file_path = os.path.dirname(base_filename)
+        file_name = os.path.basename(base_filename)
+        name, ext = os.path.splitext(file_name)
         
         counter = 1
-        new_filename = os.path.join(file_dir, f"{name}_{counter}{ext}")
+        new_file_name = os.path.join(file_path, f"{name}_{counter}{ext}")
         
         # Keep incrementing the counter until we find a non-existing filename
-        while os.path.exists(new_filename):
+        while os.path.exists(new_file_name):
             counter += 1
-            new_filename = os.path.join(file_dir, f"{name}_{counter}{ext}")
+            new_file_name = os.path.join(file_path, f"{name}_{counter}{ext}")
             
-        log.info(f"Generated non-conflicting filename: {new_filename}")
-        return new_filename
+        log.info(f"Generated non-conflicting filename: {new_file_name}")
+        return new_file_name
 
     @staticmethod
     def ensure_voice_reference_exists(voice_name):
@@ -86,30 +85,33 @@ class SpeechUtils:
         paths = Paths()
         
         # Get the relevant paths
-        voice_ref_dir = os.path.join(paths.get_voice_ref_path(), voice_name)
-        coqui_dir = paths.get_coqui_path()
-        # Base XTTS model goes in models/coqui/xtts directory (this is the standard location)
-        base_xtts_dir = os.path.join(coqui_dir, "xtts")  
-        # Fine-tuned voice models go in models/coqui/custom_xtts_v2 directory
-        custom_model_dir = os.path.join(paths.get_model_dir(), "custom_xtts_v2")
-        custom_voice_dir = os.path.join(custom_model_dir, voice_name)
-        custom_xtts_voice_dir = os.path.join(custom_model_dir, f"XTTS-v2_{voice_name}")
+        base_voice_ref_path = paths.get_voice_ref_path()
+        normalized_voice_name = os.path.normpath(voice_name)
+        if not normalized_voice_name.startswith(base_voice_ref_path):
+            raise ValueError("Invalid voice name")
+        voice_ref_pack_path = os.path.join(base_voice_ref_path, normalized_voice_name)
+        coqui_path = paths.get_coqui_path()
+        # Base XTTS model goes in models/coqui/xtts directory
+        base_xtts_path = os.path.join(coqui_path, "xtts")  
+        # Voice models go in models/coqui/custom_xtts_v2 directory
+        custom_model_path = os.path.join(coqui_path, "custom_xtts_v2")
+        custom_voice_path = os.path.join(custom_model_path, voice_name)
+        custom_xtts_voice_path = os.path.join(custom_model_path, f"XTTS-v2_{voice_name}")
         
         # Create directories if they don't exist
-        os.makedirs(voice_ref_dir, exist_ok=True)
-        os.makedirs(base_xtts_dir, exist_ok=True)
-        os.makedirs(custom_model_dir, exist_ok=True)
+        os.makedirs(voice_ref_pack_path, exist_ok=True)
+        os.makedirs(base_xtts_path, exist_ok=True)
+        os.makedirs(custom_model_path, exist_ok=True)
         
         # STEP 1: Check if base Coqui XTTS v2 model exists, download if needed
         # This is the foundation model that goes in models/coqui/xtts
         log.info("Checking for base Coqui XTTS v2 model")
-        if not os.path.exists(os.path.join(base_xtts_dir, "model.pth")):
+        if not os.path.exists(os.path.join(base_xtts_path, "model.pth")):
             log.info("Base Coqui XTTS v2 model not found, downloading...")
-            # Download the base XTTS v2 model to the base_xtts_dir directory
             model_path, model_success = HfUtils.download_voice_ref_pack(
-                "coqui/XTTS-v2",  # Base XTTS v2 repository
+                "coqui/XTTS-v2",  # Base XTTS v2 hf repo
                 "xtts",
-                target_type="base_model"  # Use special type for base model to target correct directory
+                target_type="base_model"  # Use special type for base model
             )
             
             if not model_success:
@@ -119,26 +121,26 @@ class SpeechUtils:
         else:
             log.info("Base Coqui XTTS v2 model already exists")
             
-        # STEP 2: Check if default c3po voice model exists in custom_xtts_v2 directory
-        log.info("Checking for C3PO custom voice model")
+        # STEP 2: Check if custom voice model exists in custom_xtts_v2 directory
+        log.info(f"Checking for {voice_name} custom voice model")
         custom_model_found = False
-        custom_model_dir_to_use = None
+        custom_model_path_to_use = None
         
-        for model_dir in [custom_voice_dir, custom_xtts_voice_dir]:
+        # Check custom model locations
+        for model_dir in [custom_voice_path, custom_xtts_voice_path]:
             if os.path.exists(model_dir):
                 log.info(f"Found custom voice model directory at {model_dir}")
                 custom_model_found = True
-                custom_model_dir_to_use = model_dir
+                custom_model_path_to_use = model_dir
                 break
         
         # If custom model not found, download it
         if not custom_model_found:
             log.info(f"Custom voice model not found for {voice_name}, downloading...")
             
-            # Try to get repository URL from our known voice types
-            voice_pack = VoiceRefPackType.get_by_name(voice_name)
-            if voice_pack:
-                repo_url = voice_pack.value.repo_url
+            voice_ref_pack = VoiceRefPackType.get_by_name(voice_name)
+            if voice_ref_pack:
+                repo_url = voice_ref_pack.value.repo_url
                 log.info(f"Found repository URL for {voice_name}: {repo_url}")
                 
                 # Download to custom_xtts_v2 as a full model
@@ -150,25 +152,25 @@ class SpeechUtils:
                 if model_success:
                     log.info(f"Successfully downloaded custom voice model to {model_path}")
                     custom_model_found = True
-                    custom_model_dir_to_use = model_path
+                    custom_model_path_to_use = model_path
                 else:
                     log.error(f"Failed to download custom voice model from {repo_url}")
                     return False
             else:
                 log.error(f"No repository URL found for voice {voice_name}")
                 return False
-        
+
         # STEP 3: Check if reference file already exists in voice_ref_pack
-        reference_path = VoiceUtils.find_voice_ref_file(voice_name)
-        if reference_path:
-            log.info(f"Found existing voice reference file: {reference_path}")
+        ref_path = VoiceUtils.find_voice_ref_file(voice_name)
+        if ref_path:
+            log.info(f"Found existing voice reference file: {ref_path}")
             return True
         
         # STEP 4: Copy reference.wav from custom model to voice_ref_pack directory
-        if custom_model_found and custom_model_dir_to_use:
+        if custom_model_found and custom_model_path_to_use:
             ref_file = None
             for ref_name in ["reference.wav", "clone_speech.wav"]:
-                potential_ref = os.path.join(custom_model_dir_to_use, ref_name)
+                potential_ref = os.path.join(custom_model_path_to_use, ref_name)
                 if os.path.exists(potential_ref):
                     ref_file = potential_ref
                     log.info(f"Found reference file in custom model directory: {ref_file}")
@@ -176,7 +178,7 @@ class SpeechUtils:
                     
             if ref_file:
                 # Copy the reference file to the voice reference directory as reference.wav
-                voice_ref_path = os.path.join(voice_ref_dir, "reference.wav")
+                voice_ref_path = os.path.join(voice_ref_pack_path, "reference.wav")
                 shutil.copy2(ref_file, voice_ref_path)
                 log.info(f"Copied reference file from {ref_file} to {voice_ref_path}")
                 return True
@@ -203,7 +205,7 @@ class SpeechUtils:
         
         # Get reference file path
         ref_file = VoiceUtils.find_voice_ref_file(voice_name, paths)
-        if ref_file:
+        if (ref_file):
             return ref_file
             
         # Try to ensure it exists (will download if needed)
@@ -235,11 +237,11 @@ class SpeechUtils:
             
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
-                config_content = f.read()
+                content = f.read()
                 
             # Try to parse the JSON
             try:
-                config = json.loads(config_content)
+                config = json.loads(content)
                 
                 # Check structure
                 diagnostics = {
@@ -268,9 +270,9 @@ class SpeechUtils:
                     "position": e.pos,
                     "line": e.lineno,
                     "column": e.colno,
-                    "content_excerpt": config_content[:1000] + "..." if len(config_content) > 1000 else config_content
+                    "content_excerpt": content[:1000] + "..." if len(content) > 1000 else content
                 }
                 
         except Exception as e:
-            log.error(f"Error diagnosing model config: {str(e)}", exc_info=True)
+            log.error(f"Error diagnosing model config: {str(e)}")
             return {"error": f"Unexpected error: {str(e)}"}

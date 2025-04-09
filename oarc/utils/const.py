@@ -12,6 +12,7 @@ WHISPER_DIR = "whisper"
 GENERATED_DIR = "generated"
 VOICE_REFERENCE_DIR = "voice_ref_pack"
 YOLO_DIR = "yolo"
+OUTPUT_DIR = "output"
 
 # Model download locations
 TTS_MODEL_SUBDIR = "tts_home"
@@ -25,3 +26,21 @@ HF_SHORT_URL = "https://hf.co/"
 
 #Voice reference pack types
 HF_VOICE_REF_PACK_C3PO = "Borcherding/XTTS-v2_C3PO"
+
+# Emoji constants for CLI and logging
+EMOJI = {
+    "sparkles": "✨",
+    "brain": "🧠",
+    "rocket": "🚀",
+    "camera": "📷",
+    "shield": "🛡️",
+    "sound": "🔊",
+    "code": "💻",
+    "check": "✅",
+    "error": "❌",
+    "warning": "⚠️",
+    "info": "ℹ️",
+    "clock": "⏱️",
+    "star": "⭐",
+    "light": "💡",
+}

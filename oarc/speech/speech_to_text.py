@@ -95,6 +95,9 @@ class SpeechToText:
         frames = []
         silent_frames = 0
         sound_detected = False
+        
+        # FIX: Use time.time() instead of asyncio.get_event_loop().time()
+        import time
         start_time = None
         
         log.info("Started audio capture loop")
@@ -108,14 +111,16 @@ class SpeechToText:
                 if rms > threshold:
                     if not sound_detected:
                         log.info(f"Sound detected (RMS: {rms} > threshold: {threshold})")
-                        start_time = asyncio.get_event_loop().time()
+                        # FIX: Use time.time() instead of asyncio
+                        start_time = time.time()
                     silent_frames = 0
                     sound_detected = True
                 else:
                     silent_frames += 1
 
+                # FIX: Use time.time() for duration calculation
                 if sound_detected and (silent_frames * (self.CHUNK / self.RATE) > self.SILENCE_DURATION):
-                    duration = asyncio.get_event_loop().time() - start_time if start_time else 0
+                    duration = time.time() - start_time if start_time else 0
                     log.info(f"Audio capture complete - duration: {duration:.2f}s")
                     break
 
@@ -155,7 +160,7 @@ class SpeechToText:
         return None
 
 
-    async def recognizer(self, audio_input, model="google"):
+    async def recognize_speech(self, audio_input, model="google"):
         """Enhanced speech recognition with multiple backends"""
         log.info(f"Starting speech recognition using model: {model}")
         

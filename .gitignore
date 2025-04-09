@@ -196,3 +196,4 @@ huggingface
 
 # test output files
 tests/output/
+output/

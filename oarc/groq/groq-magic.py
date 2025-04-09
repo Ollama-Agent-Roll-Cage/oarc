@@ -1,15 +1,35 @@
+"""
+groq-magic.py
+
+A unified interface for working with Groq AI models, providing support for text generation,
+vision analysis, audio transcription, content moderation, and code generation.
+
+Features:
+- Sync and async APIs for all operations
+- Streaming support for real-time results
+- Built-in message history management
+- Automatic image encoding for vision models
+- Command-line interface
+- Comprehensive error handling
+
+Author: Your Name
+Version: 1.0.0
+"""
+
+# Standard library imports
 import os
-import asyncio
-import base64
-from typing import List, Dict, Any, Union, Optional, Tuple, BinaryIO, Callable
-from enum import Enum
-from pathlib import Path
-import json
-from datetime import datetime
-import argparse
 import sys
+import json
+import base64
+import asyncio
 import logging
+import argparse
+from datetime import datetime
+from enum import Enum
+from typing import List, Dict, Any, Union, Optional, BinaryIO, Callable
 from io import BytesIO
+
+# Third-party imports
 from PIL import Image
 
 # Emoji constants for CLI and logging

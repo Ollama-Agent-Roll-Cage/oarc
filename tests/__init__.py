@@ -1,11 +1,10 @@
-from tests import test_agent
-from tests import test_tts
-from tests import start_test_agent
-from tests import test_yolo
+"""
+OARC Tests Package
 
-__all__ = [
-    "test_agent",
-    "test_tts",
-    "start_test_agent",
-    "test_yolo"
-]
+This initialization file ensures that the project root directory
+is added to the Python path, allowing tests to import OARC modules
+without path manipulation in each test file.
+"""
+
+# Package initialization for tests
+# Keep this file simple to prevent import issues

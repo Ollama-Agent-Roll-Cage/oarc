@@ -1,14 +1,13 @@
 """Utility functions for HuggingFace repository URLs."""
-
-import re
 import os
+import re
 import shutil
+
 from huggingface_hub import snapshot_download
 
+from oarc.speech.voice.voice_utils import VoiceUtils
 from oarc.utils.log import log
 from oarc.utils.paths import Paths
-from oarc.utils.const import HF_URL
-from oarc.speech.voice.voice_utils import VoiceUtils
 
 class HfUtils:
     """
@@ -120,7 +119,8 @@ class HfUtils:
                 log.info(f"Downloading base XTTS model from {repo_id} to {voice_path}")
             elif target_type.lower() == "model":
                 # For fine-tuned models (full model files)
-                target_dir = os.path.join(paths.get_model_dir(), "custom_xtts_v2")
+                # Get the correct path for custom_xtts_v2 (now inside coqui directory)
+                target_dir = os.path.join(paths.get_coqui_path(), "custom_xtts_v2")
                 log.info(f"Downloading fine-tuned model from {repo_id} as {voice_name}")
                 # Create model directory
                 voice_path = os.path.join(target_dir, voice_name)

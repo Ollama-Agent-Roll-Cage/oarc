@@ -30,7 +30,7 @@ Install OARC by following the steps below. Ensure Python 3.10 or 3.11 is install
 
 ```bash
 # Clone the repository
-git clone https://github.com/Leoleojames1/OARC.git
+git clone https://github.com/Ollama-Agent-Roll-Cage/oarc.git
 cd OARC
 
 # Create & activate virtual environment with Python 3.10

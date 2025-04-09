@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 from oarc.base_api.base_tool_api import BaseToolAPI
-from oarc.promptModel.multi_modal_prompting import MultiModalPrompting
+from oarc.prompt.multi_modal_prompting import MultiModalPrompting
 
 
 class LLMPromptAPI(BaseToolAPI):
@@ -53,7 +53,7 @@ class LLMPromptAPI(BaseToolAPI):
                 prompt_handler = MultiModalPrompting()
                 if agent_id:
                     # Load agent configuration
-                    prompt_handler.loaded_agent = await prompt_handler.load_agent(agent_id)
+                    prompt_handler.agent = await prompt_handler.load_agent(agent_id)
                 response = await prompt_handler.send_prompt(prompt)
                 return {"response": response}
             except Exception as e:
