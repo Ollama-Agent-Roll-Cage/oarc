@@ -277,6 +277,15 @@ class OARCSpeechChat(QMainWindow):
             QMessageBox.critical(self, "Initialization Error", 
                                 f"Failed to initialize OARC components: {str(e)}")
     
+        # Initialize TTS processor
+        log.info("Initializing TTS processor...")
+        self.tts = TextToSpeech(voice_name=self.voice_name, voice_type="xtts_v2")
+        
+        # Initialize SpeechManager singleton
+        log.info("Initializing SpeechManager...")
+        from oarc.speech.speech_manager import SpeechManager
+        self.speech_manager = SpeechManager(voice_name=self.voice_name)
+    
     def initialize_conversation_storage(self):
         """Initialize conversation storage without using agent_id."""
         try:
@@ -984,6 +993,12 @@ class OARCSpeechChat(QMainWindow):
                         sentence_batches.append(current_batch)
                     
                     log.info(f"Created {len(sentence_batches)} sentence batches for audio generation")
+                    
+                    # Check that speech_manager exists before using it
+                    if not hasattr(self, 'speech_manager'):
+                        log.error("Speech manager not initialized! Initializing now...")
+                        from oarc.speech.speech_manager import SpeechManager
+                        self.speech_manager = SpeechManager(voice_name=self.voice_name)
                     
                     # Process each sentence batch
                     for i, batch in enumerate(sentence_batches):
