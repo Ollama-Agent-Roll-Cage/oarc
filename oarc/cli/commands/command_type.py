@@ -15,7 +15,6 @@ class CommandType(Enum):
     
     SETUP = "setup"
     BUILD = "build"
-    RUN = "run"  # Default command when none is specified
     HELP = "help"
     PUBLISH = "publish"  # New command type for publishing
 
@@ -33,7 +32,7 @@ def get_command_type(command_name: str) -> CommandType:
         ValueError: If the command name is invalid
     """
     if command_name is None:
-        return CommandType.HELP  # Changed default from RUN to HELP
+        return CommandType.HELP
     elif command_name == "-h" or command_name == "--help":
         return CommandType.HELP
     

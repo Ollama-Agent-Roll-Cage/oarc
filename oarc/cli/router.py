@@ -22,7 +22,7 @@ def handle(**kwargs):
         log.info(f"Parsed arguments: {args}")
         log.info(f"Executing command type: {command_type}")
 
-        from oarc.cli.commands import build_command, run_command, setup_command, publish_command
+        from oarc.cli.commands import build_command, setup_command, publish_command
 
         if 'command' in config:
             del config['command']
@@ -32,8 +32,6 @@ def handle(**kwargs):
                 return setup_command.execute(**config) 
             case CommandType.BUILD:
                 return build_command.execute(**config)
-            case CommandType.RUN:
-                return run_command.execute(**config)
             case CommandType.PUBLISH:
                 return publish_command.execute(**config)
 

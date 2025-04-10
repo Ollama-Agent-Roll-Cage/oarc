@@ -24,8 +24,6 @@ def parse_cli_args(args=None):
     # Publish command
     publish_parser = subparsers.add_parser('publish', help='Publish package to PyPI')
     publish_parser.add_argument('--repository', default='pypi', help='Repository to publish to')
-    publish_parser.add_argument('--username', help='PyPI username')
-    publish_parser.add_argument('--password', help='PyPI password')
     publish_parser.add_argument('--dist-dir', default='dist', help='Directory containing distribution files')
     publish_parser.add_argument('--skip-build', action='store_true', help='Skip building the package before publishing')
     
