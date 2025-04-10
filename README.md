@@ -26,35 +26,52 @@
 
 ## Installation
 
-Install OARC by following the steps below. Ensure Python 3.10 or 3.11 is installed (Python 3.12+ is not yet supported due to TensorFlow compatibility). For GPU acceleration, verify CUDA drivers are set up. Dependencies, including language models, vision, and audio systems, will be configured automatically.
-### Quick install
+OARC requires Python 3.10 or 3.11 (Python 3.12+ is not yet supported due to TensorFlow compatibility). For GPU acceleration, ensure CUDA drivers are properly configured.
 
-For fast usage oarc can be installed with pip:
-```python
+### Quick Install
+
+Use UV (recommended) or pip to install OARC:
+
+```bash
+# Install UV first (if not already installed)
+pip install uv
+
+# Create a new directory and virtual environment
+mkdir my_oarc_project && cd my_oarc_project
+uv venv  # Creates .venv directory automatically
+
+# Activate the environment
+# On Windows
+.venv\Scripts\activate
+# On Linux/macOS
+source .venv/bin/activate
+
+# Install OARC with UV (faster dependency resolution)
 uv pip install oarc
 ```
 
 ### Direct Installation
 
 For development purposes, oarc can be installed by cloning the repository and setting up the uv venv:
+
 ```bash
 # Clone the repository
 git clone https://github.com/Ollama-Agent-Roll-Cage/oarc.git
-cd OARC
+cd oarc
 
-# Create & activate virtual environment with Python 3.10
-python -m venv .venv
+# Create virtual environment with UV (requires Python 3.10 or 3.11)
+uv venv
 
-# Activate the virtual environment
+# Activate the environment
+# On Windows
 .venv\Scripts\activate
+# On Linux/macOS
+source .venv/bin/activate
 
-# Install environment packages
-python -m pip install --upgrade pip setuptools wheel appdirs uv
+# Install package in editable mode with development dependencies
+uv pip install -e ".[dev]"
 
-# Install the package with pip (editable mode)
-uv pip install -e .
-
-# Install additional dependencies
+# Install dependencies using OARC setup command
 oarc setup
 ```
 
@@ -73,6 +90,20 @@ oarc <command>
 - `oarc build` - Build from source code
 - `oarc publish` - Publish built code to pypi with twine
 
+## Setup
+
+```bash
+# Force reinstallation of dependencies
+oarc setup --force
+```
+
+## Building from source
+
+```bash
+oarc build
+# Creates wheel distribution in dist/ directory
+```
+
 ## Development
 
 ```bash
@@ -83,11 +114,17 @@ uv pip install -e .[dev]
 oarc develop
 ```
 
-### Building from source
+## Publish
 
 ```bash
-# Build the oarc as a wheel from source
-oarc build
+# Publish to default PyPI repository
+oarc publish
+
+# Publish to alternative repository
+oarc publish --repository testpypi
+
+# Skip build step and publish existing files
+oarc publish --skip-build
 ```
 
 ## Architecture
@@ -294,4 +331,4 @@ Please use the following BibTeX entry to cite this project:
 For questions or support, please contact us at:
 
 - **Email**: <NotSetup@gmail.com>
-- **Issues**: [GitHub Issues](https://github.com/Leoleojames1/OARC/issues)
+- **Issues**: [GitHub Issues](https://github.com/Ollama-Agent-Roll-Cage/oarc/issues)
