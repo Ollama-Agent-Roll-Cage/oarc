@@ -33,34 +33,30 @@ Install OARC by following the steps below. Ensure Python 3.10 or 3.11 is install
 git clone https://github.com/Ollama-Agent-Roll-Cage/oarc.git
 cd OARC
 
-# Create & activate virtual environment with Python 3.10
-python -m venv .venv
+# Install UV package manager
+pip install uv
 
-# Activate the virtual environment
-.venv\Scripts\activate
+# Create & activate virtual environment with UV
+uv venv --python 3.11
 
-# Install environment packages
-python -m pip install --upgrade pip setuptools wheel appdirs uv
-
-# Install the package with pip (editable mode)
+# Install the package and dependencies in one step
 uv pip install -e .
 
-# Install additional dependencies
-oarc setup
+# Run the setup command directly
+uv run oarc setup
 ```
 
 ## Running OARC
 
 ```bash
 # Activate environment where OARC is installed
-oarc <command>
+uv run oarc <command>
 ```
 
 ## Commands
 
 - `oarc` - Run the main CLI tool
 - `oarc setup` - Install all dependencies
-- `oarc develop` - Setup developer mode
 - `oarc build` - Build from source code
 
 ## Development

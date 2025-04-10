@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Main functionality for the OARC package."""
 
 import sys
