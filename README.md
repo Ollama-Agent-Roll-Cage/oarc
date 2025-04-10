@@ -27,7 +27,16 @@
 ## Installation
 
 Install OARC by following the steps below. Ensure Python 3.10 or 3.11 is installed (Python 3.12+ is not yet supported due to TensorFlow compatibility). For GPU acceleration, verify CUDA drivers are set up. Dependencies, including language models, vision, and audio systems, will be configured automatically.
+### Quick install
 
+For fast usage oarc can be installed with pip:
+```python
+pip install oarc
+```
+
+### Direct Installation
+
+For development purposes, oarc can be installed by cloning the repository and setting up the uv venv:
 ```bash
 # Clone the repository
 git clone https://github.com/Ollama-Agent-Roll-Cage/oarc.git
@@ -62,6 +71,7 @@ oarc <command>
 - `oarc setup` - Install all dependencies
 - `oarc develop` - Setup developer mode
 - `oarc build` - Build from source code
+- `oarc publish` - Publish built code to pypi with twine
 
 ## Development
 

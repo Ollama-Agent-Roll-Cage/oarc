@@ -14,6 +14,7 @@ class SDXLGenerator:
     
     def __init__(self, model_path=None):
         # Default model path if not provided
+        #TODO add SDXL and other SD models to SD_MODEL_DIR in OARC_MODEL_DIR
         self.model_path = model_path or os.path.join("M:\\", "SDXL_MOD", "randommaxxArtMerge_v10.safetensors")
         self.pipe = None
         
