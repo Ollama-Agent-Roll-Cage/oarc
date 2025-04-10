@@ -31,7 +31,7 @@ Install OARC by following the steps below. Ensure Python 3.10 or 3.11 is install
 
 For fast usage oarc can be installed with pip:
 ```python
-pip install oarc
+uv pip install oarc
 ```
 
 ### Direct Installation
