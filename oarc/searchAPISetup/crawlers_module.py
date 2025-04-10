@@ -1,14 +1,4 @@
 """crawlers-module.py
-
-⚠️=======================================================⚠️
-
-(THIS MODULE WAS PORTED FROM THE NEW AGENTCHEF REPO AND 
-WILL BE A MODULE IN AGENTCHEF/IS A MODULE IN AGENTCHEF.
-FOR NOW THIS IS A BETTER CRAWLER MIX THAN SOME OF THE OTHER
-BASE CRAWLERS AND SEARCH APIS IN OARC)
-
-⚠️=======================================================⚠️
-
 This module contains classes for crawling and extracting information from different sources:
 - WebCrawler: General web page crawling
 - ArxivSearcher: ArXiv paper lookup and parsing

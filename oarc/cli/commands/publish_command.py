@@ -1,96 +1,68 @@
 """
-OARC Publish Command Module
-This module implements the `publish` command for the OARC CLI.
+Publish command module for OARC.
+
+This module handles the 'publish' command which publishes the package to PyPI.
 """
 
 import os
-import sys
-import logging
-import argparse
-from pathlib import Path
+import getpass
+from oarc.utils.log import log
+from oarc.utils.setup.publish_utils import check_twine_installed, find_wheel_file, publish_to_pypi
 
-# Import the publish functionality from the publish script
-# Assuming this file will be placed in the oarc/cli/commands directory
-from oarc.utils.publish_utils import check_twine_installed, find_wheel_file, publish_to_pypi
-
-logger = logging.getLogger("oarc.cli.commands.publish_command")
-
-def add_publish_parser(subparsers):
-    """Add the publish command parser to the given subparsers."""
-    parser = subparsers.add_parser(
-        "publish", 
-        help="Publish OARC package to PyPI"
-    )
-    parser.add_argument(
-        "--repository", 
-        "-r", 
-        default="pypi",
-        help="Repository to publish to (default: pypi)"
-    )
-    parser.add_argument(
-        "--username", 
-        "-u", 
-        help="PyPI username (will use PYPI_USERNAME env var if not provided)"
-    )
-    parser.add_argument(
-        "--password", 
-        "-p", 
-        help="PyPI password (will use PYPI_PASSWORD env var if not provided or prompt if neither is available)"
-    )
-    parser.add_argument(
-        "--dist-dir", 
-        default="dist",
-        help="Directory containing distribution files (default: dist)"
-    )
-    parser.add_argument(
-        "--skip-build", 
-        action="store_true",
-        help="Skip building the package before publishing"
-    )
-    return parser
-
-def execute_publish_command(args):
-    """Execute the publish command with the given arguments."""
-    logger.info("Publishing OARC package")
+def execute(**kwargs):
+    """Execute the publish command."""
+    log.info("Publishing OARC package")
     
     # Check if Twine is installed
     if not check_twine_installed():
-        logger.error("Twine is required for publishing. Please install it with 'pip install twine'.")
-        return False
+        log.error("Twine is required for publishing. Please install it with 'pip install twine'.")
+        return 1
+    
+    # Extract arguments from kwargs
+    repository = kwargs.get('repository', 'pypi')
+    username = kwargs.get('username')
+    password = kwargs.get('password')
+    dist_dir = kwargs.get('dist_dir', 'dist')
+    skip_build = kwargs.get('skip_build', False)
     
     # Build the package first if not skipped
-    if not args.skip_build:
-        logger.info("Building package before publishing...")
-        # Import here to avoid circular imports
-        from oarc.cli.commands.build_command import execute_build_command
-        build_success = execute_build_command(args)
-        if not build_success:
-            logger.error("Build failed. Aborting publish.")
-            return False
+    if not skip_build:
+        log.info("Building package before publishing...")
+        from oarc.cli.commands.build_command import execute as build_execute
+        build_result = build_execute(**kwargs)
+        if build_result != 0:
+            log.error("Build failed. Aborting publish.")
+            return 1
     
     # Find the wheel file
-    wheel_file = find_wheel_file(args.dist_dir)
+    wheel_file = find_wheel_file(dist_dir)
     if not wheel_file:
-        logger.error(f"No wheel file found in {args.dist_dir}. Build may have failed.")
-        return False
+        log.error(f"No wheel file found in {dist_dir}. Build may have failed.")
+        return 1
     
-    # Get credentials
-    username = args.username or os.environ.get("PYPI_USERNAME")
-    password = args.password or os.environ.get("PYPI_PASSWORD")
-    
-    if not username:
-        username = input("PyPI Username: ")
-    
-    if not password:
-        import getpass
-        password = getpass.getpass("PyPI Password: ")
+    # Let twine handle authentication from .pypirc or environment variables
+    # Only prompt if explicitly requested or if required arguments are provided
+    if username or password:
+        # Get credentials if explicitly provided
+        username = username or os.environ.get("PYPI_USERNAME")
+        password = password or os.environ.get("PYPI_PASSWORD")
+        
+        if not username and kwargs.get('username') is not None:
+            username = input("PyPI Username: ")
+        
+        if not password and kwargs.get('password') is not None:
+            password = getpass.getpass("PyPI Password: ")
+    else:
+        # Just use Twine's default authentication mechanism
+        # It will use .pypirc or API tokens automatically
+        log.info("Using .pypirc or environment variables for authentication")
     
     # Publish the package
-    success = publish_to_pypi(wheel_file, args.repository, username, password)
+    success = publish_to_pypi(wheel_file, repository, username, password)
     
     if success:
-        logger.info(f"Package successfully published to {args.repository}.")
-        return True
+        log.info(f"Package successfully published to {repository}.")
+        return 0
     else:
-        logger.error("Failed to publish package.")
-        return False
+        log.error("Failed to publish package.")
+        return 1

@@ -17,6 +17,7 @@ class CommandType(Enum):
     BUILD = "build"
     RUN = "run"  # Default command when none is specified
     HELP = "help"
+    PUBLISH = "publish"  # New command type for publishing
 
 
 def get_command_type(command_name: str) -> CommandType:
