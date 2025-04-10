@@ -281,12 +281,11 @@ This project is licensed under the [Apache 2.0 License](LICENSE)
 Please use the following BibTeX entry to cite this project:
 
 ```bibtex
-@software{osyllabi,
-  author = {Leo Borch, Kara Rawson},
+@software{oarc,
+  author = {Leo Borcherding, Kara Rawson},
   title = {OARC: Ollama Agent Roll Cage is a powerful multimodal toolkit for AI interactions, automation, and workflows.},
-  year = {2025},
-  howpublished = {\url{https://github.com/Leoleojames1/OARC}},
-  note = {Accessed: 2026-01-26}
+  date = {4-10-2025},
+  howpublished = {\url{https://github.com/Ollama-Agent-Roll-Cage/oarc}}
 }
 ```
 
@@ -294,6 +293,5 @@ Please use the following BibTeX entry to cite this project:
 
 For questions or support, please contact us at:
 
-- **Email**: <backrqqms@gmail.com>
-- **Discord**: [Join our Discord](https://discord.gg/qfpwCB8nXs)
+- **Email**: <NotSetup@gmail.com>
 - **Issues**: [GitHub Issues](https://github.com/Leoleojames1/OARC/issues)
