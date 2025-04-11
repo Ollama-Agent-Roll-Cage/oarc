@@ -29,8 +29,14 @@
 OARC requires Python 3.10 or 3.11 (Python 3.12+ is not yet supported due to TensorFlow compatibility). For GPU acceleration, ensure CUDA capatible device. AMD support coming soon.
 
 ```bash
+# Install UV package manager
+pip install uv
+
+# Create & activate virtual environment with UV
+uv venv --python 3.11
+
 # Install package from pypi
-pip install oarc
+uv pip install oarc
 
 # Run setup to fetch all dependencies
 oarc setup
