@@ -36,19 +36,11 @@ pip install oarc
 oarc setup
 ```
 
-## Running OARC
+### Example
 
 ```bash
-# Run a specific command, see Commands.
-oarc <command>
+python .\tests\speech\tts_fast_tests.py
 ```
-
-### Commands
-
-- `oarc` - Run the main command-line tool
-- `oarc setup` - Install all required dependencies
-- `oarc build` - Build from source code (development)
-- `oarc publish` - Publish code to pypi with twine (development)
 
 ## Development
 
@@ -66,10 +58,34 @@ pip install uv
 uv venv --python 3.11
 
 # Install the package and dependencies in one step
-uv pip install -e .[dev]
+uv run pip install -e .[dev]
 
 # Run the setup command directly
 uv run oarc setup
+
+# After setup, you can activate the virtual environment and run OARC directly
+# On Windows:
+.venv\Scripts\activate
+# On Unix/MacOS:
+# source .venv/bin/activate
+```
+
+### OARC Commands
+
+```bash
+# Run a specific command, see Commands.
+oarc <command>
+```
+
+- `oarc` - Run the main command-line tool
+- `oarc setup` - Install all required dependencies
+- `oarc build` - Build from source code (development)
+- `oarc publish` - Publish code to pypi with twine (development)
+
+### Running a test
+
+```bash
+uv run .\tests\run_all_tests.py
 ```
 
 ### Building from source
@@ -94,7 +110,7 @@ uv run oarc publish --skip-build
 
 ## Architecture
 
-OARC's modular architecture ensures extensibility and high performance. Core components like APIs, agent management, speech, vision, and dataset pipelines interact seamlessly. The dataset pipeline handles collection, generation, augmentation, and cleaning of AI training data, supporting both synchronous and asynchronous workflows with clear separation of concerns.
+OARC's modular architecture is designed for extensibility and optimized performance. Core components, including APIs, agent management, speech processing, vision systems, and dataset pipelines, work together seamlessly. The dataset pipeline is a standout feature, offering robust capabilities for data collection, generation, augmentation, and cleaning. It supports both synchronous and asynchronous workflows, ensuring efficient processing while maintaining a clear separation of concerns to enhance scalability and maintainability.
 
 ```mermaid
 classDiagram
