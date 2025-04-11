@@ -24,33 +24,33 @@
 | **API Services**            | RESTful APIs for external integrations.                                       |
 | **Open Source**             | Apache 2.0 license with active community support.                             |
 
-## Installation
+## Setup
 
-OARC requires Python 3.10 or 3.11 (Python 3.12+ is not yet supported due to TensorFlow compatibility). For GPU acceleration, ensure CUDA drivers are properly configured.
-
-### Quick Install
-
-Use UV (recommended) or pip to install OARC:
+OARC requires Python 3.10 or 3.11 (Python 3.12+ is not yet supported due to TensorFlow compatibility). For GPU acceleration, ensure CUDA capatible device. AMD support coming soon.
 
 ```bash
-# Install UV first (if not already installed)
-pip install uv
+# Install package from pypi
+pip install oarc
 
-# Create a new directory and virtual environment
-mkdir my_oarc_project && cd my_oarc_project
-uv venv  # Creates .venv directory automatically
-
-# Activate the environment
-# On Windows
-.venv\Scripts\activate
-# On Linux/macOS
-source .venv/bin/activate
-
-# Install OARC with UV (faster dependency resolution)
-uv pip install oarc
+# Run setup to fetch all dependencies
+oarc setup
 ```
 
-### Direct Installation
+## Running OARC
+
+```bash
+# Run a specific command, see Commands.
+oarc <command>
+```
+
+### Commands
+
+- `oarc` - Run the main command-line tool
+- `oarc setup` - Install all required dependencies
+- `oarc build` - Build from source code (development)
+- `oarc publish` - Publish code to pypi with twine (development)
+
+## Development
 
 For development purposes, oarc can be installed by cloning the repository and setting up the uv venv:
 
@@ -59,20 +59,6 @@ For development purposes, oarc can be installed by cloning the repository and se
 git clone https://github.com/Ollama-Agent-Roll-Cage/oarc.git
 cd oarc
 
-# Create virtual environment with UV (requires Python 3.10 or 3.11)
-uv venv
-
-# Activate the environment
-# On Windows
-.venv\Scripts\activate
-# On Linux/macOS
-source .venv/bin/activate
-
-# Install package in editable mode with development dependencies
-uv pip install -e ".[dev]"
-
-# Install dependencies using OARC setup command
-oarc setup
 # Install UV package manager
 pip install uv
 
@@ -80,61 +66,30 @@ pip install uv
 uv venv --python 3.11
 
 # Install the package and dependencies in one step
-uv pip install -e .
+uv pip install -e .[dev]
 
 # Run the setup command directly
 uv run oarc setup
 ```
 
-## Running OARC
+### Building from source
 
 ```bash
-# Activate environment where OARC is installed
-uv run oarc <command>
-```
-
-## Commands
-
-- `oarc` - Run the main CLI tool
-- `oarc setup` - Install all dependencies
-- `oarc build` - Build from source code
-- `oarc publish` - Publish built code to pypi with twine
-
-## Setup
-
-```bash
-# Force reinstallation of dependencies
-oarc setup --force
-```
-
-## Building from source
-
-```bash
-oarc build
+uv run oarc build
 # Creates wheel distribution in dist/ directory
 ```
 
-## Development
-
-```bash
-# Install development dependencies
-uv pip install -e .[dev]
-
-# Setup OARC development environment
-oarc develop
-```
-
-## Publish
+### Publish
 
 ```bash
 # Publish to default PyPI repository
-oarc publish
+uv run oarc publish
 
 # Publish to alternative repository
-oarc publish --repository testpypi
+uv run oarc publish --repository testpypi
 
 # Skip build step and publish existing files
-oarc publish --skip-build
+uv run oarc publish --skip-build
 ```
 
 ## Architecture
