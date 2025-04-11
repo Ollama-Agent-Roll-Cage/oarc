@@ -8,7 +8,7 @@ MAIN_HELP = """
    /    |     /    |    \    |   \     \______
    \_______  /\____|__  /____|_  /\______    /
    /_________\/_________\/_______\/______\__/ 
-   |__Ollama_Agent_Roll_Cage_(OARC_v0.1.0)_/
+   |__Ollama_Agent_Roll_Cage_(OARC_v0.1.1)_/
 
 Usage:
   oarc [--debug] [--config <path>] [--force] <command> [options]
