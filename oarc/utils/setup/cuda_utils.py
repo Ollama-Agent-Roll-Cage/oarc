@@ -276,14 +276,23 @@ def install_pytorch(venv_python, force=False):
             else:
                 log.warning("PyTorch is installed but doesn't have CUDA support. Reinstalling with CUDA...")
 
-    # Get installation command
+    # First, ensure numpy is at the correct version to prevent conflicts with ultralytics
+    try:
+        from oarc.utils.setup.setup_utils import install_numpy
+        log.info("Pre-installing numpy 2.1.1 to prevent version conflicts...")
+        install_numpy(venv_python, version="2.1.1")
+    except Exception as e:
+        log.warning(f"Failed to pre-install numpy: {e}")
+
+    # Get installation command with no dependencies
     pip_command, packages, index_url = get_pytorch_cuda_command(
         cuda_version=cuda_version, 
         skip_cuda=not is_cuda_available
     )
     
-    # Build the full command
-    full_cmd = [str(venv_python), "-m"] + pip_command + packages
+    # Build the PyTorch command with --no-deps flag to prevent dependency installation
+    pytorch_packages = [pkg for pkg in packages]  # Create a copy of packages list
+    full_cmd = [str(venv_python), "-m"] + pip_command + pytorch_packages + ["--no-deps"]
     if index_url:
         full_cmd.extend(["--index-url", index_url])
     
@@ -291,28 +300,55 @@ def install_pytorch(venv_python, force=False):
     cmd_str = " ".join(full_cmd)
     log.info(f"Installing PyTorch with command: {cmd_str}")
     
-    # Run the installation
     try:
-        # Use higher timeout for potentially large downloads
+        # Install PyTorch without dependencies
         result = subprocess.run(full_cmd, check=True, timeout=1800)  # 30 minutes
-        success = result.returncode == 0
         
-        if success:
-            log.info("PyTorch installation completed. Verifying CUDA support...")
-            has_cuda = verify_pytorch_cuda()
+        # Now install PyTorch's dependencies (except numpy which we already installed)
+        log.info("Installing PyTorch dependencies...")
+        
+        # Common PyTorch dependencies, excluding numpy
+        dependencies = [
+            "filelock", "typing-extensions>=4.10.0", "sympy==1.13.1",
+            "networkx", "jinja2", "fsspec", "pillow!=8.3.*,>=5.3.0"
+        ]
+        
+        # Install dependencies one by one
+        for dep in dependencies:
+            try:
+                from oarc.utils.setup.setup_utils import install_package
+                install_package(dep, venv_python)
+            except Exception as e:
+                log.warning(f"Failed to install dependency {dep}: {e}")
+        
+        # Verify numpy is still at the correct version
+        try:
+            result = subprocess.run(
+                [str(venv_python), "-c", "import numpy; print(numpy.__version__)"],
+                capture_output=True, text=True, check=False
+            )
+            numpy_version = result.stdout.strip()
+            log.info(f"Current numpy version: {numpy_version}")
             
-            if has_cuda and is_cuda_available:
-                log.info("PyTorch with CUDA support installed successfully!")
-                return True
-            elif not has_cuda and is_cuda_available:
-                log.error("PyTorch was installed but CUDA support is not working. Something might be wrong with your CUDA setup.")
-                return False
-            else:
-                log.info("PyTorch (CPU version) installed successfully!")
-                return True
-        else:
-            log.error(f"PyTorch installation failed with return code {result.returncode}")
+            if numpy_version != "2.1.1":
+                log.warning(f"numpy is at version {numpy_version}, reinstalling correct version...")
+                install_numpy(venv_python, version="2.1.1")
+        except Exception as e:
+            log.warning(f"Failed to check numpy version: {e}")
+        
+        # Verify PyTorch installation with CUDA
+        log.info("Verifying PyTorch installation with CUDA support...")
+        has_cuda = verify_pytorch_cuda()
+        
+        if has_cuda and is_cuda_available:
+            log.info("PyTorch with CUDA support installed successfully!")
+            return True
+        elif not has_cuda and is_cuda_available:
+            log.error("PyTorch was installed but CUDA support is not working. Something might be wrong with your CUDA setup.")
             return False
+        else:
+            log.info("PyTorch (CPU version) installed successfully!")
+            return True
     except subprocess.CalledProcessError as e:
         log.error(f"Error installing PyTorch: {e}")
         return False

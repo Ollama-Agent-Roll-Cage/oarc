@@ -34,32 +34,40 @@ def main(force=False):
     pkg_mgr_success = ensure_pip(venv_python)
 
     # Track errors
-    errors = []
+    critical_errors = []  # Only track critical errors that prevent system from working
+    warnings = []         # Track non-critical issues
+    
     if not pkg_mgr_success:
-        errors.append("Package manager setup had issues")
+        critical_errors.append("Package manager setup had issues")
 
     log.info("Installing PyAudio...")
     pyaudio_success = install_pyaudio(venv_python)
     if not pyaudio_success:
-        errors.append("PyAudio installation failed")
+        critical_errors.append("PyAudio installation failed")
 
     # Run installation steps with proper error handling
     log.info("Installing Coqui TTS...")
     tts_success = install_coqui(venv_python, force=force)
     if not tts_success:
-        errors.append("TTS installation failed")
+        # TTS failure is non-critical, just warn about it
+        warnings.append("TTS installation had issues - you may need to install it manually")
+        log.warning("TTS installation had issues - continuing with other dependencies")
 
     log.info("Installing PyTorch...")
     pytorch_success = install_pytorch(venv_python, force=force)
     if not pytorch_success:
-        errors.append("PyTorch installation failed")
+        critical_errors.append("PyTorch installation failed")
 
-    success = len(errors) == 0
+    success = len(critical_errors) == 0
     if success:
-        log.info("All dependencies installed successfully!")
+        log.info("All critical dependencies installed successfully!")
+        if warnings:
+            log.warning("Some non-critical issues were encountered:")
+            for warning in warnings:
+                log.warning(f"- {warning}")
     else:
-        log.error("Some dependencies could not be installed")
-        for error in errors:
+        log.error("Some critical dependencies could not be installed")
+        for error in critical_errors:
             log.error(f"- {error}")
 
     return success

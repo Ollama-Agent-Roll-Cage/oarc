@@ -73,20 +73,30 @@ uv pip install -e ".[dev]"
 
 # Install dependencies using OARC setup command
 oarc setup
+# Install UV package manager
+pip install uv
+
+# Create & activate virtual environment with UV
+uv venv --python 3.11
+
+# Install the package and dependencies in one step
+uv pip install -e .
+
+# Run the setup command directly
+uv run oarc setup
 ```
 
 ## Running OARC
 
 ```bash
 # Activate environment where OARC is installed
-oarc <command>
+uv run oarc <command>
 ```
 
 ## Commands
 
 - `oarc` - Run the main CLI tool
 - `oarc setup` - Install all dependencies
-- `oarc develop` - Setup developer mode
 - `oarc build` - Build from source code
 - `oarc publish` - Publish built code to pypi with twine
 

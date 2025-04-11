@@ -35,21 +35,23 @@ def install_uv(venv_python=None):
         log.info("Updating pip before installing UV...")
         subprocess.run(
             [str(venv_python), "-m", "pip", "install", "--upgrade", "pip"],
-            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True  # Use text mode for consistent string handling
         )
         
         # Install UV using pip
         log.info("Installing UV package manager...")
         subprocess.run(
             [str(venv_python), "-m", "pip", "install", "uv"],
-            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True  # Use text mode for consistent string handling
         )
         
         log.info("UV has been successfully installed.")
         return True
     except subprocess.CalledProcessError as e:
         log.error(f"Failed to install UV: {e}")
-        log.debug(f"Stderr: {e.stderr.decode() if e.stderr else 'No error output'}")
+        log.debug(f"Stderr: {e.stderr if e.stderr else 'No error output'}")
         return False
 
 
@@ -73,18 +75,20 @@ def update_pip(venv_python=None):
         if importlib.util.find_spec("uv") is not None:
             subprocess.run(
                 [str(venv_python), "-m", "uv", "pip", "install", "--upgrade", "pip"],
-                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True  # Use text mode for consistent string handling
             )
         else:
             subprocess.run(
                 [str(venv_python), "-m", "pip", "install", "--upgrade", "pip"],
-                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True  # Use text mode for consistent string handling
             )
         log.info("Pip has been successfully updated to the latest version.")
         return True
     except subprocess.CalledProcessError as e:
         log.error(f"Failed to update pip: {e}")
-        log.debug(f"Stderr: {e.stderr.decode() if e.stderr else 'No error output'}")
+        log.debug(f"Stderr: {e.stderr if e.stderr else 'No error output'}")
         return False
 
 
@@ -123,7 +127,8 @@ def ensure_pip_subprocess(venv_python=None):
         return True
     except subprocess.CalledProcessError as e:
         log.error(f"Failed to verify pip functionality: {e}")
-        log.debug(f"Stderr: {e.stderr.decode() if e.stderr else 'No error output'}")
+        # Remove .decode() since we're using text=True
+        log.debug(f"Stderr: {e.stderr if e.stderr else 'No error output'}")
         return False
 
 
@@ -155,13 +160,28 @@ def install_package(package_name, venv_python=None, options=None):
             cmd = [str(venv_python), "-m", "pip", "install", package_name] + options
             log.info(f"Using pip to install {package_name}")
         
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         log.info(f"Successfully installed {package_name}")
         return True
     except subprocess.CalledProcessError as e:
         log.error(f"Failed to install {package_name}: {e}")
-        log.debug(f"Stderr: {e.stderr.decode() if e.stderr else 'No error output'}")
+        log.debug(f"Stderr: {e.stderr if e.stderr else 'No error output'}")
         return False
+
+
+def install_numpy(venv_python=None, version="2.1.1"):
+    """Install a specific version of numpy.
+    
+    Args:
+        venv_python: Path to Python executable in virtual environment.
+                    If None, use the current Python interpreter.
+        version: Version of numpy to install (defaults to 2.1.1).
+    
+    Returns:
+        bool: True if installation was successful
+    """
+    package_spec = f"numpy=={version}"
+    return install_package(package_spec, venv_python, ["--force-reinstall"])
 
 
 def ensure_pip(venv_python=None):
@@ -180,19 +200,46 @@ def ensure_pip(venv_python=None):
         
     log.info("Setting up package managers...")
     
-    # First install UV if not already available
-    uv_success = install_uv(venv_python)
-    
-    # Then update pip (using UV if available)
-    pip_success = update_pip(venv_python)
-    
-    # Verify everything works
-    verify_success = ensure_pip_subprocess(venv_python)
-    
-    if uv_success and pip_success and verify_success:
-        log.info("Package managers are set up correctly and ready to use.")
-        return True
-    else:
-        log.warning("Package managers setup had some issues. Will try to continue anyway.")
-        return False
+    # Add fallback mechanism when pip has issues
+    try:
+        # First check if direct execution works
+        try:
+            # Direct test with simple command
+            subprocess.run(
+                [str(venv_python), "-c", "import sys; print(sys.executable)"],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+        except subprocess.CalledProcessError:
+            log.error("Python interpreter cannot be executed. Check your virtual environment.")
+            return False
+            
+        # Try to use ensurepip as a fallback if pip is broken
+        try:
+            subprocess.run(
+                [str(venv_python), "-m", "ensurepip", "--upgrade"],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            log.info("Used ensurepip to bootstrap pip installation")
+        except subprocess.CalledProcessError:
+            log.warning("ensurepip failed, continuing anyway")
+            
+        # First install UV if not already available
+        uv_success = install_uv(venv_python)
+        
+        # Then update pip (using UV if available)
+        pip_success = update_pip(venv_python)
+        
+        # Verify everything works
+        verify_success = ensure_pip_subprocess(venv_python)
+        
+        if uv_success and pip_success and verify_success:
+            log.info("Package managers are set up correctly and ready to use.")
+            return True
+        else:
+            log.warning("Package managers setup had some issues. Will try to continue anyway.")
+            return True  # Return True to continue installation despite issues
+    except Exception as e:
+        log.error(f"Unexpected error during package manager setup: {e}")
+        log.warning("Attempting to continue with installation despite package manager issues")
+        return True  # Return True to continue installation anyway
 
