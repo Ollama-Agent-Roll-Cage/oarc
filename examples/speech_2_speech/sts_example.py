@@ -21,33 +21,28 @@ import time
 import threading
 import queue
 from datetime import datetime
-from pathlib import Path
 import asyncio
-import ollama
-import base64
-import json
 import pandas as pd
 import numpy as np
 import sounddevice as sd
 
 # PyQt6 imports
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-    QPushButton, QTextEdit, QLabel, QComboBox, QSlider, QProgressBar,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QTextEdit, QLabel, QComboBox, QProgressBar,
     QMessageBox, QSplitter, QFrame, QScrollArea, QSpacerItem, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot, QSize
-from PyQt6.QtGui import QColor, QTextCursor, QIcon, QFont
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 
 # OARC imports
-from oarc.speech import SpeechToText
-from oarc.speech import TextToSpeech
-from oarc.speech import SpeechManager
+from oarc.speech import SpeechToText, TextToSpeech
 from oarc.ollama.utils.ollama_commands import OllamaCommands
 from oarc.database.pandas_db import PandasDB
 from oarc.prompt import MultiModalPrompting
 from oarc.utils.log import log
-from oarc.utils.paths import Paths
+
+# External library
+import ollama
 
 class MessageBubble(QFrame):
     """Widget to display a single message in chat-like bubble style with neon highlights."""
