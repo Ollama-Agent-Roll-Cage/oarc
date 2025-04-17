@@ -570,6 +570,9 @@ class AgentStorage:
         Raises:
             ValueError: If the agent configuration cannot be found in the database.
         """
+        
+        # TODO AGENT STORAGE WITH CRAG
+        
         agent_config = self.get_agent_config(agent_id)
         if not agent_config:
             raise ValueError(f"Agent configuration for {agent_id} not found")
