@@ -1,0 +1,113 @@
+%%{
+  init: {
+    'theme': 'dark',
+    'themeVariables': {
+      'primaryColor': '#2c3e50',
+      'primaryTextColor': '#ffffff',
+      'primaryBorderColor': '#7f8c8d',
+      'lineColor': '#ffffff',
+      'secondaryColor': '#1abc9c',
+      'tertiaryColor': '#2980b9'
+    }
+  }
+}%%
+
+flowchart TD
+    classDef democracyNodes fill:#d35400,color:#ffffff,stroke:#ffffff,stroke-width:2px
+    classDef debateNodes fill:#9b59b6,color:#ffffff,stroke:#ffffff,stroke-width:2px
+    classDef judgeNodes fill:#2ecc71,color:#ffffff,stroke:#ffffff,stroke-width:2px
+    classDef monarchyNodes fill:#3498db,color:#ffffff,stroke:#ffffff,stroke-width:2px
+    classDef questionNode fill:#f1c40f,color:#000000,stroke:#ffffff,stroke-width:2px
+    classDef modelNode fill:#3498db,color:#ffffff,stroke:#ffffff,stroke-width:2px
+    classDef answerNode fill:#1abc9c,color:#ffffff,stroke:#ffffff,stroke-width:2px
+    classDef voteNode fill:#e74c3c,color:#ffffff,stroke:#ffffff,stroke-width:2px
+    classDef expertNode fill:#9b59b6,color:#ffffff,stroke:#ffffff,stroke-width:2px
+    
+    title["Mixture of Models (MoM) Architectures"]
+    title:::questionNode
+    
+    subgraph Democracy["DEMOCRACY"]
+        D_Q[Question]:::questionNode
+        D_M1[Model 1]:::modelNode
+        D_M2[Model 2]:::modelNode
+        D_M3[Model 3]:::modelNode
+        D_M4[Model 4]:::modelNode
+        D_A1[Answer 1]:::answerNode
+        D_A2[Answer 2]:::answerNode
+        D_A3[Answer 3]:::answerNode
+        D_A4[Answer 4]:::answerNode
+        D_V[Voting]:::voteNode
+        D_F[Final Answer]:::answerNode
+        
+        D_Q --> D_M1 & D_M2 & D_M3 & D_M4
+        D_M1 --> D_A1
+        D_M2 --> D_A2
+        D_M3 --> D_A3
+        D_M4 --> D_A4
+        D_A1 & D_A2 & D_A3 & D_A4 --> D_V
+        D_V --> D_F
+        
+        D_note["Each model answers\nEach votes\nAnswer with most votes wins"]
+    end
+    
+    subgraph Debate["DEBATE"]
+        B_Q[Question]:::questionNode
+        B_M[Moderator]:::modelNode
+        B_A1[Agent 1]:::modelNode
+        B_A2[Agent 2]:::modelNode
+        B_AZ[Agent...]:::modelNode
+        B_P1[Position 1]:::answerNode
+        B_P2[Position 2]:::answerNode
+        B_PZ[Position...]:::answerNode
+        B_F[Final Position]:::answerNode
+        
+        B_Q --> B_M
+        B_Q --> B_A1 & B_A2 & B_AZ
+        B_A1 --> B_P1
+        B_A2 --> B_P2
+        B_AZ --> B_PZ
+        B_P1 & B_P2 & B_PZ --> B_M
+        B_M --> B_F
+        
+        B_note["Agents advocate for\ntheir positions\nModerator mediates\nand decides"]
+    end
+    
+    subgraph Judge["JUDGE & JURY"]
+        J_Q[Question]:::questionNode
+        J_J[Judge]:::modelNode
+        J_D1[Deliberator 1]:::modelNode
+        J_D2[Deliberator 2]:::modelNode
+        J_L[Lookup]:::modelNode
+        J_F[Final Answer]:::answerNode
+        
+        J_Q --> J_J
+        J_J --> J_D1 & J_D2
+        J_D1 & J_D2 --> J_J
+        J_J --> J_L
+        J_L --> J_J
+        J_J --> J_F
+        
+        J_note["Judge elaborates case\nJury fact-checks & votes\nLookup tools: Docs, Brain, API"]
+    end
+    
+    subgraph Monarchy["MONARCHY"]
+        M_Q[Question]:::questionNode
+        M_PM[Prime Directive]:::modelNode
+        M_E1[Expert 1]:::expertNode
+        M_E2[Expert 2]:::expertNode
+        M_E3[Expert 3]:::expertNode
+        M_E4[Expert 4]:::expertNode
+        M_E5[Expert 5]:::expertNode
+        M_F[Final Answer]:::answerNode
+        
+        M_Q --> M_PM
+        M_PM <--> M_E1 & M_E2 & M_E3 & M_E4 & M_E5
+        M_PM --> M_F
+        
+        M_note["One model to rule them all\nPrime directive model\nconsults domain experts"]
+    end
+    
+    Democracy:::democracyNodes
+    Debate:::debateNodes
+    Judge:::judgeNodes
+    Monarchy:::monarchyNodes

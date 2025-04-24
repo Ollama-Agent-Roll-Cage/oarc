@@ -1,0 +1,38 @@
+flowchart LR
+    subgraph Data_Collection ["Data Collection"]
+        A1[CoinGecko API] --> B1[Retrieve 30 Last Days\nof Bitcoin Price]
+        B1 --> C1[Cache the BTC Prices\nin a JSON File]
+    end
+
+    subgraph Prompt_Engineering ["Prompt Engineering"]
+        D1[Custom Prompt\nfor all Models]
+        C1 --> D1
+        D1 -- Load BTC prices\nfrom cache into prompt --> E1
+    end
+
+    subgraph LLM_Layer ["Multiple LLM Agents"]
+        E1[/Prompt\] --> F1[LLM 1\nLlama 3]
+        E1 --> F2[LLM 2\nMistral 7B]
+        E1 --> F3[LLM 3\nGPT-4o]
+        E1 --> F4[LLM 4\nClaude 3.5]
+        E1 --> F5[LLM 5\nLlama 70B]
+    end
+
+    subgraph Prediction_Layer ["Price Predictions"]
+        F1 --> G1[Predict BTC Price]
+        F2 --> G2[Predict BTC Price]
+        F3 --> G3[Predict BTC Price]
+        F4 --> G4[Predict BTC Price]
+        F5 --> G5[Predict BTC Price]
+    end
+
+    subgraph Aggregation ["Aggregation"]
+        G1 --> H1[Aggregated\nPrediction]
+        G2 --> H1
+        G3 --> H1
+        G4 --> H1
+        G5 --> H1
+    end
+
+    Data_Collection -.-> |FETCH BTC_DATA| Prompt_Engineering
+    LLM_Layer -.-> |MoPA Architecture| Prediction_Layer
