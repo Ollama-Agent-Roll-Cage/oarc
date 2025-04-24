@@ -100,7 +100,7 @@ OARC serves as the deployment and hosting platform for models created with Agent
 - ***UPCOMING SOON***
 ```
 
-### Update 0.1.99: Chatbot script, TTS processor class, Model /Swap
+### Update 0.1.9: Chatbot script, TTS processor class, Model /Swap
 ```diff
 + ***PUSHED TO GITHUB***
 ```
@@ -154,7 +154,7 @@ OARC serves as the deployment and hosting platform for models created with Agent
 - /latex run -> run saved latex file with pdf generate command and open generated pdf
 - add latex AI model citation section for citation automation, as well as website citation via duck duck go search api
 
-### Update 0.2.5.5: Langchain, Function Caller, Ollama Chat Api with variable model delimiters
+### Update 0.2.5: Langchain, Function Caller, Ollama Chat Api with variable model delimiters
 Optimized chat history, send prompt method, and model prompt template with the ollama python package:
 
 https://pypi.org/project/ollama/
@@ -198,7 +198,7 @@ https://huggingface.co/sebdg/emotions_classifier
 
 - RCV -> add audio to audio model for text to speech RVC voice audio tuning
   
-### Update 0.28: PDF Document Access via RAG implementation
+### Update 0.2.8: PDF Document Access via RAG implementation
 - /rag file on/off -> enable disable pdf & tex rag
 - /rag model on/off -> enable disable rag access for model data
   
