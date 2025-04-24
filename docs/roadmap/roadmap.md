@@ -249,11 +249,9 @@ https://huggingface.co/sebdg/emotions_classifier
 - add program spacial recognition view to splice programs into desired spacial locations for the decision model to navigate.
 - add agent decision automation for search, if search is relevant use search otherwise dont, then have /search on/off turn this on or off, so duck duck go doesnt return an error for people without internet connection.
 
-## Future Optimization Plans: *** Updates 0.XX - UNKNOW, some likely soon ***
-### Mojo - install
-Download and install mojo, replace python setup with mojo for up to 68,000% efficiency increase.
+### UPDATES 0.31 & BEYOND
   
-### sentence parser - comprehensive filter
+### NOW REGEX PATTERN FACTORY: sentence parser - comprehensive filter
 - SYM PROMPT: Template sentence structure such as periods and end marks like <> model response </> for intelligent output formats designs specifically with ollama_agent_roll_cage in mind
 - filter unique strings such as `` , also manage bullet points for 1. 2. 3. 4., as these are not the end of sentence periods, maybe send the response to another llm for query boost and sentence filtering
 
