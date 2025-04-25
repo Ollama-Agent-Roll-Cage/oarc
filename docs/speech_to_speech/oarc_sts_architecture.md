@@ -198,3 +198,64 @@ flowchart LR
     TTSModel -.-> SimpleTTS
     OutputPipeline -.-> SimpleTTS
 ```
+
+# Implementation Examples and Alternative Approaches
+
+## Low-Latency Local Speech-to-Speech
+Based on the implementation demonstrated by All About AI, a local low-latency approach can be achieved using:
+- **Speech Recognition**: Whisper for local STT processing
+- **Language Model**: Mistral 7B for text processing
+- **Voice Generation**: OpenVoice for TTS synthesis
+- **Key Benefits**: 
+  - Reduced latency through local processing
+  - No data sent to external services
+  - Full control over model parameters
+
+## Bidirectional Streaming Architecture
+As demonstrated in Chris Cappetta's implementation:
+- **Streaming STT**: Real-time speech transcription
+- **Incremental Processing**: Process text as it arrives
+- **Concurrent TTS**: Generate speech while processing continues
+- **Benefits**:
+  - Reduced perceived latency
+  - More natural conversation flow
+  - Better interrupt handling
+
+## Integration with OARC's Architecture
+These approaches complement OARC's existing architecture:
+- Can be integrated into the STTModels component alongside existing models
+- Supports OARC's sentence chunking and interrupt system
+- Enhances the existing pipeline with local processing options
+
+## Performance Considerations
+When implementing these approaches:
+- Balance between model size and latency
+- Consider hardware requirements for local models
+- Optimize chunking for real-time performance
+- Monitor memory usage with local models
+
+## Future Directions
+Potential enhancements based on these implementations:
+- Hybrid cloud/local processing options
+- Dynamic model selection based on requirements
+- Enhanced interrupt handling from bidirectional streaming
+- Integration with OARC's debate moderator mode
+
+# Video Resources and Implementation Examples
+
+### 1. Local Low Latency Speech to Speech Implementation
+- **Source**: All About AI
+- **URL**: [Watch Video](https://www.youtube.com/watch?v=0k8wUfU7n4Q)
+- **Key Points**:
+  - Integration of Mistral 7B with OpenVoice/Whisper
+  - Practical example of multi-modal agent architecture
+  - Open-source implementation demonstration
+
+### 2. Exploring Morality Through Agent Architecture
+- **Source**: Chris Cappetta
+- **URL**: [Watch Video](https://www.youtube.com/watch?v=affArIZNPC8)
+- **Code Repository**: [GitHub](https://github.com/ccappetta/bidirectional_streaming_ai_voice)
+- **Key Points**:
+  - Implementation of tuned instructions for moral reasoning
+  - Bidirectional streaming voice interaction architecture
+  - Open-source code for voice-enabled agent systems

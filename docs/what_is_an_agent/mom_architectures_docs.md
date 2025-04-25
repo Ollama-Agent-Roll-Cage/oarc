@@ -305,3 +305,47 @@ These architectures can be extended and combined in various ways:
 The choice of MoM architecture should be guided by the specific requirements of your application, the nature of the problems being solved, and the characteristics of the available models. Each architecture offers unique advantages and challenges, making them suitable for different use cases.
 
 By thoughtfully designing how multiple models interact, we can create AI systems that leverage the strengths of different models while mitigating their individual weaknesses, resulting in more robust, accurate, and trustworthy outputs.
+
+# Video Resources and Implementation Examples
+
+## 1. Mixture of Models (MoM) - SHOCKING Results on Hard LLM Problems
+- **Source**: All About AI
+- **URL**: [Watch Video](https://www.youtube.com/watch?v=NqtR900jMPQ)
+- **Key Points**:
+  - Demonstrates effectiveness of MoM architectures on complex problems
+  - Shows how multiple models can outperform single model approaches
+  - Practical implementation examples and results analysis
+
+## 2. Mixture of Predictive Agents (MoPA) - The Wisdom of Many AI Agents
+- **Source**: All About AI
+- **URL**: [Watch Video](https://www.youtube.com/watch?v=fDbvqS7Iuz8)
+- **Key Points**:
+  - Extension of MoM concepts to predictive agent architectures
+  - Demonstrates how multiple agents can collaborate on predictions
+  - Architecture design for agent-based predictive systems
+
+## Implementation Insights
+
+These video resources demonstrate several key implementation patterns:
+
+1. **Multi-Modal Integration**
+   - Combining speech, text, and reasoning capabilities
+   - Low-latency processing architectures
+   - Bidirectional streaming for real-time interaction
+
+2. **Architecture Selection**
+   - MoM for complex reasoning tasks
+   - MoPA for predictive challenges
+   - Hybrid approaches for real-world applications
+
+3. **Technical Considerations**
+   - Local model deployment strategies
+   - Latency optimization techniques
+   - Integration patterns for different model types
+
+4. **Open Source Tools**
+   - Mistral 7B for core reasoning
+   - OpenVoice/Whisper for speech processing
+   - Bidirectional streaming implementations
+
+These resources provide practical examples of implementing the theoretical architectures discussed in this document, showing how different approaches can be combined and adapted for specific use cases.
