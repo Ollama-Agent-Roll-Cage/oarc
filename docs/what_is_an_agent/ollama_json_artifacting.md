@@ -1,4 +1,4 @@
-# Ollama PyQt Integration with JSON Markdown Formatting
+# Ollama JSON Markdown Artifact Formatting and Handling
 
 This guide focuses on integrating Ollama with PyQt applications, specifically emphasizing how to use markdown formatting with proper JSON code blocks in system prompts to improve structured data responses.
 
